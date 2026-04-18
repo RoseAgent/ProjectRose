@@ -11,3 +11,5 @@ tokenizers
 openai
 anthropic
 groq
+huggingface_hub
+pyarrow

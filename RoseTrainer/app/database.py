@@ -106,6 +106,8 @@ CREATE INDEX IF NOT EXISTS idx_training_data_model  ON training_data(model_id) W
 CREATE INDEX IF NOT EXISTS idx_training_runs_model  ON training_runs(model_id);
 CREATE INDEX IF NOT EXISTS idx_model_versions_model ON model_versions(model_id);
 CREATE INDEX IF NOT EXISTS idx_growth_stages_model  ON growth_stages(model_id);
+
+ALTER TABLE trainer_models ADD COLUMN IF NOT EXISTS use_pile BOOLEAN NOT NULL DEFAULT FALSE;
 """
 
 

@@ -40,6 +40,7 @@ services:
       - ./RoseTrainer/main.py:/app/main.py
       - ./RoseTrainer/models:/app/models
       - ./RoseTrainer/data:/app/data
+      - ./pile:/app/pile
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
@@ -47,6 +48,7 @@ services:
       OLLAMA_HOST: http://host.docker.internal:11434
       DATABASE_URL: postgresql://rosetrainer:rosetrainer@postgres:5432/rosetrainer
       MODELS_DIR: /app/models
+      PILE_DIR: /app/pile
     depends_on:
       postgres:
         condition: service_healthy

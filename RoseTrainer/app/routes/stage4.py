@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.database import get_db
+from app.training.pile import pile_available
 
 router = APIRouter()
 templates: Jinja2Templates | None = None
@@ -37,6 +38,7 @@ async def stage4_page(request: Request, model_id: int, page: int = 1, db=Depends
         "page": page,
         "total_pages": total_pages,
         "total": total,
+        "pile_available": pile_available(),
     })
 
 
@@ -75,6 +77,16 @@ async def delete_entry(model_id: int, entry_id: int, db=Depends(get_db)):
         entry_id, model_id,
     )
     return HTMLResponse("")
+
+
+@router.post("/models/{model_id}/stage/4/pile-toggle")
+async def pile_toggle(model_id: int, db=Depends(get_db)):
+    model = await db.fetchrow("SELECT use_pile FROM trainer_models WHERE id = $1", model_id)
+    await db.execute(
+        "UPDATE trainer_models SET use_pile = $1, updated_at = now() WHERE id = $2",
+        not model["use_pile"], model_id,
+    )
+    return RedirectResponse(f"/trainer/models/{model_id}/stage/4", status_code=303)
 
 
 @router.post("/models/{model_id}/stage/4/complete")

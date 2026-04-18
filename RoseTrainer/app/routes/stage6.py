@@ -14,6 +14,7 @@ from app.training.trainer import start_training, get_or_create_queue, clear_queu
 router = APIRouter()
 templates: Jinja2Templates | None = None
 MODELS_DIR = Path(os.environ.get("MODELS_DIR", "/app/models"))
+PILE_DIR = Path(os.environ.get("PILE_DIR", "/app/pile"))
 
 _quiz_queues: dict[int, asyncio.Queue] = {}
 
@@ -252,6 +253,7 @@ async def start_continued_training(
                     )
                     break
 
+    pile_dir = PILE_DIR if model_row["use_pile"] else None
     asyncio.create_task(_on_done())
     clear_queue(model_id)
     await start_training(
@@ -262,5 +264,6 @@ async def start_continued_training(
         tokenizer_path=tokenizer_path,
         output_dir=output_dir,
         run_id=run_id,
+        pile_dir=pile_dir,
     )
     return RedirectResponse(f"/trainer/models/{model_id}/stage/6", status_code=303)

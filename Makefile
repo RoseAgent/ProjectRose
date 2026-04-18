@@ -38,6 +38,11 @@ clean: ## Remove Docker volumes and build artifacts
 	docker compose -f docker-compose.dev.yml down -v
 	rm -rf RoseEditor/node_modules RoseEditor/out RoseEditor/release
 
+# ── Data ──────────────────────────────────────────────────────────────
+
+download-pile: ## Download Common Pile dataset to ./pile/ (run once, large download)
+	docker compose -f docker-compose.dev.yml run --rm rosetrainer python scripts/download_pile.py
+
 # ── Help ──────────────────────────────────────────────────────────────
 
 help: ## Show this help

@@ -62,4 +62,33 @@
 {% else %}
 <div class="empty">No training data yet. Go back to Stage 3 to collect data first.</div>
 {% endif %}
+
+<div class="card" style="margin-top:24px;">
+  <label>COMMON PILE PRETRAINING DATASET</label>
+  <p class="description" style="margin:6px 0 12px;">
+    Including the Common Pile gives your model broad language knowledge before personality fine-tuning.
+    Without it, the model only sees your curated Q&amp;A pairs and can only memorize them.
+    Up to 50&times; your curated token count is sampled per training run — pile data is never stored in the database.
+  </p>
+  {% if pile_available %}
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span style="font-size:12px;color:#4caf50;">&#9679; Dataset ready</span>
+      <form method="post" action="/trainer/models/{{ model.id }}/stage/4/pile-toggle" style="display:inline;">
+        {% if model.use_pile %}
+          <button type="submit" class="btn btn-sm btn-danger">Disable Common Pile</button>
+        {% else %}
+          <button type="submit" class="btn btn-sm">Enable Common Pile</button>
+        {% endif %}
+      </form>
+      {% if model.use_pile %}
+        <span style="font-size:12px;color:var(--accent);">&#10003; Enabled — will be included in next training run</span>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="warn" style="margin:0;">
+      Dataset not downloaded. Run <code>make download-pile</code> in your terminal, then reload this page.
+      This downloads the Common Pile dataset to <code>./pile/</code> — may be several hundred GB.
+    </div>
+  {% endif %}
+</div>
 {% endblock %}

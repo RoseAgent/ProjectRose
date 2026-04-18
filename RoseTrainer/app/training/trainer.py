@@ -60,6 +60,7 @@ def _run_sync(
     output_dir: Path,
     loop: asyncio.AbstractEventLoop,
     run_id: int,
+    pile_dir: Path | None = None,
 ):
     queue = get_or_create_queue(model_id)
 
@@ -85,6 +86,23 @@ def _run_sync(
         for text in texts:
             encoded = tokenizer.encode(text)
             all_tokens.extend(encoded.ids)
+
+        emit({"type": "log", "text": f"Curated tokens: {len(all_tokens):,}"})
+
+        if pile_dir is not None:
+            from .pile import pile_available, sample_pile_texts
+            if pile_available(pile_dir):
+                max_pile = min(len(all_tokens) * 50, int(os.environ.get("PILE_MAX_TOKENS", "50000000")))
+                emit({"type": "log", "text": f"Sampling Common Pile (target: {max_pile:,} tokens)..."})
+                pile_texts = sample_pile_texts(pile_dir, max_pile)
+                emit({"type": "log", "text": f"Sampled {len(pile_texts):,} pile documents. Tokenizing..."})
+                pile_tokens: list[int] = []
+                for text in pile_texts:
+                    pile_tokens.extend(tokenizer.encode(text + "<|endoftext|>").ids)
+                emit({"type": "log", "text": f"Pile tokens: {len(pile_tokens):,} | Curated tokens: {len(all_tokens):,}"})
+                all_tokens = pile_tokens + all_tokens
+            else:
+                emit({"type": "log", "text": "WARNING: Common Pile enabled but directory not found. Training on curated data only."})
 
         emit({"type": "log", "text": f"Total tokens: {len(all_tokens):,}"})
 
@@ -191,11 +209,12 @@ async def start_training(
     tokenizer_path: str | None,
     output_dir: Path,
     run_id: int,
+    pile_dir: Path | None = None,
 ):
     clear_queue(model_id)
     loop = asyncio.get_event_loop()
     asyncio.get_event_loop().run_in_executor(
         None,
         _run_sync,
-        model_id, size, data_rows, checkpoint_from, tokenizer_path, output_dir, loop, run_id,
+        model_id, size, data_rows, checkpoint_from, tokenizer_path, output_dir, loop, run_id, pile_dir,
     )
