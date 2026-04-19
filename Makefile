@@ -20,7 +20,7 @@ down: ## Stop production servers
 	docker compose down
 
 dev: ## Start both servers in dev mode with hot reload
-	docker compose -f docker-compose.dev.yml up --build
+	docker compose -f docker-compose.dev.yml up --build -d
 
 dev-down: ## Stop dev servers
 	docker compose -f docker-compose.dev.yml down
