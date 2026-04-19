@@ -111,6 +111,31 @@ async function handleFindReferences(params: Record<string, unknown>): Promise<st
   return JSON.stringify(results)
 }
 
+async function handleGetProjectOverview(): Promise<string> {
+  const overview = await roseLibrary.overview()
+
+  const lines: string[] = [
+    `## Repository Map (${overview.total_files} files, ${overview.total_symbols} symbols, ${overview.total_references} references)`,
+    ''
+  ]
+
+  for (const file of overview.files) {
+    const deps = file.depends_on.length > 0 ? ` | depends on: ${file.depends_on.join(', ')}` : ''
+    const usedBy = file.depended_on_by.length > 0 ? ` | used by: ${file.depended_on_by.join(', ')}` : ''
+    lines.push(`### ${file.path} [${file.language}]${deps}${usedBy}`)
+
+    for (const sym of file.symbols) {
+      const params = sym.parameters ? `(${sym.parameters})` : ''
+      const doc = sym.docstring ? ` — ${sym.docstring}` : ''
+      lines.push(`  - ${sym.type} ${sym.qualified_name}${params}${doc}`)
+    }
+
+    lines.push('')
+  }
+
+  return lines.join('\n')
+}
+
 async function handleRunCommand(params: Record<string, unknown>): Promise<string> {
   const command = String(params.command || '')
   const isWindows = platform() === 'win32'
@@ -135,7 +160,8 @@ const TOOL_HANDLERS: Record<string, (params: Record<string, unknown>) => Promise
   list_directory: handleListDirectory,
   search_code: handleSearchCode,
   find_references: handleFindReferences,
-  run_command: handleRunCommand
+  run_command: handleRunCommand,
+  get_project_overview: handleGetProjectOverview
 }
 
 // ── HTTP server ──

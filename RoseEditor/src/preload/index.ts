@@ -88,6 +88,9 @@ const api = {
   getRecentProjects: (): Promise<unknown[]> =>
     ipcRenderer.invoke(IPC.PROJECTS_GET_RECENT),
 
+  getDefaultProjectPath: (): Promise<string> =>
+    ipcRenderer.invoke(IPC.PROJECTS_GET_DEFAULT_PATH),
+
   addRecentProject: (projectPath: string): Promise<unknown[]> =>
     ipcRenderer.invoke(IPC.PROJECTS_ADD_RECENT, projectPath),
 

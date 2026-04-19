@@ -34,6 +34,21 @@
   gap: 12px;
 }
 
+.defaultBtn {
+  padding: 10px 28px;
+  border-radius: var(--radius-md);
+  background: var(--color-button-bg);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  font-size: 14px;
+  border: 1px solid var(--color-border);
+  transition: background 0.15s;
+}
+
+.defaultBtn:hover {
+  background: var(--color-button-hover-bg);
+}
+
 .openBtn {
   padding: 10px 28px;
   border-radius: var(--radius-md);

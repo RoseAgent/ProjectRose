@@ -14,7 +14,7 @@ interface ViewState {
 }
 
 export const useViewStore = create<ViewState>()((set) => ({
-  activeView: 'editor',
+  activeView: 'chat',
   sidebarWidth: 240,
   terminalHeight: 200,
   isTerminalVisible: true,

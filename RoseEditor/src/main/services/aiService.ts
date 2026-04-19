@@ -1,6 +1,6 @@
 import { platform } from 'os'
 import { RoseModelClient } from './roseModelClient'
-import { roseLibraryClient, setActiveProjectRoot } from './roseLibraryClient'
+import { setActiveProjectRoot } from './roseLibraryClient'
 import {
   startCallbackServer,
   getCallbackBaseUrl,
@@ -8,10 +8,8 @@ import {
   updateProjectRoot
 } from './aiCallbackServer'
 import type { Tool, Message } from '../../shared/roseModelTypes'
-import type { RepositoryOverview } from '../../shared/roseLibraryTypes'
 
 const client = new RoseModelClient()
-const roseLibrary = roseLibraryClient
 
 function buildTools(): Tool[] {
   const base = getCallbackBaseUrl()
@@ -68,34 +66,17 @@ function buildTools(): Tool[] {
         command: { type: 'string', description: 'The shell command to execute' }
       },
       callback_url: `${base}/tools/run_command`
+    },
+    {
+      name: 'get_project_overview',
+      description: 'Get a structured map of the entire project: every file with its language, symbols (functions, classes, methods), and dependency relationships. Call this when you need to understand the project layout or find where something is defined.',
+      parameters: {},
+      callback_url: `${base}/tools/get_project_overview`
     }
   ]
 }
 
-function formatOverview(overview: RepositoryOverview): string {
-  const lines: string[] = [
-    `## Repository Map (${overview.total_files} files, ${overview.total_symbols} symbols, ${overview.total_references} references)`,
-    ''
-  ]
-
-  for (const file of overview.files) {
-    const deps = file.depends_on.length > 0 ? ` | depends on: ${file.depends_on.join(', ')}` : ''
-    const usedBy = file.depended_on_by.length > 0 ? ` | used by: ${file.depended_on_by.join(', ')}` : ''
-    lines.push(`### ${file.path} [${file.language}]${deps}${usedBy}`)
-
-    for (const sym of file.symbols) {
-      const params = sym.parameters ? `(${sym.parameters})` : ''
-      const doc = sym.docstring ? ` — ${sym.docstring}` : ''
-      lines.push(`  - ${sym.type} ${sym.qualified_name}${params}${doc}`)
-    }
-
-    lines.push('')
-  }
-
-  return lines.join('\n')
-}
-
-function buildAgentMd(overview: RepositoryOverview | null): string {
+function buildAgentMd(): string {
   const os = platform() === 'win32' ? 'Windows' : platform() === 'darwin' ? 'macOS' : 'Linux'
   const shell = platform() === 'win32' ? 'PowerShell' : 'bash'
 
@@ -115,11 +96,8 @@ Guidelines:
 - When you write a file, provide the complete file content.
 - Use run_command for tasks like running tests, installing packages, or checking build status.
 - Be concise in your explanations. The user can see the code in the editor.
+- Use get_project_overview when you need to understand the project layout or locate code.
 `
-
-  if (overview && overview.files.length > 0) {
-    md += '\n' + formatOverview(overview)
-  }
 
   return md
 }
@@ -138,19 +116,11 @@ export async function chat(
   updateProjectRoot(rootPath)
   setActiveProjectRoot(rootPath)
 
-  // Fetch repository overview for context
-  let overview: RepositoryOverview | null = null
-  try {
-    overview = await roseLibrary.overview()
-  } catch {
-    // RoseLibrary not available, proceed without overview
-  }
-
   const tools = buildTools()
 
   const content = await client.generate({
     messages,
-    agent_md: buildAgentMd(overview),
+    agent_md: buildAgentMd(),
     tools
   })
 

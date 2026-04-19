@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron'
+import { ipcMain, app } from 'electron'
+import { join } from 'path'
 import { IPC } from '../../shared/ipcChannels'
 import {
   getRecentProjects,
@@ -17,5 +18,9 @@ export function registerProjectHandlers(): void {
 
   ipcMain.handle(IPC.PROJECTS_REMOVE_RECENT, (_event, projectPath: string) => {
     return removeRecentProject(projectPath)
+  })
+
+  ipcMain.handle(IPC.PROJECTS_GET_DEFAULT_PATH, () => {
+    return join(app.getPath('home'), '.rose')
   })
 }

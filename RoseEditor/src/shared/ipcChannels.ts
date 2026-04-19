@@ -20,6 +20,7 @@ export const IPC = {
   PROJECTS_GET_RECENT: 'projects:getRecent',
   PROJECTS_ADD_RECENT: 'projects:addRecent',
   PROJECTS_REMOVE_RECENT: 'projects:removeRecent',
+  PROJECTS_GET_DEFAULT_PATH: 'projects:getDefaultPath',
 
   INDEXING_PROJECT: 'indexing:project',
   INDEXING_FILE: 'indexing:file',

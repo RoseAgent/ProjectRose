@@ -9,12 +9,6 @@ export function ViewToggle(): JSX.Element {
   return (
     <div className={styles.toggleGroup}>
       <button
-        className={clsx(styles.toggleBtn, activeView === 'editor' && styles.toggleActive)}
-        onClick={() => setActiveView('editor')}
-      >
-        Editor
-      </button>
-      <button
         className={clsx(styles.toggleBtn, activeView === 'chat' && styles.toggleActive)}
         onClick={() => setActiveView('chat')}
       >
@@ -31,6 +25,12 @@ export function ViewToggle(): JSX.Element {
         onClick={() => setActiveView('git')}
       >
         Git
+      </button>
+      <button
+        className={clsx(styles.toggleBtn, activeView === 'editor' && styles.toggleActive)}
+        onClick={() => setActiveView('editor')}
+      >
+        Editor
       </button>
     </div>
   )
