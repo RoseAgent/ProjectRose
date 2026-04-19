@@ -94,7 +94,7 @@ const api = {
   checkRoseMd: (rootPath: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.ROSE_CHECK_MD, rootPath),
 
-  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string }): Promise<void> =>
+  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string }): Promise<void> =>
     ipcRenderer.invoke(IPC.ROSE_INIT_PROJECT, payload),
 
   runHeartbeat: (rootPath: string): Promise<string> =>
@@ -106,10 +106,10 @@ const api = {
   getHeartbeatLogContent: (rootPath: string, filename: string): Promise<string> =>
     ipcRenderer.invoke(IPC.HEARTBEAT_LOG_CONTENT, { rootPath, filename }),
 
-  getSettings: (): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number }> =>
+  getSettings: (): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean }> =>
     ipcRenderer.invoke(IPC.SETTINGS_GET),
 
-  setSettings: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number }>): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number }> =>
+  setSettings: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean }>): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean }> =>
     ipcRenderer.invoke(IPC.SETTINGS_SET, patch),
 
   checkServicesHealth: (): Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>> =>
@@ -117,6 +117,32 @@ const api = {
 
   transcribeAudio: (audioBuffer: ArrayBuffer): Promise<string> =>
     ipcRenderer.invoke(IPC.WHISPER_TRANSCRIBE, audioBuffer),
+
+  // Active Listening / RoseSpeech
+  activeSpeech: {
+    getSpeakers: (): Promise<Array<{ id: number; name: string; created_at: string }>> =>
+      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_GET_SPEAKERS),
+    createSpeaker: (name: string): Promise<{ id: number; name: string }> =>
+      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_CREATE_SPEAKER, name),
+    addSample: (payload: { speakerId: number; source: string; audioBuffer: ArrayBuffer; projectId?: string }): Promise<{ id: number }> =>
+      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_ADD_SAMPLE, payload),
+    labelSpeaker: (payload: { utteranceId: number; speakerId?: number; speakerName?: string }): Promise<{ ok: boolean; speaker_id: number }> =>
+      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_LABEL_SPEAKER, payload),
+    train: (): Promise<{ job_id: number }> =>
+      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_TRAIN),
+    trainStatus: (jobId: number): Promise<{ status: string; accuracy: number | null; deployed: boolean; error: string | null }> =>
+      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_TRAIN_STATUS, jobId),
+    trainHistory: (): Promise<Array<{ id: number; accuracy: number; is_active: boolean; trained_at: string; sample_count: number; notes: string | null }>> =>
+      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_TRAIN_HISTORY),
+    createSession: (projectId?: string): Promise<{ id: number }> =>
+      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_CREATE_SESSION, projectId),
+    endSession: (sessionId: number): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_END_SESSION, sessionId),
+    getUtterances: (sessionId: number): Promise<Array<{ id: number; text: string; speaker_name: string | null; speaker_id: number | null }>> =>
+      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_GET_UTTERANCES, sessionId),
+    getSessions: (): Promise<Array<{ id: number; project_id: string | null; started_at: string; ended_at: string | null }>> =>
+      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_GET_SESSIONS)
+  },
 
   addRecentProject: (projectPath: string): Promise<unknown[]> =>
     ipcRenderer.invoke(IPC.PROJECTS_ADD_RECENT, projectPath),

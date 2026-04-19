@@ -63,6 +63,22 @@ services:
               count: 1
               capabilities: [gpu]
 
+  rosespeech:
+    build: ./RoseSpeech
+    ports:
+      - "8040:8040"
+    volumes:
+      - ./RoseSpeech/app:/app/app
+      - ./RoseSpeech/main.py:/app/main.py
+      - ./RoseSpeech/data:/app/data
+    environment:
+      DATABASE_URL: postgresql://rosetrainer:rosetrainer@postgres:5432/rosetrainer
+      HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8040 --reload
+
   postgres:
     image: postgres:16-alpine
     ports:

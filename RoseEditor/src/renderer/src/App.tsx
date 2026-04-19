@@ -9,6 +9,7 @@ import { GitView } from './components/GitView/GitView'
 import { HeartbeatView } from './components/HeartbeatView/HeartbeatView'
 import { SettingsView } from './components/SettingsView/SettingsView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
+import { ActiveListeningView } from './components/ActiveListeningView/ActiveListeningView'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
 import { useThemeStore } from './stores/useThemeStore'
 import { useViewStore } from './stores/useViewStore'
@@ -158,6 +159,7 @@ function App(): JSX.Element {
         {activeView === 'git' && <GitView />}
         {activeView === 'heartbeat' && <HeartbeatView />}
         {activeView === 'settings' && <SettingsView />}
+        {activeView === 'activeListening' && <ActiveListeningView />}
       </main>
       <TopBar />
     </div>

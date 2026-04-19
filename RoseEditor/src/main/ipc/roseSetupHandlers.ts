@@ -3,6 +3,7 @@ import { join } from 'path'
 import { writeFile, mkdir, access } from 'fs/promises'
 import { execSync } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
+import { readSettings, writeSettings } from './settingsHandlers'
 
 const AUTONOMY_TEXT: Record<string, string> = {
   high: 'Never ask before using tools. Trust your own judgment. Execute tasks completely without waiting for user confirmation between steps. You are empowered to make decisions and act on them.',
@@ -10,12 +11,17 @@ const AUTONOMY_TEXT: Record<string, string> = {
   low: 'Ask the user before executing any tool call.'
 }
 
-function buildRoseMd(name: string, identity: string, autonomy: string): string {
+function buildRoseMd(name: string, identity: string, autonomy: string, userName: string): string {
   return `# ${name}
 
 ## Identity
 
 ${identity}
+
+## People
+
+User: ${userName}
+Agent: ${name}
 
 ## Autonomy
 
@@ -76,11 +82,15 @@ export function registerRoseSetupHandlers(): void {
 
   ipcMain.handle(
     IPC.ROSE_INIT_PROJECT,
-    async (_event, payload: { rootPath: string; name: string; identity: string; autonomy: string }) => {
-      const { rootPath, name, identity, autonomy } = payload
+    async (_event, payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string }) => {
+      const { rootPath, name, identity, autonomy, userName } = payload
+
+      // Persist userName and agentName to settings
+      const current = await readSettings()
+      await writeSettings({ ...current, userName: userName.trim(), agentName: name.trim() })
 
       // Write ROSE.md
-      await writeFile(join(rootPath, 'ROSE.md'), buildRoseMd(name, identity, autonomy), 'utf-8')
+      await writeFile(join(rootPath, 'ROSE.md'), buildRoseMd(name, identity, autonomy, userName), 'utf-8')
 
       // Create scaffold directories
       const dirs = [

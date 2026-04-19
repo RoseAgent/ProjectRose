@@ -11,6 +11,7 @@ import { registerRoseSetupHandlers } from './roseSetupHandlers'
 import { registerHeartbeatHandlers } from './heartbeatHandlers'
 import { registerSettingsHandlers } from './settingsHandlers'
 import { registerWhisperHandlers } from './whisperHandlers'
+import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
 
 export function registerAllHandlers(): void {
   registerFileHandlers()
@@ -26,4 +27,5 @@ export function registerAllHandlers(): void {
   registerHeartbeatHandlers()
   registerSettingsHandlers()
   registerWhisperHandlers()
+  registerActiveSpeechHandlers()
 }

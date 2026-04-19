@@ -56,6 +56,20 @@ services:
               count: 1
               capabilities: [gpu]
 
+  rosespeech:
+    build: ./RoseSpeech
+    ports:
+      - "8040:8040"
+    volumes:
+      - ./RoseSpeech/data:/app/data
+    environment:
+      DATABASE_URL: postgresql://rosetrainer:rosetrainer@postgres:5432/rosetrainer
+      HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     environment:

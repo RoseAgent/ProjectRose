@@ -1,9 +1,8 @@
 import json
 import os
-import tempfile
 import time
 
-from fastapi import APIRouter, File, Request, UploadFile
+from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
 from app.models import (
@@ -23,17 +22,6 @@ from app.knowledge import retrieve_knowledge
 from app.tools import execute_tool_call
 
 router = APIRouter()
-
-_whisper_model = None
-
-
-def _get_whisper_model():
-    global _whisper_model
-    if _whisper_model is None:
-        from faster_whisper import WhisperModel
-        _whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
-    return _whisper_model
-
 
 MAX_ITERATIONS = 100
 AGENT_MD_PATH = os.path.join(os.path.dirname(__file__), "..", "prompts", "agent.md")
@@ -113,22 +101,6 @@ async def _compress_messages(messages: list[dict]) -> list[dict]:
         {"role": "system", "content": f"Summary of prior conversation:\n\n{summary}"},
         *second_half,
     ]
-
-
-@router.post("/transcribe")
-async def transcribe(file: UploadFile = File(...)):
-    audio_bytes = await file.read()
-    suffix = os.path.splitext(file.filename or "audio.webm")[1] or ".webm"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(audio_bytes)
-        tmp_path = tmp.name
-    try:
-        model = _get_whisper_model()
-        segments, _ = model.transcribe(tmp_path, beam_size=5)
-        text = " ".join(seg.text.strip() for seg in segments).strip()
-        return {"text": text}
-    finally:
-        os.unlink(tmp_path)
 
 
 @router.post("/generate")

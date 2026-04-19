@@ -4,15 +4,23 @@ interface SettingsState {
   heartbeatEnabled: boolean
   heartbeatIntervalMinutes: number
   micDeviceId: string
+  userName: string
+  agentName: string
+  roseSpeechSpeakerId: number | null
+  activeListeningSetupComplete: boolean
   loaded: boolean
   load: () => Promise<void>
-  update: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string }>) => Promise<void>
+  update: (patch: Partial<Omit<SettingsState, 'loaded' | 'load' | 'update'>>) => Promise<void>
 }
 
 export const useSettingsStore = create<SettingsState>()((set) => ({
   heartbeatEnabled: true,
   heartbeatIntervalMinutes: 5,
   micDeviceId: '',
+  userName: '',
+  agentName: '',
+  roseSpeechSpeakerId: null,
+  activeListeningSetupComplete: false,
   loaded: false,
 
   load: async () => {

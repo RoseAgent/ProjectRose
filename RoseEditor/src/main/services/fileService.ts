@@ -67,6 +67,7 @@ export async function readDirectoryTree(
 
   if (depth >= maxDepth) return node
 
+  await mkdir(dirPath, { recursive: true })
   const entries = await readdir(dirPath, { withFileTypes: true })
 
   const dirs: FileNode[] = []

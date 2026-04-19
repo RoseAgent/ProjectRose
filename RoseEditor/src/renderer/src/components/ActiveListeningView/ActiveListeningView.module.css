@@ -1,0 +1,397 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  padding: 0.75rem 0 0;
+  gap: 0.75rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 1rem;
+  padding: 0 1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+
+/* ── Tabs ── */
+.tabRow {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tab {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.75rem;
+}
+
+.tab:hover {
+  color: var(--text-primary, #e2e8f0);
+}
+
+.tabActive {
+  background: var(--bg-input, #0f172a);
+  border-color: var(--border, #334155);
+  color: var(--text-primary, #e2e8f0);
+}
+
+/* ── Session History ── */
+.historyList {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.historyLoading,
+.historyEmpty {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.875rem;
+  padding: 1rem 1rem;
+}
+
+.historySession {
+  border-bottom: 1px solid var(--border, #334155);
+  width: 100%;
+}
+
+.historySessionHeader {
+  width: 100%;
+  background: var(--bg-secondary, #1e293b);
+  border: none;
+  color: var(--text-primary, #e2e8f0);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  text-align: left;
+}
+
+.historySessionHeader:hover {
+  background: var(--bg-input, #0f172a);
+}
+
+.historySessionDate {
+  font-size: 0.85rem;
+  font-weight: 500;
+  flex: 1;
+}
+
+.historySessionMeta {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.historyChevron {
+  font-size: 0.65rem;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.historyTranscript {
+  padding: 0.5rem 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border-top: 1px solid var(--border, #334155);
+}
+
+.loading {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.875rem;
+  padding: 1rem;
+}
+
+.error {
+  color: #f87171;
+  font-size: 0.8rem;
+  padding: 0.25rem 1rem;
+}
+
+/* ── Status bar ── */
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 1rem;
+  flex-shrink: 0;
+}
+
+.statusConnected {
+  font-size: 0.75rem;
+  color: #4ade80;
+}
+
+.statusDisconnected {
+  font-size: 0.75rem;
+  color: #f87171;
+}
+
+/* ── Transcript ── */
+.transcriptContainer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.transcript {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+}
+
+.utterance {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.speakerName {
+  color: var(--accent, #818cf8);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.utteranceText {
+  color: var(--text-primary, #e2e8f0);
+}
+
+.unknownBtn {
+  background: none;
+  border: 1px solid #f87171;
+  border-radius: 3px;
+  color: #f87171;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0 4px;
+}
+
+.unknownBtn:hover {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* ── Label Dialog ── */
+.dialogBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.labelDialog {
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  padding: 1.5rem;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.labelTitle {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.labelInput {
+  background: var(--bg-input, #0f172a);
+  border: 1px solid var(--border, #334155);
+  border-radius: 4px;
+  color: var(--text-primary, #e2e8f0);
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+}
+
+.labelInput:focus {
+  border-color: var(--accent, #818cf8);
+}
+
+.labelActions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.labelCancel {
+  background: none;
+  border: 1px solid var(--border, #334155);
+  border-radius: 4px;
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.75rem;
+}
+
+.labelSubmit {
+  background: var(--accent, #818cf8);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.75rem;
+}
+
+.labelSubmit:disabled {
+  opacity: 0.5;
+}
+
+/* ── Train Panel ── */
+.trainPanel {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.trainBtn {
+  background: var(--accent, #818cf8);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.9rem;
+}
+
+.trainBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.trainResult {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.trainDeployed {
+  color: #4ade80;
+}
+
+.trainNotDeployed {
+  color: #fbbf24;
+}
+
+/* ── Setup Wizard ── */
+.setupOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.setupDialog {
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 10px;
+  padding: 2rem;
+  width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.setupTitle {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.setupSubtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.progressRow {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.progressDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border, #334155);
+}
+
+.progressDotDone {
+  background: #4ade80;
+}
+
+.progressDotActive {
+  background: var(--accent, #818cf8);
+}
+
+.prompt {
+  font-size: 0.9rem;
+  color: var(--text-primary, #e2e8f0);
+  background: var(--bg-input, #0f172a);
+  border: 1px solid var(--border, #334155);
+  border-radius: 6px;
+  padding: 1rem;
+  line-height: 1.6;
+}
+
+.micBtn {
+  background: var(--accent, #818cf8);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.6rem 1.2rem;
+  align-self: flex-start;
+}
+
+.micBtnRecording {
+  background: #ef4444;
+}
+
+.micBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.recordingIndicator {
+  font-size: 0.8rem;
+  color: #ef4444;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

@@ -101,5 +101,18 @@ export const IPC = {
   GIT_STASH_POP: 'git:stashPop',
   GIT_STASH_DROP: 'git:stashDrop',
   GIT_STASH_APPLY: 'git:stashApply',
-  GIT_HEAD_CHANGED: 'git:headChanged'
+  GIT_HEAD_CHANGED: 'git:headChanged',
+
+  // Active Listening
+  ACTIVE_LISTENING_LABEL_SPEAKER: 'activeSpeech:labelSpeaker',
+  ACTIVE_LISTENING_TRAIN: 'activeSpeech:train',
+  ACTIVE_LISTENING_TRAIN_STATUS: 'activeSpeech:trainStatus',
+  ACTIVE_LISTENING_TRAIN_HISTORY: 'activeSpeech:trainHistory',
+  ACTIVE_LISTENING_GET_SPEAKERS: 'activeSpeech:getSpeakers',
+  ACTIVE_LISTENING_CREATE_SPEAKER: 'activeSpeech:createSpeaker',
+  ACTIVE_LISTENING_ADD_SAMPLE: 'activeSpeech:addSample',
+  ACTIVE_LISTENING_CREATE_SESSION: 'activeSpeech:createSession',
+  ACTIVE_LISTENING_END_SESSION: 'activeSpeech:endSession',
+  ACTIVE_LISTENING_GET_UTTERANCES: 'activeSpeech:getUtterances',
+  ACTIVE_LISTENING_GET_SESSIONS: 'activeSpeech:getSessions'
 } as const

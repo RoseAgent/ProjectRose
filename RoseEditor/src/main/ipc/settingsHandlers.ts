@@ -8,17 +8,25 @@ export interface AppSettings {
   heartbeatEnabled: boolean
   heartbeatIntervalMinutes: number
   micDeviceId: string
+  userName: string
+  agentName: string
+  roseSpeechSpeakerId: number | null
+  activeListeningSetupComplete: boolean
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   heartbeatEnabled: true,
   heartbeatIntervalMinutes: 5,
-  micDeviceId: ''
+  micDeviceId: '',
+  userName: '',
+  agentName: '',
+  roseSpeechSpeakerId: null,
+  activeListeningSetupComplete: false
 }
 
 const SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
 
-async function readSettings(): Promise<AppSettings> {
+export async function readSettings(): Promise<AppSettings> {
   try {
     const raw = await readFile(SETTINGS_PATH, 'utf-8')
     return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
@@ -27,7 +35,7 @@ async function readSettings(): Promise<AppSettings> {
   }
 }
 
-async function writeSettings(settings: AppSettings): Promise<void> {
+export async function writeSettings(settings: AppSettings): Promise<void> {
   await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8')
 }
 
@@ -58,7 +66,8 @@ function pingService(name: string, url: string): Promise<ServiceHealth> {
 const SERVICES = [
   { name: 'RoseLibrary', url: 'http://127.0.0.1:8000/' },
   { name: 'RoseModel',   url: 'http://127.0.0.1:8010/' },
-  { name: 'RoseTrainer', url: 'http://127.0.0.1:8030/' }
+  { name: 'RoseTrainer', url: 'http://127.0.0.1:8030/' },
+  { name: 'RoseSpeech',  url: 'http://127.0.0.1:8040/' }
 ]
 
 export function registerSettingsHandlers(): void {

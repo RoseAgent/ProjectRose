@@ -7,13 +7,25 @@ interface SetupWizardProps {
 }
 
 type Autonomy = 'low' | 'medium' | 'high'
+type Step = 'userName' | 'agentConfig'
 
 export function SetupWizard({ rootPath, onComplete }: SetupWizardProps): JSX.Element {
+  const [step, setStep] = useState<Step>('userName')
+  const [userName, setUserName] = useState('')
   const [name, setName] = useState('')
   const [identity, setIdentity] = useState('')
   const [autonomy, setAutonomy] = useState<Autonomy>('high')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const handleUserNameNext = (): void => {
+    if (!userName.trim()) {
+      setError('Please enter your name.')
+      return
+    }
+    setError('')
+    setStep('agentConfig')
+  }
 
   const handleSubmit = async (): Promise<void> => {
     if (!name.trim()) {
@@ -21,19 +33,61 @@ export function SetupWizard({ rootPath, onComplete }: SetupWizardProps): JSX.Ele
       return
     }
     if (!identity.trim()) {
-      setError('Please describe your AI\'s identity.')
+      setError("Please describe your AI's identity.")
       return
     }
     setError('')
     setLoading(true)
     try {
-      await window.api.initProject({ rootPath, name: name.trim(), identity: identity.trim(), autonomy })
+      await window.api.initProject({
+        rootPath,
+        name: name.trim(),
+        identity: identity.trim(),
+        autonomy,
+        userName: userName.trim()
+      })
       onComplete()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to initialize project.')
     } finally {
       setLoading(false)
     }
+  }
+
+  if (step === 'userName') {
+    return (
+      <div className={styles.overlay}>
+        <div className={styles.dialog}>
+          <div className={styles.header}>
+            <div className={styles.title}>Welcome to ProjectRose</div>
+            <div className={styles.subtitle}>What is your name?</div>
+          </div>
+
+          <div className={styles.fields}>
+            <div className={styles.field}>
+              <label className={styles.label}>Your Name</label>
+              <input
+                className={styles.input}
+                type="text"
+                placeholder="e.g. Andrew"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleUserNameNext()}
+                autoFocus
+              />
+            </div>
+          </div>
+
+          {error && <div className={styles.error}>{error}</div>}
+
+          <div className={styles.actions}>
+            <button className={styles.submitBtn} onClick={handleUserNameNext}>
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
