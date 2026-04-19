@@ -15,6 +15,12 @@ export function ViewToggle(): JSX.Element {
         Chat
       </button>
       <button
+        className={clsx(styles.toggleBtn, activeView === 'activeListening' && styles.toggleActive)}
+        onClick={() => setActiveView('activeListening')}
+      >
+        Listen
+      </button>
+      <button
         className={clsx(styles.toggleBtn, activeView === 'docker' && styles.toggleActive)}
         onClick={() => setActiveView('docker')}
       >
@@ -43,12 +49,6 @@ export function ViewToggle(): JSX.Element {
         onClick={() => setActiveView('settings')}
       >
         Settings
-      </button>
-      <button
-        className={clsx(styles.toggleBtn, activeView === 'activeListening' && styles.toggleActive)}
-        onClick={() => setActiveView('activeListening')}
-      >
-        Listen
       </button>
     </div>
   )
