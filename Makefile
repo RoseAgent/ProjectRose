@@ -41,7 +41,7 @@ clean: ## Remove Docker volumes and build artifacts
 # ── Data ──────────────────────────────────────────────────────────────
 
 download-pile: ## Download Common Pile dataset to ./pile/ (run once, large download)
-	docker compose -f docker-compose.dev.yml run --rm rosetrainer python scripts/download_pile.py
+	pip install -q huggingface_hub && PILE_DIR=./pile python RoseTrainer/scripts/download_pile.py
 
 # ── Help ──────────────────────────────────────────────────────────────
 
