@@ -7,6 +7,8 @@ import { registerIndexingHandlers } from './indexingHandlers'
 import { registerAiHandlers } from './aiHandlers'
 import { registerDockerHandlers } from './dockerHandlers'
 import { registerGitHandlers } from './gitHandlers'
+import { registerRoseSetupHandlers } from './roseSetupHandlers'
+import { registerHeartbeatHandlers } from './heartbeatHandlers'
 
 export function registerAllHandlers(): void {
   registerFileHandlers()
@@ -18,4 +20,6 @@ export function registerAllHandlers(): void {
   registerAiHandlers()
   registerDockerHandlers()
   registerGitHandlers()
+  registerRoseSetupHandlers()
+  registerHeartbeatHandlers()
 }

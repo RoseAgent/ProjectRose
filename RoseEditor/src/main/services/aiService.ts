@@ -1,4 +1,6 @@
 import { platform } from 'os'
+import { join, basename } from 'path'
+import { readFile, readdir } from 'fs/promises'
 import { RoseModelClient } from './roseModelClient'
 import { setActiveProjectRoot } from './roseLibraryClient'
 import {
@@ -11,9 +13,9 @@ import type { Tool, Message } from '../../shared/roseModelTypes'
 
 const client = new RoseModelClient()
 
-function buildTools(): Tool[] {
-  const base = getCallbackBaseUrl()
+// ── Tool builders ──
 
+function buildCoreTools(base: string): Tool[] {
   return [
     {
       name: 'read_file',
@@ -76,18 +78,63 @@ function buildTools(): Tool[] {
   ]
 }
 
-function buildAgentMd(): string {
-  const os = platform() === 'win32' ? 'Windows' : platform() === 'darwin' ? 'macOS' : 'Linux'
-  const shell = platform() === 'win32' ? 'PowerShell' : 'bash'
+function parsePythonDocstring(source: string): { description: string; parameters: Record<string, { type: string; description: string }> } | null {
+  const match = source.match(/^"""([\s\S]*?)"""/)
+  if (!match) return null
 
-  let md = `You are RoseEditor AI, a coding assistant embedded in the RoseEditor IDE.
+  const doc = match[1]
+  const descMatch = doc.match(/description:\s*(.+)/)
+  if (!descMatch) return null
+
+  const description = descMatch[1].trim()
+  const parameters: Record<string, { type: string; description: string }> = {}
+
+  const paramSection = doc.match(/parameters:([\s\S]*)/)
+  if (paramSection) {
+    for (const line of paramSection[1].split('\n')) {
+      const m = line.match(/^\s{2}(\w+):\s*(.+)/)
+      if (m) parameters[m[1]] = { type: 'string', description: m[2].trim() }
+    }
+  }
+
+  return { description, parameters }
+}
+
+async function discoverPythonTools(rootPath: string, base: string): Promise<Tool[]> {
+  const toolsDir = join(rootPath, 'tools')
+  let files: string[] = []
+  try {
+    files = (await readdir(toolsDir)).filter((f) => f.endsWith('.py'))
+  } catch {
+    return []
+  }
+
+  const tools: Tool[] = []
+  for (const file of files) {
+    try {
+      const source = await readFile(join(toolsDir, file), 'utf-8')
+      const meta = parsePythonDocstring(source)
+      if (!meta) continue
+
+      const scriptName = basename(file, '.py')
+      tools.push({
+        name: `tool_${scriptName}`,
+        description: meta.description,
+        parameters: meta.parameters,
+        callback_url: `${base}/tools/tool_${scriptName}`
+      })
+    } catch {
+      // skip unreadable scripts
+    }
+  }
+  return tools
+}
+
+// ── System prompt ──
+
+const FALLBACK_AGENT_MD = `You are RoseEditor AI, a coding assistant embedded in the RoseEditor IDE.
 
 You help the user with their codebase by reading, writing, searching, and navigating code.
-
-Environment:
-- Operating system: ${os}
-- Shell: ${shell} (run_command uses ${shell})
-- Use ${shell} syntax for all commands (e.g. ${platform() === 'win32' ? 'Get-ChildItem, Get-Content, Test-Path' : 'ls, cat, test'})
 
 Guidelines:
 - Read files before modifying them to understand the existing code.
@@ -99,8 +146,34 @@ Guidelines:
 - Use get_project_overview when you need to understand the project layout or locate code.
 `
 
-  return md
+async function buildAgentMd(rootPath: string): Promise<string> {
+  const os = platform() === 'win32' ? 'Windows' : platform() === 'darwin' ? 'macOS' : 'Linux'
+  const shell = platform() === 'win32' ? 'PowerShell' : 'bash'
+  const date = new Date().toISOString().split('T')[0]
+
+  let rose = FALLBACK_AGENT_MD
+  try {
+    rose = await readFile(join(rootPath, 'ROSE.md'), 'utf-8')
+  } catch {
+    // ROSE.md not yet created — use fallback
+  }
+
+  return `${rose}
+
+## Environment
+- Operating system: ${os}
+- Shell: ${shell} (run_command uses ${shell})
+- Use ${shell} syntax for all commands (e.g. ${platform() === 'win32' ? 'Get-ChildItem, Get-Content, Test-Path' : 'ls, cat, test'})
+- Today's date: ${date}
+`
 }
+
+const HEARTBEAT_SYSTEM_PROMPT = `You are an autonomous agent processing a deferred work queue.
+Execute every item completely. Do not ask for confirmation — just do the work.
+Use available tools (read_file, write_file, run_command, list_directory) to accomplish each task.
+`
+
+// ── Public API ──
 
 export interface ChatResponse {
   content: string
@@ -111,22 +184,42 @@ export async function chat(
   messages: Message[],
   rootPath: string
 ): Promise<ChatResponse> {
-  // Ensure callback server is running
   await startCallbackServer(rootPath)
   updateProjectRoot(rootPath)
   setActiveProjectRoot(rootPath)
 
-  const tools = buildTools()
+  const base = getCallbackBaseUrl()
+  const pythonTools = await discoverPythonTools(rootPath, base)
+  const tools = [...buildCoreTools(base), ...pythonTools]
 
   const content = await client.generate({
     messages,
-    agent_md: buildAgentMd(),
+    agent_md: await buildAgentMd(rootPath),
     tools
   })
 
-  // Collect any files modified during tool execution
   const modified = getModifiedFiles()
+  return { content, modifiedFiles: modified }
+}
 
+export async function heartbeatChat(
+  messages: Message[],
+  rootPath: string
+): Promise<ChatResponse> {
+  await startCallbackServer(rootPath)
+  updateProjectRoot(rootPath)
+  setActiveProjectRoot(rootPath)
+
+  const base = getCallbackBaseUrl()
+  const tools = buildCoreTools(base)
+
+  const content = await client.generate({
+    messages,
+    agent_md: HEARTBEAT_SYSTEM_PROMPT,
+    tools
+  })
+
+  const modified = getModifiedFiles()
   return { content, modifiedFiles: modified }
 }
 

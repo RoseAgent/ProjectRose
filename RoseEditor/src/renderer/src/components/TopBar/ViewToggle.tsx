@@ -32,6 +32,12 @@ export function ViewToggle(): JSX.Element {
       >
         Editor
       </button>
+      <button
+        className={clsx(styles.toggleBtn, activeView === 'heartbeat' && styles.toggleActive)}
+        onClick={() => setActiveView('heartbeat')}
+      >
+        Heartbeat
+      </button>
     </div>
   )
 }

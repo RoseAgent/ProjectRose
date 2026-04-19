@@ -1,6 +1,6 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'http'
 import { readFile, writeFile, readdir, stat } from 'fs/promises'
-import { join, relative, extname } from 'path'
+import { join, relative } from 'path'
 import { execSync } from 'child_process'
 import { platform } from 'os'
 import { randomBytes } from 'crypto'
@@ -154,6 +154,26 @@ async function handleRunCommand(params: Record<string, unknown>): Promise<string
   }
 }
 
+async function handlePythonTool(toolName: string, params: Record<string, unknown>): Promise<string> {
+  const scriptName = toolName.replace(/^tool_/, '')
+  const scriptPath = join(projectRoot, 'tools', `${scriptName}.py`)
+  const isWindows = platform() === 'win32'
+  const python = isWindows ? 'python' : 'python3'
+
+  try {
+    const output = execSync(`"${python}" "${scriptPath}"`, {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      input: JSON.stringify(params),
+      timeout: 30000,
+      maxBuffer: 1024 * 1024
+    })
+    return output
+  } catch (err: any) {
+    return `Tool ${scriptName} failed (exit ${err.status || 1}):\n${err.stderr || err.message}`
+  }
+}
+
 const TOOL_HANDLERS: Record<string, (params: Record<string, unknown>) => Promise<string>> = {
   read_file: handleReadFile,
   write_file: handleWriteFile,
@@ -195,6 +215,7 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
 
   const toolName = match[2]
   const handler = TOOL_HANDLERS[toolName]
+    ?? (toolName.startsWith('tool_') ? (p: Record<string, unknown>) => handlePythonTool(toolName, p) : undefined)
 
   if (!handler) {
     res.writeHead(404, { 'Content-Type': 'application/json' })

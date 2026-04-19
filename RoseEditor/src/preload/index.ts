@@ -91,6 +91,21 @@ const api = {
   getDefaultProjectPath: (): Promise<string> =>
     ipcRenderer.invoke(IPC.PROJECTS_GET_DEFAULT_PATH),
 
+  checkRoseMd: (rootPath: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.ROSE_CHECK_MD, rootPath),
+
+  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string }): Promise<void> =>
+    ipcRenderer.invoke(IPC.ROSE_INIT_PROJECT, payload),
+
+  runHeartbeat: (rootPath: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.HEARTBEAT_RUN, rootPath),
+
+  getHeartbeatLogs: (rootPath: string): Promise<string[]> =>
+    ipcRenderer.invoke(IPC.HEARTBEAT_GET_LOGS, rootPath),
+
+  getHeartbeatLogContent: (rootPath: string, filename: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.HEARTBEAT_LOG_CONTENT, { rootPath, filename }),
+
   addRecentProject: (projectPath: string): Promise<unknown[]> =>
     ipcRenderer.invoke(IPC.PROJECTS_ADD_RECENT, projectPath),
 

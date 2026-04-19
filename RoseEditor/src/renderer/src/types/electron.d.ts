@@ -64,6 +64,16 @@ export interface ElectronAPI {
   getRecentProjects: () => Promise<RecentProject[]>
   addRecentProject: (projectPath: string) => Promise<RecentProject[]>
   removeRecentProject: (projectPath: string) => Promise<RecentProject[]>
+  getDefaultProjectPath: () => Promise<string>
+
+  // Project setup
+  checkRoseMd: (rootPath: string) => Promise<boolean>
+  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string }) => Promise<void>
+
+  // Heartbeat
+  runHeartbeat: (rootPath: string) => Promise<string>
+  getHeartbeatLogs: (rootPath: string) => Promise<string[]>
+  getHeartbeatLogContent: (rootPath: string, filename: string) => Promise<string>
 
   // Indexing
   indexProject: (rootPath: string) => Promise<IndexingResult>

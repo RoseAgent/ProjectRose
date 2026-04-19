@@ -22,6 +22,13 @@ export const IPC = {
   PROJECTS_REMOVE_RECENT: 'projects:removeRecent',
   PROJECTS_GET_DEFAULT_PATH: 'projects:getDefaultPath',
 
+  ROSE_CHECK_MD: 'rose:checkMd',
+  ROSE_INIT_PROJECT: 'rose:initProject',
+
+  HEARTBEAT_RUN: 'heartbeat:run',
+  HEARTBEAT_GET_LOGS: 'heartbeat:getLogs',
+  HEARTBEAT_LOG_CONTENT: 'heartbeat:logContent',
+
   INDEXING_PROJECT: 'indexing:project',
   INDEXING_FILE: 'indexing:file',
   INDEXING_PROGRESS: 'indexing:progress',

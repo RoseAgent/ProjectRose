@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { TopBar } from './components/TopBar/TopBar'
 import { FileActions } from './components/TopBar/FileActions'
 import { Breadcrumbs } from './components/Breadcrumbs/Breadcrumbs'
@@ -6,7 +6,9 @@ import { EditorView } from './components/EditorView/EditorView'
 import { ChatView } from './components/ChatView/ChatView'
 import { DockerView } from './components/DockerView/DockerView'
 import { GitView } from './components/GitView/GitView'
+import { HeartbeatView } from './components/HeartbeatView/HeartbeatView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
+import { SetupWizard } from './components/SetupWizard/SetupWizard'
 import { useThemeStore } from './stores/useThemeStore'
 import { useViewStore } from './stores/useViewStore'
 import { useFileStore } from './stores/useFileStore'
@@ -23,7 +25,10 @@ function App(): JSX.Element {
   const saveActiveFile = useFileStore((s) => s.saveActiveFile)
   const createNewFile = useFileStore((s) => s.createNewFile)
   const openFolder = useProjectStore((s) => s.openFolder)
+  const refreshTree = useProjectStore((s) => s.refreshTree)
   const toggleTerminal = useViewStore((s) => s.toggleTerminal)
+
+  const [needsSetup, setNeedsSetup] = useState(false)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -46,6 +51,35 @@ function App(): JSX.Element {
     ]
     return () => cleanups.forEach((c) => c())
   }, [])
+
+  // Check for ROSE.md when a project is opened; trigger wizard if missing.
+  useEffect(() => {
+    if (!rootPath) {
+      setNeedsSetup(false)
+      return
+    }
+    window.api.checkRoseMd(rootPath).then((hasMd) => setNeedsSetup(!hasMd))
+  }, [rootPath])
+
+  // Run heartbeat on project open and then every 5 minutes.
+  useEffect(() => {
+    if (!rootPath || needsSetup) return
+
+    window.api.runHeartbeat(rootPath).catch(() => {})
+
+    const interval = setInterval(() => {
+      window.api.runHeartbeat(rootPath).catch(() => {})
+    }, 5 * 60 * 1000)
+
+    return () => clearInterval(interval)
+  }, [rootPath, needsSetup])
+
+  // Poll the file tree every minute to catch external changes.
+  useEffect(() => {
+    if (!rootPath) return
+    const interval = setInterval(() => refreshTree(), 60 * 1000)
+    return () => clearInterval(interval)
+  }, [rootPath, refreshTree])
 
   const handleOpenFolder = useCallback(async () => {
     const path = await window.api.openFolderDialog()
@@ -96,6 +130,12 @@ function App(): JSX.Element {
   return (
     <div className={styles.app}>
       <div className={styles.titleBar}>RoseEditor</div>
+      {needsSetup && (
+        <SetupWizard
+          rootPath={rootPath}
+          onComplete={() => { setNeedsSetup(false); refreshTree() }}
+        />
+      )}
       <div className={styles.toolbar}>
         <FileActions
           onOpenFolder={handleOpenFolder}
@@ -110,6 +150,7 @@ function App(): JSX.Element {
         {activeView === 'chat' && <ChatView />}
         {activeView === 'docker' && <DockerView />}
         {activeView === 'git' && <GitView />}
+        {activeView === 'heartbeat' && <HeartbeatView />}
       </main>
       <TopBar />
     </div>
