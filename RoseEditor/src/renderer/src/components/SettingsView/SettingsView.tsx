@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
+import { useEmailStore } from '../../stores/useEmailStore'
 import { NavItem } from '../../../../shared/types'
 import type { ModelConfig, ToolMeta } from '../../types/electron'
 import styles from './SettingsView.module.css'
@@ -46,6 +47,12 @@ export function SettingsView(): JSX.Element {
   const dragIndexRef = useRef<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([])
+  const { filters, loadFilters, saveFilters } = useEmailStore()
+  const [newSpamType, setNewSpamType] = useState<'sender' | 'domain' | 'subject'>('sender')
+  const [newSpamValue, setNewSpamValue] = useState('')
+  const [newInjectionPattern, setNewInjectionPattern] = useState('')
+  const [newInjectionIsRegex, setNewInjectionIsRegex] = useState(false)
+
   const [testState, setTestState] = useState<TestState>('idle')
   const [testError, setTestError] = useState('')
   const [services, setServices] = useState<ServiceHealth[]>([
@@ -196,6 +203,10 @@ export function SettingsView(): JSX.Element {
     checkHealth()
     loadAudioDevices()
   }, [checkHealth, loadAudioDevices])
+
+  useEffect(() => {
+    if (activePage === 'email') loadFilters()
+  }, [activePage])
 
   useEffect(() => {
     if (activePage !== 'chat') return
@@ -679,65 +690,217 @@ export function SettingsView(): JSX.Element {
   }
 
   function renderEmail(): JSX.Element {
+    const spamRules = filters?.spamRules ?? []
+    const injectionPatterns = filters?.injectionPatterns ?? []
+    const customFolders = filters?.customFolders ?? []
+
+    async function addSpamRule(): Promise<void> {
+      const value = newSpamValue.trim()
+      if (!value) return
+      const rule = { id: `sr-${Date.now()}`, type: newSpamType, value, enabled: true }
+      await saveFilters({ spamRules: [...spamRules, rule] })
+      setNewSpamValue('')
+    }
+
+    async function removeSpamRule(id: string): Promise<void> {
+      await saveFilters({ spamRules: spamRules.filter(r => r.id !== id) })
+    }
+
+    async function toggleSpamRule(id: string): Promise<void> {
+      await saveFilters({ spamRules: spamRules.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r) })
+    }
+
+    async function toggleInjectionPattern(id: string): Promise<void> {
+      await saveFilters({ injectionPatterns: injectionPatterns.map(p => p.id === id ? { ...p, enabled: !p.enabled } : p) })
+    }
+
+    async function addInjectionPattern(): Promise<void> {
+      const value = newInjectionPattern.trim()
+      if (!value) return
+      const pattern = { id: `ip-${Date.now()}`, pattern: value, isRegex: newInjectionIsRegex, enabled: true, builtin: false }
+      await saveFilters({ injectionPatterns: [...injectionPatterns, pattern] })
+      setNewInjectionPattern('')
+      setNewInjectionIsRegex(false)
+    }
+
+    async function removeInjectionPattern(id: string): Promise<void> {
+      await saveFilters({ injectionPatterns: injectionPatterns.filter(p => p.id !== id) })
+    }
+
     return (
-      <section className={styles.section}>
-        <div className={styles.sectionTitle}>Email (IMAP)</div>
-        <div className={styles.settingCard}>
-          <div className={styles.settingLabel}>Server</div>
-          <div className={styles.inputRow}>
+      <>
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Email (IMAP)</div>
+          <div className={styles.settingCard}>
+            <div className={styles.settingLabel}>Server</div>
+            <div className={styles.inputRow}>
+              <input
+                className={`${styles.input} ${styles.inputRowFlex}`}
+                type="text"
+                placeholder="imap.gmail.com"
+                value={imapHost}
+                onChange={(e) => { update({ imapHost: e.target.value }); setTestState('idle') }}
+              />
+              <input
+                className={`${styles.input} ${styles.inputNarrow}`}
+                type="number"
+                placeholder="993"
+                value={imapPort}
+                onChange={(e) => { update({ imapPort: Number(e.target.value) }); setTestState('idle') }}
+              />
+            </div>
+            <div className={styles.settingLabel}>Email Address</div>
+            <input
+              className={styles.input}
+              type="text"
+              placeholder="you@example.com"
+              value={imapUser}
+              onChange={(e) => { update({ imapUser: e.target.value }); setTestState('idle') }}
+            />
+            <div className={styles.settingLabel}>Password / App Password</div>
+            <input
+              className={styles.input}
+              type="password"
+              placeholder="••••••••"
+              value={imapPassword}
+              onChange={(e) => { update({ imapPassword: e.target.value }); setTestState('idle') }}
+            />
+            <label className={styles.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={imapTLS}
+                onChange={(e) => update({ imapTLS: e.target.checked })}
+              />
+              Use TLS (recommended)
+            </label>
+            <div className={styles.inputRow}>
+              <button
+                type="button"
+                className={styles.testBtn}
+                onClick={testImapConnection}
+                disabled={testState === 'testing' || !imapHost || !imapUser}
+              >
+                {testState === 'testing' ? 'Testing…' : 'Test Connection'}
+              </button>
+              {testState === 'ok' && <span className={styles.testOk}>Connected</span>}
+              {testState === 'fail' && <span className={styles.testFail}>{testError}</span>}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Spam Rules</div>
+          <div className={styles.settingDesc} style={{ marginBottom: 10 }}>
+            Emails matching any rule go to the Spam folder immediately, skipping AI classification.
+          </div>
+          {spamRules.map(rule => (
+            <div key={rule.id} className={styles.settingRow}>
+              <div className={styles.settingInfo}>
+                <span className={styles.filterRuleType}>{rule.type}</span>
+                <span className={styles.settingLabel}>{rule.value}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className={`${styles.toggle} ${rule.enabled ? styles.toggleOn : styles.toggleOff}`}
+                  onClick={() => toggleSpamRule(rule.id)}
+                  role="switch"
+                  aria-checked={rule.enabled}
+                >
+                  <span className={styles.toggleThumb} />
+                </button>
+                <button type="button" className={styles.removeBtn} onClick={() => removeSpamRule(rule.id)}>Remove</button>
+              </div>
+            </div>
+          ))}
+          <div className={styles.inputRow} style={{ marginTop: 8 }}>
+            <select
+              className={styles.select}
+              value={newSpamType}
+              onChange={(e) => setNewSpamType(e.target.value as 'sender' | 'domain' | 'subject')}
+              style={{ width: 100, flexShrink: 0 }}
+            >
+              <option value="sender">Sender</option>
+              <option value="domain">Domain</option>
+              <option value="subject">Subject</option>
+            </select>
             <input
               className={`${styles.input} ${styles.inputRowFlex}`}
               type="text"
-              placeholder="imap.gmail.com"
-              value={imapHost}
-              onChange={(e) => { update({ imapHost: e.target.value }); setTestState('idle') }}
+              placeholder={newSpamType === 'domain' ? 'example.com' : newSpamType === 'sender' ? 'spam@example.com' : 'limited time offer'}
+              value={newSpamValue}
+              onChange={(e) => setNewSpamValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addSpamRule() }}
             />
-            <input
-              className={`${styles.input} ${styles.inputNarrow}`}
-              type="number"
-              placeholder="993"
-              value={imapPort}
-              onChange={(e) => { update({ imapPort: Number(e.target.value) }); setTestState('idle') }}
-            />
-          </div>
-          <div className={styles.settingLabel}>Email Address</div>
-          <input
-            className={styles.input}
-            type="text"
-            placeholder="you@example.com"
-            value={imapUser}
-            onChange={(e) => { update({ imapUser: e.target.value }); setTestState('idle') }}
-          />
-          <div className={styles.settingLabel}>Password / App Password</div>
-          <input
-            className={styles.input}
-            type="password"
-            placeholder="••••••••"
-            value={imapPassword}
-            onChange={(e) => { update({ imapPassword: e.target.value }); setTestState('idle') }}
-          />
-          <label className={styles.checkboxRow}>
-            <input
-              type="checkbox"
-              checked={imapTLS}
-              onChange={(e) => update({ imapTLS: e.target.checked })}
-            />
-            Use TLS (recommended)
-          </label>
-          <div className={styles.inputRow}>
-            <button
-              type="button"
-              className={styles.testBtn}
-              onClick={testImapConnection}
-              disabled={testState === 'testing' || !imapHost || !imapUser}
-            >
-              {testState === 'testing' ? 'Testing…' : 'Test Connection'}
+            <button type="button" className={styles.addModelBtn} onClick={addSpamRule} disabled={!newSpamValue.trim()}>
+              + Add
             </button>
-            {testState === 'ok' && <span className={styles.testOk}>Connected</span>}
-            {testState === 'fail' && <span className={styles.testFail}>{testError}</span>}
           </div>
-        </div>
-      </section>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Injection Filters</div>
+          <div className={styles.settingDesc} style={{ marginBottom: 10 }}>
+            Emails matching any pattern are quarantined. Built-in patterns detect common prompt injection phrases.
+          </div>
+          {injectionPatterns.map(p => (
+            <div key={p.id} className={styles.settingRow}>
+              <div className={styles.settingInfo}>
+                <div className={styles.settingLabel}>
+                  {p.pattern}
+                  {p.isRegex && <span className={styles.filterRuleType} style={{ marginLeft: 6 }}>regex</span>}
+                  {p.builtin && <span className={styles.filterRuleType} style={{ marginLeft: 6 }}>built-in</span>}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className={`${styles.toggle} ${p.enabled ? styles.toggleOn : styles.toggleOff}`}
+                  onClick={() => toggleInjectionPattern(p.id)}
+                  role="switch"
+                  aria-checked={p.enabled}
+                >
+                  <span className={styles.toggleThumb} />
+                </button>
+                {!p.builtin && (
+                  <button type="button" className={styles.removeBtn} onClick={() => removeInjectionPattern(p.id)}>Remove</button>
+                )}
+              </div>
+            </div>
+          ))}
+          <div className={styles.inputRow} style={{ marginTop: 8, flexWrap: 'wrap', gap: 6 }}>
+            <input
+              className={`${styles.input} ${styles.inputRowFlex}`}
+              type="text"
+              placeholder="Pattern text or regex…"
+              value={newInjectionPattern}
+              onChange={(e) => setNewInjectionPattern(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addInjectionPattern() }}
+            />
+            <label className={styles.checkboxRow} style={{ whiteSpace: 'nowrap' }}>
+              <input
+                type="checkbox"
+                checked={newInjectionIsRegex}
+                onChange={(e) => setNewInjectionIsRegex(e.target.checked)}
+              />
+              Regex
+            </label>
+            <button type="button" className={styles.addModelBtn} onClick={addInjectionPattern} disabled={!newInjectionPattern.trim()}>
+              + Add
+            </button>
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Folders</div>
+          <div className={styles.settingDesc}>
+            Custom folders are created and managed from the folder sidebar in the Email view.
+            {customFolders.length === 0
+              ? ' No custom folders yet.'
+              : ` ${customFolders.length} custom folder${customFolders.length === 1 ? '' : 's'}: ${customFolders.map(f => f.name).join(', ')}.`}
+          </div>
+        </section>
+      </>
     )
   }
 

@@ -28,7 +28,7 @@ function notifyRenderer(channel: string, payload: unknown): void {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function resolveModel(model: ModelConfig, providerKeys: { anthropic: string; openai: string }): any {
+export function resolveModel(model: ModelConfig, providerKeys: { anthropic: string; openai: string }): any {
   switch (model.provider) {
     case 'openai': {
       const provider = createOpenAI({ apiKey: providerKeys.openai || undefined })

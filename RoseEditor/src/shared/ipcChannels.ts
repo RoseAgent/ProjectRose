@@ -112,6 +112,10 @@ export const IPC = {
   EMAIL_FETCH_MESSAGE:  'email:fetchMessage',
   EMAIL_DELETE_MESSAGE: 'email:deleteMessage',
   EMAIL_TEST_CONN:      'email:testConnection',
+  EMAIL_GET_FILTERS:    'email:getFilters',
+  EMAIL_SET_FILTERS:    'email:setFilters',
+  EMAIL_GET_META:       'email:getMeta',
+  EMAIL_SET_MSG_FOLDER: 'email:setMessageFolder',
 
   // Chat Sessions
   SESSION_LIST: 'session:list',

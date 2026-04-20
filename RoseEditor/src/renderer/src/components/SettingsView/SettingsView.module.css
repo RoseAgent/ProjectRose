@@ -519,3 +519,19 @@
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-md);
 }
+
+
+/* ── Email Filters ── */
+
+.filterRuleType {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--color-border);
+  color: var(--color-text-muted);
+  margin-right: 6px;
+}

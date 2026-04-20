@@ -1,5 +1,32 @@
 import type { FileNode } from '@shared/types'
 
+export interface SpamRule {
+  id: string
+  type: 'sender' | 'domain' | 'subject'
+  value: string
+  enabled: boolean
+}
+
+export interface InjectionPattern {
+  id: string
+  pattern: string
+  isRegex: boolean
+  enabled: boolean
+  builtin: boolean
+}
+
+export interface EmailFilters {
+  spamRules: SpamRule[]
+  injectionPatterns: InjectionPattern[]
+  customFolders: Array<{ id: string; name: string }>
+}
+
+export interface EmailMessageMeta {
+  folder: string
+  spamClassified: boolean
+  injectionDetected: boolean
+}
+
 export interface ModelConfig {
   id: string
   displayName: string
@@ -196,6 +223,8 @@ export interface EmailMessage {
   from: string
   date: string
   read: boolean
+  folder: string
+  injectionDetected: boolean
 }
 
 export interface EmailAPI {
@@ -203,6 +232,10 @@ export interface EmailAPI {
   fetchMessages: () => Promise<EmailMessage[]>
   fetchMessage: (uid: number) => Promise<string>
   deleteMessage: (uid: number) => Promise<{ ok: boolean; error?: string }>
+  getFilters: () => Promise<EmailFilters>
+  setFilters: (patch: Partial<EmailFilters>) => Promise<EmailFilters>
+  getMeta: () => Promise<Record<string, EmailMessageMeta>>
+  setMessageFolder: (uid: number, folder: string) => Promise<void>
 }
 
 export interface DockerContainer {

@@ -274,12 +274,20 @@ const api = {
   email: {
     testConnection: (): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.EMAIL_TEST_CONN),
-    fetchMessages: (): Promise<Array<{ uid: number; subject: string; from: string; date: string; read: boolean }>> =>
+    fetchMessages: (): Promise<Array<{ uid: number; subject: string; from: string; date: string; read: boolean; folder: string; injectionDetected: boolean }>> =>
       ipcRenderer.invoke(IPC.EMAIL_FETCH_MESSAGES),
     fetchMessage: (uid: number): Promise<string> =>
       ipcRenderer.invoke(IPC.EMAIL_FETCH_MESSAGE, uid),
     deleteMessage: (uid: number): Promise<{ ok: boolean; error?: string }> =>
-      ipcRenderer.invoke(IPC.EMAIL_DELETE_MESSAGE, uid)
+      ipcRenderer.invoke(IPC.EMAIL_DELETE_MESSAGE, uid),
+    getFilters: (): Promise<unknown> =>
+      ipcRenderer.invoke(IPC.EMAIL_GET_FILTERS),
+    setFilters: (patch: Record<string, unknown>): Promise<unknown> =>
+      ipcRenderer.invoke(IPC.EMAIL_SET_FILTERS, patch),
+    getMeta: (): Promise<unknown> =>
+      ipcRenderer.invoke(IPC.EMAIL_GET_META),
+    setMessageFolder: (uid: number, folder: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.EMAIL_SET_MSG_FOLDER, uid, folder)
   },
 
   // Chat Sessions
