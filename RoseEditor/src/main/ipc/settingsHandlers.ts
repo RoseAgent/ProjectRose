@@ -5,6 +5,27 @@ import { get as httpGet } from 'http'
 import { IPC } from '../../shared/ipcChannels'
 import { NavItem } from '../../shared/types'
 
+export interface ModelConfig {
+  id: string
+  displayName: string
+  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
+  modelName: string
+  baseUrl: string
+  tags: string[]
+}
+
+export interface RouterConfig {
+  enabled: boolean
+  modelName: string
+  baseUrl: string
+}
+
+export interface CompressionConfig {
+  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
+  modelName: string
+  baseUrl: string
+}
+
 export interface AppSettings {
   heartbeatEnabled: boolean
   heartbeatIntervalMinutes: number
@@ -19,11 +40,11 @@ export interface AppSettings {
   imapPassword: string
   imapTLS: boolean
   navItems: NavItem[]
-  llmProvider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
-  llmModel: string
-  llmApiKey: string
-  llmBaseUrl: string
-  llmCompressModel: string
+  models: ModelConfig[]
+  defaultModelId: string
+  providerKeys: { anthropic: string; openai: string }
+  router: RouterConfig
+  compression: CompressionConfig
 }
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
@@ -51,11 +72,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   imapPassword: '',
   imapTLS: true,
   navItems: DEFAULT_NAV_ITEMS,
-  llmProvider: 'anthropic',
-  llmModel: 'claude-sonnet-4-6',
-  llmApiKey: '',
-  llmBaseUrl: '',
-  llmCompressModel: ''
+  models: [],
+  defaultModelId: '',
+  providerKeys: { anthropic: '', openai: '' },
+  router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
+  compression: { provider: 'anthropic', modelName: '', baseUrl: '' }
 }
 
 const SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')

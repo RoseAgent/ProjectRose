@@ -151,7 +151,7 @@ const api = {
     ipcRenderer.invoke(IPC.PROJECTS_REMOVE_RECENT, projectPath),
 
   // AI
-  aiChat: (messages: { role: string; content: string }[], rootPath: string): Promise<{ content: string; modifiedFiles: string[] }> =>
+  aiChat: (messages: { role: string; content: string }[], rootPath: string): Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }> =>
     ipcRenderer.invoke(IPC.AI_CHAT, { messages, rootPath }),
 
   aiCompress: (messages: { role: string; content: string }[]): Promise<{ role: string; content: string }[]> =>
@@ -185,6 +185,18 @@ const api = {
     const handler = (_e: unknown, data: { token: string }): void => callback(data)
     ipcRenderer.on(IPC.AI_TOKEN, handler)
     return () => { ipcRenderer.removeListener(IPC.AI_TOKEN, handler) }
+  },
+
+  onAiModelSelected: (callback: (data: { modelDisplay: string }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { modelDisplay: string }): void => callback(data)
+    ipcRenderer.on(IPC.AI_MODEL_SELECTED, handler)
+    return () => { ipcRenderer.removeListener(IPC.AI_MODEL_SELECTED, handler) }
+  },
+
+  onAiStreamReset: (callback: (data: { errorMessage: string; fallbackModel: string }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { errorMessage: string; fallbackModel: string }): void => callback(data)
+    ipcRenderer.on(IPC.AI_STREAM_RESET, handler)
+    return () => { ipcRenderer.removeListener(IPC.AI_STREAM_RESET, handler) }
   },
 
   // Indexing

@@ -1,5 +1,26 @@
 import type { FileNode } from '@shared/types'
 
+export interface ModelConfig {
+  id: string
+  displayName: string
+  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
+  modelName: string
+  baseUrl: string
+  tags: string[]
+}
+
+export interface RouterConfig {
+  enabled: boolean
+  modelName: string
+  baseUrl: string
+}
+
+export interface CompressionConfig {
+  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
+  modelName: string
+  baseUrl: string
+}
+
 export interface AppSettingsData {
   heartbeatEnabled: boolean
   heartbeatIntervalMinutes: number
@@ -13,11 +34,11 @@ export interface AppSettingsData {
   imapUser: string
   imapPassword: string
   imapTLS: boolean
-  llmProvider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
-  llmModel: string
-  llmApiKey: string
-  llmBaseUrl: string
-  llmCompressModel: string
+  models: ModelConfig[]
+  defaultModelId: string
+  providerKeys: { anthropic: string; openai: string }
+  router: RouterConfig
+  compression: CompressionConfig
 }
 import type {
   HealthResponse,
@@ -53,13 +74,15 @@ export interface RecentProject {
 
 export interface ElectronAPI {
   // AI
-  aiChat: (messages: { role: string; content: string }[], rootPath: string) => Promise<{ content: string; modifiedFiles: string[] }>
+  aiChat: (messages: { role: string; content: string }[], rootPath: string) => Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }>
   aiCompress: (messages: { role: string; content: string }[]) => Promise<{ role: string; content: string }[]>
   onAiFileModified: (callback: (data: { path: string }) => void) => () => void
   onAiToolCallStart: (callback: (data: { id: string; name: string; params: Record<string, unknown> }) => void) => () => void
   onAiToolCallEnd: (callback: (data: { id: string; result: string; error: boolean }) => void) => () => void
   onAiThinking: (callback: (data: { content: string }) => void) => () => void
   onAiToken: (callback: (data: { token: string }) => void) => () => void
+  onAiModelSelected: (callback: (data: { modelDisplay: string }) => void) => () => void
+  onAiStreamReset: (callback: (data: { errorMessage: string; fallbackModel: string }) => void) => () => void
 
   // Theme
   setNativeTheme: (theme: 'dark' | 'light') => void

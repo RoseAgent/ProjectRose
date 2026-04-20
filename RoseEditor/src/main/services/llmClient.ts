@@ -17,14 +17,7 @@ import {
   type PythonToolMeta
 } from './toolHandlers'
 import type { Message } from '../../shared/roseModelTypes'
-
-export interface LLMConfig {
-  llmProvider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
-  llmModel: string
-  llmApiKey: string
-  llmBaseUrl: string
-  llmCompressModel: string
-}
+import type { ModelConfig, RouterConfig, CompressionConfig } from '../ipc/settingsHandlers'
 
 function notifyRenderer(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -35,29 +28,42 @@ function notifyRenderer(channel: string, payload: unknown): void {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function resolveModel(config: LLMConfig): any {
-  switch (config.llmProvider) {
+function resolveModel(model: ModelConfig, providerKeys: { anthropic: string; openai: string }): any {
+  switch (model.provider) {
     case 'openai': {
-      const provider = createOpenAI({ apiKey: config.llmApiKey || undefined })
-      return provider(config.llmModel || 'gpt-4o')
+      const provider = createOpenAI({ apiKey: providerKeys.openai || undefined })
+      return provider(model.modelName || 'gpt-4o')
     }
     case 'ollama': {
-      const provider = createOllama({ baseUrl: config.llmBaseUrl || 'http://localhost:11434' })
-      return provider(config.llmModel || 'llama3', { think: true })
+      const provider = createOllama({ baseURL: model.baseUrl || 'http://localhost:11434' })
+      return provider(model.modelName || 'llama3', { think: true })
     }
     case 'openai-compatible': {
       const provider = createOpenAI({
-        apiKey: config.llmApiKey || 'not-needed',
-        baseURL: config.llmBaseUrl
+        apiKey: 'not-needed',
+        baseURL: model.baseUrl
       })
-      return provider(config.llmModel)
+      return provider(model.modelName)
     }
     case 'anthropic':
     default: {
-      const provider = createAnthropic({ apiKey: config.llmApiKey || undefined })
-      return provider(config.llmModel || 'claude-sonnet-4-6')
+      const provider = createAnthropic({ apiKey: providerKeys.anthropic || undefined })
+      return provider(model.modelName || 'claude-sonnet-4-6')
     }
   }
+}
+
+export async function routeRequest(userMessage: string, router: RouterConfig): Promise<string> {
+  const provider = createOllama({ baseURL: router.baseUrl || 'http://localhost:11434' })
+  const model = provider(router.modelName)
+  const { text } = await generateText({
+    model,
+    messages: [{
+      role: 'user' as const,
+      content: `Categorize this request in one or two words:\n\n${userMessage}\n\nOutput only the category, nothing else.`
+    }]
+  })
+  return text.trim().toLowerCase()
 }
 
 type ExecuteFn = (input: Record<string, unknown>, projectRoot: string) => Promise<string>
@@ -161,11 +167,12 @@ export async function streamChat(params: {
   messages: Message[]
   systemPrompt: string
   pythonTools: PythonToolMeta[]
-  config: LLMConfig
+  model: ModelConfig
+  providerKeys: { anthropic: string; openai: string }
   projectRoot: string
 }): Promise<void> {
-  const { messages, systemPrompt, pythonTools, config, projectRoot } = params
-  const model = resolveModel(config)
+  const { messages, systemPrompt, pythonTools, model: modelConfig, providerKeys, projectRoot } = params
+  const model = resolveModel(modelConfig, providerKeys)
   const tools = {
     ...buildCoreTools(projectRoot),
     ...buildPythonTools(pythonTools, projectRoot)
@@ -192,24 +199,39 @@ export async function streamChat(params: {
       case 'reasoning-delta':
         if (chunk.text) notifyRenderer(IPC.AI_THINKING, { content: chunk.text })
         break
-      case 'error':
-        throw chunk.error instanceof Error ? chunk.error : new Error(String(chunk.error))
+      case 'error': {
+        const e = chunk.error
+        if (e instanceof Error) throw e
+        const msg = (typeof e === 'object' && e !== null && 'message' in e)
+          ? String((e as { message: unknown }).message)
+          : JSON.stringify(e)
+        throw new Error(msg)
+      }
     }
   }
 }
 
-export async function compressMessages(messages: Message[], config: LLMConfig): Promise<Message[]> {
+export async function compressMessages(
+  messages: Message[],
+  compression: CompressionConfig,
+  providerKeys: { anthropic: string; openai: string }
+): Promise<Message[]> {
   if (messages.length <= 40) return messages
 
   const half = Math.floor(messages.length / 2)
   const firstHalf = messages.slice(0, half)
   const secondHalf = messages.slice(half)
 
-  const compressConfig = config.llmCompressModel
-    ? { ...config, llmModel: config.llmCompressModel }
-    : config
+  const compressModelConfig: ModelConfig = {
+    id: '',
+    displayName: '',
+    provider: compression.provider,
+    modelName: compression.modelName,
+    baseUrl: compression.baseUrl,
+    tags: []
+  }
 
-  const model = resolveModel(compressConfig)
+  const model = resolveModel(compressModelConfig, providerKeys)
   const conversationText = firstHalf
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
     .join('\n\n')

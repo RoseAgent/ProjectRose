@@ -18,6 +18,8 @@ export interface AssistantMessage extends BaseMessage {
   content: string
   streaming?: boolean
   isError?: boolean
+  modelDisplay?: string
+  fallbackNotice?: string
 }
 
 export interface ToolMessage extends BaseMessage {
@@ -245,12 +247,35 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const cleanupToolStart = window.api.onAiToolCallStart((d) => get().appendToolStart(d))
     const cleanupToolEnd = window.api.onAiToolCallEnd((d) => get().resolveToolEnd(d))
     const cleanupThinking = window.api.onAiThinking((d) => get().appendThinking(d))
+    const cleanupModelSelected = window.api.onAiModelSelected((d) => {
+      const pid = get().assistantPlaceholderId
+      if (!pid) return
+      set((s) => ({
+        messages: s.messages.map((m) =>
+          m.id === pid && m.role === 'assistant' ? { ...m, modelDisplay: d.modelDisplay } : m
+        )
+      }))
+    })
+
+    const cleanupStreamReset = window.api.onAiStreamReset((d) => {
+      const pid = get().assistantPlaceholderId
+      if (!pid) return
+      set((s) => ({
+        messages: s.messages.map((m) =>
+          m.id === pid && m.role === 'assistant'
+            ? { ...m, content: '', modelDisplay: d.fallbackModel, fallbackNotice: `${m.modelDisplay ?? 'Model'} failed: ${d.errorMessage}` }
+            : m
+        )
+      }))
+    })
 
     const cleanup = (): void => {
       cleanupToken()
       cleanupToolStart()
       cleanupToolEnd()
       cleanupThinking()
+      cleanupModelSelected()
+      cleanupStreamReset()
     }
 
     try {
@@ -262,7 +287,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       set((s) => ({
         messages: s.messages.map((m) => {
           if (m.id === placeholderId && m.role === 'assistant') {
-            return { ...m, streaming: false }
+            return { ...m, streaming: false, modelDisplay: response.modelDisplay }
           }
           if (m.role === 'thinking' && (m as ThinkingMessage).streaming) {
             return { ...m, streaming: false }

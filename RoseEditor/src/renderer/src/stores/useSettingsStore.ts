@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { NavItem } from '../../../shared/types'
+import type { ModelConfig, RouterConfig, CompressionConfig } from '../types/electron'
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
   { viewId: 'chat',            label: 'Chat',      visible: true },
@@ -26,11 +27,11 @@ interface SettingsState {
   imapPassword: string
   imapTLS: boolean
   navItems: NavItem[]
-  llmProvider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
-  llmModel: string
-  llmApiKey: string
-  llmBaseUrl: string
-  llmCompressModel: string
+  models: ModelConfig[]
+  defaultModelId: string
+  providerKeys: { anthropic: string; openai: string }
+  router: RouterConfig
+  compression: CompressionConfig
   loaded: boolean
   load: () => Promise<void>
   update: (patch: Partial<Omit<SettingsState, 'loaded' | 'load' | 'update'>>) => Promise<void>
@@ -50,11 +51,11 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   imapPassword: '',
   imapTLS: true,
   navItems: DEFAULT_NAV_ITEMS,
-  llmProvider: 'anthropic' as const,
-  llmModel: 'claude-sonnet-4-6',
-  llmApiKey: '',
-  llmBaseUrl: '',
-  llmCompressModel: '',
+  models: [],
+  defaultModelId: '',
+  providerKeys: { anthropic: '', openai: '' },
+  router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
+  compression: { provider: 'anthropic', modelName: '', baseUrl: '' },
   loaded: false,
 
   load: async () => {

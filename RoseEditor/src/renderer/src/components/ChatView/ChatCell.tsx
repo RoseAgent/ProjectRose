@@ -8,7 +8,7 @@ interface ChatCellProps {
 }
 
 export function ChatCell({ message }: ChatCellProps): JSX.Element {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
 
   if (message.role === 'thinking') {
     return (
@@ -47,11 +47,17 @@ export function ChatCell({ message }: ChatCellProps): JSX.Element {
       >
         <span className={isUser ? styles.userLabel : styles.assistantLabel}>
           {isUser ? 'Input' : 'Output'}
+          {!isUser && (message as AssistantMessage).modelDisplay && (
+            <span className={styles.modelChip}> · {(message as AssistantMessage).modelDisplay}</span>
+          )}
         </span>
         <span className={styles.thinkingChevron}>{expanded ? '▲' : '▼'}</span>
       </button>
       {expanded && (
         <div className={styles.cellContent}>
+          {!isUser && (message as AssistantMessage).fallbackNotice && (
+            <div className={styles.fallbackNotice}>{(message as AssistantMessage).fallbackNotice}</div>
+          )}
           {message.content}
           {isStreaming && (
             <span className={styles.streamCursor} aria-hidden="true" />

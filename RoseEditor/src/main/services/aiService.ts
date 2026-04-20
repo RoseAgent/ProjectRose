@@ -1,11 +1,20 @@
 import { platform } from 'os'
 import { join } from 'path'
 import { readFile } from 'fs/promises'
+import { BrowserWindow } from 'electron'
 import { setActiveProjectRoot } from './toolHandlers'
 import { discoverPythonTools, getModifiedFiles, resetModifiedFiles } from './toolHandlers'
-import { streamChat, compressMessages } from './llmClient'
+import { streamChat, compressMessages, routeRequest } from './llmClient'
 import { readSettings } from '../ipc/settingsHandlers'
+import type { AppSettings, ModelConfig } from '../ipc/settingsHandlers'
+import { IPC } from '../../shared/ipcChannels'
 import type { Message } from '../../shared/roseModelTypes'
+
+function notifyRenderer(channel: string, payload: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(channel, payload)
+  }
+}
 
 // ── System prompt ──
 
@@ -41,11 +50,50 @@ Execute every item completely. Do not ask for confirmation — just do the work.
 Use available tools (read_file, write_file, run_command, list_directory) to accomplish each task.
 `
 
+// ── Error helpers ──
+
+function extractErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err)
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const nested = parsed?.error as Record<string, unknown> | undefined
+    const msg = nested?.message ?? parsed?.message ?? raw
+    return String(msg)
+  } catch {
+    return raw
+  }
+}
+
+// ── Model selection ──
+
+async function selectModel(userMessage: string, settings: AppSettings): Promise<ModelConfig> {
+  const { models, defaultModelId, router } = settings
+  if (models.length === 0) {
+    throw new Error('No models configured. Please add a model in Settings → Chat.')
+  }
+  const defaultModel = models.find((m) => m.id === defaultModelId) ?? models[0]
+  if (models.length === 1 || !router.enabled || !router.modelName) return defaultModel
+
+  try {
+    const category = await routeRequest(userMessage, router)
+    const matched = models.find((m) =>
+      m.tags.some(
+        (tag) =>
+          tag.toLowerCase().includes(category) || category.includes(tag.toLowerCase())
+      )
+    )
+    return matched ?? defaultModel
+  } catch {
+    return defaultModel
+  }
+}
+
 // ── Public API ──
 
 export interface ChatResponse {
   content: string
   modifiedFiles: string[]
+  modelDisplay: string
 }
 
 export async function chat(messages: Message[], rootPath: string): Promise<ChatResponse> {
@@ -53,17 +101,30 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
   resetModifiedFiles()
 
   const settings = await readSettings()
+  const userMessage = messages.at(-1)?.content ?? ''
+  const selectedModel = await selectModel(userMessage, settings)
+  const defaultModel = settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
+  const modelDisplay = selectedModel.displayName || selectedModel.modelName
+  notifyRenderer(IPC.AI_MODEL_SELECTED, { modelDisplay })
+
   const pythonTools = await discoverPythonTools(rootPath)
+  const systemPrompt = await buildAgentMd(rootPath)
 
-  await streamChat({
-    messages,
-    systemPrompt: await buildAgentMd(rootPath),
-    pythonTools,
-    config: settings,
-    projectRoot: rootPath
-  })
+  try {
+    await streamChat({ messages, systemPrompt, pythonTools, model: selectedModel, providerKeys: settings.providerKeys, projectRoot: rootPath })
+    return { content: '', modifiedFiles: getModifiedFiles(), modelDisplay }
+  } catch (err) {
+    const isAlreadyDefault = !defaultModel || selectedModel.id === defaultModel.id
+    if (isAlreadyDefault) throw err
 
-  return { content: '', modifiedFiles: getModifiedFiles() }
+    const errorMessage = extractErrorMessage(err)
+    const fallbackDisplay = defaultModel.displayName || defaultModel.modelName
+    notifyRenderer(IPC.AI_STREAM_RESET, { errorMessage, fallbackModel: fallbackDisplay })
+    resetModifiedFiles()
+
+    await streamChat({ messages, systemPrompt, pythonTools, model: defaultModel, providerKeys: settings.providerKeys, projectRoot: rootPath })
+    return { content: '', modifiedFiles: getModifiedFiles(), modelDisplay: fallbackDisplay }
+  }
 }
 
 export async function heartbeatChat(messages: Message[], rootPath: string): Promise<ChatResponse> {
@@ -71,19 +132,23 @@ export async function heartbeatChat(messages: Message[], rootPath: string): Prom
   resetModifiedFiles()
 
   const settings = await readSettings()
+  const userMessage = messages.at(-1)?.content ?? ''
+  const selectedModel = await selectModel(userMessage, settings)
 
   await streamChat({
     messages,
     systemPrompt: HEARTBEAT_SYSTEM_PROMPT,
     pythonTools: [],
-    config: settings,
+    model: selectedModel,
+    providerKeys: settings.providerKeys,
     projectRoot: rootPath
   })
 
-  return { content: '', modifiedFiles: getModifiedFiles() }
+  const modelDisplay = selectedModel.displayName || selectedModel.modelName
+  return { content: '', modifiedFiles: getModifiedFiles(), modelDisplay }
 }
 
 export async function compressHistory(messages: Message[]): Promise<Message[]> {
   const settings = await readSettings()
-  return compressMessages(messages, settings)
+  return compressMessages(messages, settings.compression, settings.providerKeys)
 }
