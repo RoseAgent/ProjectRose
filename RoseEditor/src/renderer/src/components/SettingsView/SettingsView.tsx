@@ -20,9 +20,13 @@ interface ServiceHealth {
 const INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30, 60]
 
 export function SettingsView(): JSX.Element {
-  const { heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId,
-          imapHost, imapPort, imapUser, imapPassword, imapTLS, navItems,
-          llmProvider, llmModel, llmApiKey, llmBaseUrl, llmCompressModel, update } = useSettingsStore()
+  const {
+    heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId,
+    imapHost, imapPort, imapUser, imapPassword, imapTLS, navItems,
+    llmProvider, llmModel, llmApiKey, llmBaseUrl, llmCompressModel, update
+  } = useSettingsStore()
+
+  const [activePage, setActivePage] = useState('dashboard')
   const dragIndexRef = useRef<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([])
@@ -42,7 +46,7 @@ export function SettingsView(): JSX.Element {
   const loadAudioDevices = useCallback(async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => s.getTracks().forEach((t) => t.stop()))
-    } catch { /* permission denied — labels will be empty */ }
+    } catch { /* permission denied */ }
     const devices = await navigator.mediaDevices.enumerateDevices()
     setAudioDevices(
       devices
@@ -104,26 +108,35 @@ export function SettingsView(): JSX.Element {
     loadAudioDevices()
   }, [checkHealth, loadAudioDevices])
 
-  return (
-    <div className={styles.container}>
-      <div className={styles.page}>
+  const sidebarItems = [
+    { id: 'dashboard', label: 'Dashboard' },
+    ...navItems
+      .filter((n) => n.viewId !== 'settings' && n.visible)
+      .map((n) => ({ id: n.viewId, label: n.label }))
+  ]
 
-        {/* Service Health */}
+  useEffect(() => {
+    if (activePage !== 'dashboard' && !sidebarItems.some((i) => i.id === activePage)) {
+      setActivePage('dashboard')
+    }
+  }, [sidebarItems.map((i) => i.id).join(',')])
+
+  function renderDashboard(): JSX.Element {
+    return (
+      <>
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <div className={styles.sectionTitle}>Service Health</div>
-            <button className={styles.refreshBtn} onClick={checkHealth}>Refresh</button>
+            <button type="button" className={styles.refreshBtn} onClick={checkHealth}>Refresh</button>
           </div>
           <div className={styles.serviceList}>
             {services.map((svc) => (
               <div key={svc.name} className={styles.serviceRow}>
-                <span
-                  className={`${styles.dot} ${
-                    svc.status === 'up' ? styles.dotUp :
-                    svc.status === 'down' ? styles.dotDown :
-                    styles.dotChecking
-                  }`}
-                />
+                <span className={`${styles.dot} ${
+                  svc.status === 'up' ? styles.dotUp :
+                  svc.status === 'down' ? styles.dotDown :
+                  styles.dotChecking
+                }`} />
                 <span className={styles.serviceName}>{svc.name}</span>
                 <span className={styles.serviceUrl}>{svc.url}</span>
                 <span className={styles.serviceStatus}>
@@ -136,137 +149,48 @@ export function SettingsView(): JSX.Element {
           </div>
         </section>
 
-        {/* Heartbeat Settings */}
         <section className={styles.section}>
-          <div className={styles.sectionTitle}>Heartbeat</div>
-
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Enable Heartbeat</div>
-              <div className={styles.settingDesc}>
-                Automatically process notes and execute due tasks in the background.
-              </div>
-            </div>
-            <button
-              className={`${styles.toggle} ${heartbeatEnabled ? styles.toggleOn : styles.toggleOff}`}
-              onClick={() => update({ heartbeatEnabled: !heartbeatEnabled })}
-              role="switch"
-              aria-checked={heartbeatEnabled}
-            >
-              <span className={styles.toggleThumb} />
-            </button>
-          </div>
-
-          <div className={`${styles.settingRow} ${!heartbeatEnabled ? styles.disabled : ''}`}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Run Every</div>
-              <div className={styles.settingDesc}>
-                How often the heartbeat checks for notes and due tasks.
-              </div>
-            </div>
-            <div className={styles.intervalGroup}>
-              {INTERVAL_OPTIONS.map((min) => (
-                <button
-                  key={min}
-                  className={`${styles.intervalBtn} ${heartbeatIntervalMinutes === min ? styles.intervalActive : ''}`}
-                  onClick={() => update({ heartbeatIntervalMinutes: min })}
-                  disabled={!heartbeatEnabled}
-                >
-                  {min < 60 ? `${min}m` : '1h'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* IMAP Email */}
-        <section className={styles.section}>
-          <div className={styles.sectionTitle}>Email (IMAP)</div>
-
-          <div className={styles.settingRow} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
-            <div className={styles.settingLabel}>Server</div>
-            <div className={styles.inputRow}>
-              <input
-                className={`${styles.input} ${styles.inputRowFlex}`}
-                type="text"
-                placeholder="imap.gmail.com"
-                value={imapHost}
-                onChange={(e) => { update({ imapHost: e.target.value }); setTestState('idle') }}
-              />
-              <input
-                className={`${styles.input} ${styles.inputNarrow}`}
-                type="number"
-                placeholder="993"
-                value={imapPort}
-                onChange={(e) => { update({ imapPort: Number(e.target.value) }); setTestState('idle') }}
-              />
-            </div>
-            <div className={styles.settingLabel}>Email Address</div>
-            <input
-              className={styles.input}
-              type="text"
-              placeholder="you@example.com"
-              value={imapUser}
-              onChange={(e) => { update({ imapUser: e.target.value }); setTestState('idle') }}
-            />
-            <div className={styles.settingLabel}>Password / App Password</div>
-            <input
-              className={styles.input}
-              type="password"
-              placeholder="••••••••"
-              value={imapPassword}
-              onChange={(e) => { update({ imapPassword: e.target.value }); setTestState('idle') }}
-            />
-            <label className={styles.checkboxRow}>
-              <input
-                type="checkbox"
-                checked={imapTLS}
-                onChange={(e) => update({ imapTLS: e.target.checked })}
-              />
-              Use TLS (recommended)
-            </label>
-            <div className={styles.inputRow}>
-              <button
-                className={styles.testBtn}
-                onClick={testImapConnection}
-                disabled={testState === 'testing' || !imapHost || !imapUser}
+          <div className={styles.sectionTitle}>Navigation Bar</div>
+          <div className={styles.navList}>
+            {navItems.map((item, index) => (
+              <div
+                key={item.viewId}
+                className={`${styles.navItem} ${dragOverIndex === index ? styles.navItemDragOver : ''}`}
+                draggable
+                onDragStart={() => handleNavDragStart(index)}
+                onDragOver={(e) => handleNavDragOver(e, index)}
+                onDrop={() => handleNavDrop(index)}
+                onDragEnd={handleNavDragEnd}
               >
-                {testState === 'testing' ? 'Testing…' : 'Test Connection'}
-              </button>
-              {testState === 'ok' && <span className={styles.testOk}>Connected</span>}
-              {testState === 'fail' && <span className={styles.testFail}>{testError}</span>}
-            </div>
-          </div>
-        </section>
-
-        {/* Voice Input */}
-        <section className={styles.section}>
-          <div className={styles.sectionTitle}>Voice Input</div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Microphone</div>
-              <div className={styles.settingDesc}>
-                Which microphone to use for voice-to-text in the chat input.
+                <span className={styles.navDragHandle}>⠿</span>
+                <span className={styles.navItemLabel}>{item.label}</span>
+                {item.viewId === 'settings' ? (
+                  <span className={styles.navItemLocked}>always visible</span>
+                ) : (
+                  <button
+                    type="button"
+                    className={`${styles.toggle} ${item.visible ? styles.toggleOn : styles.toggleOff}`}
+                    onClick={() => toggleNavItemVisible(index)}
+                    role="switch"
+                    aria-checked={item.visible}
+                  >
+                    <span className={styles.toggleThumb} />
+                  </button>
+                )}
               </div>
-            </div>
-            <select
-              className={styles.select}
-              value={micDeviceId}
-              onChange={(e) => update({ micDeviceId: e.target.value })}
-            >
-              <option value="">System default</option>
-              {audioDevices.map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
-              ))}
-            </select>
+            ))}
           </div>
         </section>
+      </>
+    )
+  }
 
-        {/* LLM Settings */}
+  function renderChat(): JSX.Element {
+    return (
+      <>
         <section className={styles.section}>
           <div className={styles.sectionTitle}>LLM</div>
-
-          <div className={styles.settingRow} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+          <div className={styles.settingCard}>
             <div className={styles.settingLabel}>Provider</div>
             <select
               className={styles.select}
@@ -314,7 +238,10 @@ export function SettingsView(): JSX.Element {
               </>
             )}
 
-            <div className={styles.settingLabel}>Compression Model <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional, defaults to Model above)</span></div>
+            <div className={styles.settingLabel}>
+              Compression Model{' '}
+              <span className={styles.labelNote}>(optional, defaults to Model above)</span>
+            </div>
             <input
               className={styles.input}
               type="text"
@@ -325,39 +252,181 @@ export function SettingsView(): JSX.Element {
           </div>
         </section>
 
-        {/* Navigation Bar */}
         <section className={styles.section}>
-          <div className={styles.sectionTitle}>Navigation Bar</div>
-          <div className={styles.navList}>
-            {navItems.map((item, index) => (
-              <div
-                key={item.viewId}
-                className={`${styles.navItem} ${dragOverIndex === index ? styles.navItemDragOver : ''}`}
-                draggable
-                onDragStart={() => handleNavDragStart(index)}
-                onDragOver={(e) => handleNavDragOver(e, index)}
-                onDrop={() => handleNavDrop(index)}
-                onDragEnd={handleNavDragEnd}
-              >
-                <span className={styles.navDragHandle}>⠿</span>
-                <span className={styles.navItemLabel}>{item.label}</span>
-                {item.viewId === 'settings' ? (
-                  <span className={styles.navItemLocked}>always visible</span>
-                ) : (
-                  <button
-                    className={`${styles.toggle} ${item.visible ? styles.toggleOn : styles.toggleOff}`}
-                    onClick={() => toggleNavItemVisible(index)}
-                    role="switch"
-                    aria-checked={item.visible}
-                  >
-                    <span className={styles.toggleThumb} />
-                  </button>
-                )}
+          <div className={styles.sectionTitle}>Voice Input</div>
+          <div className={styles.settingRow}>
+            <div className={styles.settingInfo}>
+              <div className={styles.settingLabel}>Microphone</div>
+              <div className={styles.settingDesc}>
+                Which microphone to use for voice-to-text in the chat input.
               </div>
-            ))}
+            </div>
+            <select
+              className={styles.select}
+              value={micDeviceId}
+              onChange={(e) => update({ micDeviceId: e.target.value })}
+            >
+              <option value="">System default</option>
+              {audioDevices.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
+              ))}
+            </select>
           </div>
         </section>
+      </>
+    )
+  }
 
+  function renderHeartbeat(): JSX.Element {
+    return (
+      <section className={styles.section}>
+        <div className={styles.sectionTitle}>Heartbeat</div>
+
+        <div className={styles.settingRow}>
+          <div className={styles.settingInfo}>
+            <div className={styles.settingLabel}>Enable Heartbeat</div>
+            <div className={styles.settingDesc}>
+              Automatically process notes and execute due tasks in the background.
+            </div>
+          </div>
+          <button
+            type="button"
+            className={`${styles.toggle} ${heartbeatEnabled ? styles.toggleOn : styles.toggleOff}`}
+            onClick={() => update({ heartbeatEnabled: !heartbeatEnabled })}
+            role="switch"
+            aria-checked={heartbeatEnabled}
+          >
+            <span className={styles.toggleThumb} />
+          </button>
+        </div>
+
+        <div className={`${styles.settingRow} ${!heartbeatEnabled ? styles.disabled : ''}`}>
+          <div className={styles.settingInfo}>
+            <div className={styles.settingLabel}>Run Every</div>
+            <div className={styles.settingDesc}>
+              How often the heartbeat checks for notes and due tasks.
+            </div>
+          </div>
+          <div className={styles.intervalGroup}>
+            {INTERVAL_OPTIONS.map((min) => (
+              <button
+                key={min}
+                type="button"
+                className={`${styles.intervalBtn} ${heartbeatIntervalMinutes === min ? styles.intervalActive : ''}`}
+                onClick={() => update({ heartbeatIntervalMinutes: min })}
+                disabled={!heartbeatEnabled}
+              >
+                {min < 60 ? `${min}m` : '1h'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  function renderEmail(): JSX.Element {
+    return (
+      <section className={styles.section}>
+        <div className={styles.sectionTitle}>Email (IMAP)</div>
+        <div className={styles.settingCard}>
+          <div className={styles.settingLabel}>Server</div>
+          <div className={styles.inputRow}>
+            <input
+              className={`${styles.input} ${styles.inputRowFlex}`}
+              type="text"
+              placeholder="imap.gmail.com"
+              value={imapHost}
+              onChange={(e) => { update({ imapHost: e.target.value }); setTestState('idle') }}
+            />
+            <input
+              className={`${styles.input} ${styles.inputNarrow}`}
+              type="number"
+              placeholder="993"
+              value={imapPort}
+              onChange={(e) => { update({ imapPort: Number(e.target.value) }); setTestState('idle') }}
+            />
+          </div>
+          <div className={styles.settingLabel}>Email Address</div>
+          <input
+            className={styles.input}
+            type="text"
+            placeholder="you@example.com"
+            value={imapUser}
+            onChange={(e) => { update({ imapUser: e.target.value }); setTestState('idle') }}
+          />
+          <div className={styles.settingLabel}>Password / App Password</div>
+          <input
+            className={styles.input}
+            type="password"
+            placeholder="••••••••"
+            value={imapPassword}
+            onChange={(e) => { update({ imapPassword: e.target.value }); setTestState('idle') }}
+          />
+          <label className={styles.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={imapTLS}
+              onChange={(e) => update({ imapTLS: e.target.checked })}
+            />
+            Use TLS (recommended)
+          </label>
+          <div className={styles.inputRow}>
+            <button
+              type="button"
+              className={styles.testBtn}
+              onClick={testImapConnection}
+              disabled={testState === 'testing' || !imapHost || !imapUser}
+            >
+              {testState === 'testing' ? 'Testing…' : 'Test Connection'}
+            </button>
+            {testState === 'ok' && <span className={styles.testOk}>Connected</span>}
+            {testState === 'fail' && <span className={styles.testFail}>{testError}</span>}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  function renderPlaceholder(): JSX.Element {
+    const current = sidebarItems.find((i) => i.id === activePage)
+    return (
+      <section className={styles.section}>
+        <div className={styles.sectionTitle}>{current?.label ?? activePage}</div>
+        <div className={styles.emptyState}>No settings available for this section yet.</div>
+      </section>
+    )
+  }
+
+  function renderPage(): JSX.Element {
+    switch (activePage) {
+      case 'dashboard': return renderDashboard()
+      case 'chat': return renderChat()
+      case 'heartbeat': return renderHeartbeat()
+      case 'email': return renderEmail()
+      default: return renderPlaceholder()
+    }
+  }
+
+  return (
+    <div className={styles.layout}>
+      <aside className={styles.sidebar}>
+        <div className={styles.sidebarLabel}>Settings</div>
+        {sidebarItems.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`${styles.sidebarItem} ${activePage === item.id ? styles.sidebarItemActive : ''}`}
+            onClick={() => setActivePage(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </aside>
+      <div className={styles.content}>
+        <div className={styles.page}>
+          {renderPage()}
+        </div>
       </div>
     </div>
   )
