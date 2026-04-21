@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir, readdir } from 'fs/promises'
 import { get as httpGet } from 'http'
 import { IPC } from '../../shared/ipcChannels'
 import { NavItem } from '../../shared/types'
+import { serviceStatus } from '../services/serviceStatus'
 
 export interface ModelConfig {
   id: string
@@ -220,7 +221,6 @@ function pingService(name: string, url: string): Promise<ServiceHealth> {
 
 const SERVICES = [
   { name: 'RoseLibrary', url: 'http://127.0.0.1:8000/' },
-  { name: 'RoseTrainer', url: 'http://127.0.0.1:8030/' },
   { name: 'RoseSpeech',  url: 'http://127.0.0.1:8040/' }
 ]
 
@@ -234,7 +234,10 @@ export function registerSettingsHandlers(): void {
     return updated
   })
 
-  ipcMain.handle(IPC.HEALTH_CHECK_ALL, () =>
-    Promise.all(SERVICES.map((s) => pingService(s.name, s.url)))
-  )
+  ipcMain.handle(IPC.HEALTH_CHECK_ALL, async () => {
+    const results = await Promise.all(SERVICES.map((s) => pingService(s.name, s.url)))
+    serviceStatus.roseLibrary = results.find((r) => r.name === 'RoseLibrary')?.status === 'up'
+    serviceStatus.roseSpeech = results.find((r) => r.name === 'RoseSpeech')?.status === 'up'
+    return results
+  })
 }

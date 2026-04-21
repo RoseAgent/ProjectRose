@@ -75,6 +75,12 @@
   cursor: not-allowed;
 }
 
+.micOffline {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
 @keyframes micPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }

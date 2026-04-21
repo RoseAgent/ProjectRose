@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useState } from 'react'
+import { Toaster, toast } from 'sonner'
 import { TopBar } from './components/TopBar/TopBar'
 import { FileActions } from './components/TopBar/FileActions'
 import { EditorView } from './components/EditorView/EditorView'
@@ -15,6 +16,7 @@ import { useProjectStore } from './stores/useProjectStore'
 import { useIndexingStore } from './stores/useIndexingStore'
 import { useSettingsStore } from './stores/useSettingsStore'
 import { useDiscordStore } from './stores/useDiscordStore'
+import { useServiceStore } from './stores/useServiceStore'
 import styles from './App.module.css'
 
 function App(): JSX.Element {
@@ -30,7 +32,21 @@ function App(): JSX.Element {
 
   const { heartbeatEnabled, heartbeatIntervalMinutes, discordBotToken, discordChannels, load: loadSettings } = useSettingsStore()
   const { connect: discordConnect, initEnabledChannels, loadChannels: discordLoadChannels } = useDiscordStore()
+  const setServiceStatus = useServiceStore((s) => s.setStatus)
   const [needsSetup, setNeedsSetup] = useState(false)
+
+  // Check service availability at startup
+  useEffect(() => {
+    window.api.checkServicesHealth().then((results) => {
+      const libOk = results.find((r) => r.name === 'RoseLibrary')?.status === 'up'
+      const speechOk = results.find((r) => r.name === 'RoseSpeech')?.status === 'up'
+      setServiceStatus(libOk, speechOk)
+      if (!libOk) toast.warning('RoseLibrary is offline — code search and indexing are unavailable.')
+      if (!speechOk) toast.error('RoseSpeech is offline — voice input is unavailable.')
+    }).catch(() => {
+      setServiceStatus(false, false)
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load persisted settings on mount
   useEffect(() => { loadSettings() }, [loadSettings])
@@ -127,6 +143,7 @@ function App(): JSX.Element {
   if (!rootPath) {
     return (
       <div className={styles.app}>
+        <Toaster position="bottom-right" />
         <div className={styles.titleBar} />
         <WelcomeView onOpenFolder={handleOpenFolder} />
       </div>
@@ -135,6 +152,7 @@ function App(): JSX.Element {
 
   return (
     <div className={styles.app}>
+      <Toaster position="bottom-right" />
       <div className={styles.titleBar} />
       <TopBar />
       {needsSetup && (

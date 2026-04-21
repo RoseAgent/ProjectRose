@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useChatStore } from '../../stores/useChatStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useServiceStore } from '../../stores/useServiceStore'
 import clsx from 'clsx'
 import styles from './ChatInput.module.css'
 
@@ -12,6 +13,7 @@ export function ChatInput(): JSX.Element {
   const sendMessage = useChatStore((s) => s.sendMessage)
   const isLoading = useChatStore((s) => s.isLoading)
   const micDeviceId = useSettingsStore((s) => s.micDeviceId)
+  const roseSpeechOnline = useServiceStore((s) => s.roseSpeech)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [micState, setMicState] = useState<MicState>('idle')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -81,11 +83,16 @@ export function ChatInput(): JSX.Element {
       <button
         className={clsx(styles.micBtn, {
           [styles.micRecording]: micState === 'recording',
-          [styles.micTranscribing]: micState === 'transcribing'
+          [styles.micTranscribing]: micState === 'transcribing',
+          [styles.micOffline]: roseSpeechOnline === false
         })}
         onClick={handleMicClick}
-        disabled={isLoading || micState === 'transcribing'}
-        title={micState === 'recording' ? 'Stop recording' : 'Record voice message'}
+        disabled={isLoading || micState === 'transcribing' || roseSpeechOnline === false}
+        title={
+          roseSpeechOnline === false
+            ? 'RoseSpeech is offline — speech input unavailable'
+            : micState === 'recording' ? 'Stop recording' : 'Record voice message'
+        }
       >
         {micState === 'transcribing' ? '…' : '🎙'}
       </button>

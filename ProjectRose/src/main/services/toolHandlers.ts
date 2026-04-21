@@ -6,6 +6,7 @@ import { BrowserWindow } from 'electron'
 import { roseLibraryClient, setActiveProjectRoot } from './roseLibraryClient'
 import { isIndexableFile } from './fileService'
 import { IPC } from '../../shared/ipcChannels'
+import { serviceStatus } from './serviceStatus'
 
 const modifiedFiles: string[] = []
 
@@ -66,6 +67,9 @@ export async function handleListDirectory(input: Record<string, unknown>, projec
 }
 
 export async function handleSearchCode(input: Record<string, unknown>): Promise<string> {
+  if (!serviceStatus.roseLibrary) {
+    return 'RoseLibrary service is offline. Code search is unavailable. Please inform the user that the service is temporarily down and try a different approach.'
+  }
   const query = String(input.query || '')
   const limit = Number(input.limit) || 10
   const results = await roseLibraryClient.search({ query, limit })
@@ -73,6 +77,9 @@ export async function handleSearchCode(input: Record<string, unknown>): Promise<
 }
 
 export async function handleFindReferences(input: Record<string, unknown>): Promise<string> {
+  if (!serviceStatus.roseLibrary) {
+    return 'RoseLibrary service is offline. Reference lookup is unavailable. Please inform the user that the service is temporarily down and try a different approach.'
+  }
   const symbolName = String(input.symbol_name || '')
   const filePath = input.file_path ? String(input.file_path) : undefined
   const direction = (input.direction as 'inbound' | 'outbound' | 'both') || 'both'

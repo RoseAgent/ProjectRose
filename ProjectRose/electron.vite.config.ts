@@ -48,11 +48,12 @@ export default defineConfig({
         '@ext/rose-docker':  resolve('../RoseExtensions/rose-docker'),
         '@ext/rose-listen':  resolve('../RoseExtensions/rose-listen'),
         // Redirect bare imports from extension files to RoseEditor's node_modules
-        'clsx':                   resolve('node_modules/clsx'),
-        'monaco-editor':          resolve('node_modules/monaco-editor'),
-        '@xterm/xterm':           resolve('node_modules/@xterm/xterm'),
-        '@xterm/addon-fit':       resolve('node_modules/@xterm/addon-fit'),
-        '@xterm/addon-web-links': resolve('node_modules/@xterm/addon-web-links')
+        'sonner':                 resolve('../node_modules/sonner'),
+        'clsx':                   resolve('../node_modules/clsx'),
+        'monaco-editor':          resolve('../node_modules/monaco-editor'),
+        '@xterm/xterm':           resolve('../node_modules/@xterm/xterm'),
+        '@xterm/addon-fit':       resolve('../node_modules/@xterm/addon-fit'),
+        '@xterm/addon-web-links': resolve('../node_modules/@xterm/addon-web-links')
       }
     },
     css: {
