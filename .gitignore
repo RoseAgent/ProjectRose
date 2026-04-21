@@ -18,8 +18,9 @@ env/
 
 # Node / Electron (per-subproject .gitignore handles more)
 node_modules/
-website/.next/
-website/out/
+
+# Website — its own git repo
+website/
 
 # ChromaDB vector stores
 RoseLibrary/data/
@@ -36,6 +37,9 @@ RoseModel/.chromadb/
 
 # Logs
 *.log
+
+# Extensions — each is its own git repo
+RoseExtensions/
 
 # OS / editor junk
 .DS_Store
