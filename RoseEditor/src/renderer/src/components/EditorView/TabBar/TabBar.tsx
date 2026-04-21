@@ -15,12 +15,13 @@ export function TabBar(): JSX.Element {
 
   return (
     <div className={styles.tabBar}>
-      {openFiles.map((file) => (
+      {openFiles.map((file, index) => (
         <Tab
           key={file.filePath}
           fileName={file.fileName}
           isActive={file.filePath === activeFilePath}
           isDirty={isDirty(file.filePath)}
+          tabIndex={index}
           onClick={() => setActiveFile(file.filePath)}
           onClose={(e) => {
             e.stopPropagation()

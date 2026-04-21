@@ -1,0 +1,265 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ProjectRose · Herbarium № 01</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#f1ebdf; }
+  body { font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #2e2418; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="herbarium.jsx"></script>
+
+<script type="text/babel">
+function Page() {
+  return (
+    <div style={{
+      minHeight: '100vh', background: H.paper,
+      padding: '48px 56px 96px',
+      fontFamily: H.mono, color: H.ink,
+    }}>
+      {/* ─── header ─── */}
+      <div style={{
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+        paddingBottom: 18, borderBottom: `1px solid ${H.line}`, marginBottom: 2,
+      }}>
+        <div>
+          <div style={{
+            fontFamily: H.mono, fontSize: 10, color: H.inkSoft,
+            letterSpacing: 2.4, marginBottom: 14,
+          }}>PROJECTROSE · BRAND · HERBARIUM № 01 · ROUND 02</div>
+          <div style={{
+            fontFamily: H.mono, fontSize: 40, fontWeight: 400,
+            color: H.ink, letterSpacing: -0.3, lineHeight: 1.1,
+          }}>
+            Project<span style={{ color: H.sepia, fontStyle: 'italic' }}>Rose</span>{' '}
+            <span style={{ color: H.inkSoft }}>·</span>{' '}
+            <span style={{ fontStyle: 'italic', color: H.inkMid, fontSize: 24 }}>Herbarium</span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', fontFamily: H.mono, fontSize: 10, color: H.inkSoft, letterSpacing: 1.4, lineHeight: 1.8 }}>
+          <div>COLLECTED · 2026-04-20</div>
+          <div>PLATES · I — IV</div>
+          <div style={{ color: H.sepia }}>Rosa gallica</div>
+        </div>
+      </div>
+      <div style={{ borderBottom: `1px solid ${H.lineSoft}`, marginBottom: 48 }}/>
+
+      {/* ─── intro note ─── */}
+      <div style={{
+        maxWidth: 640, fontFamily: H.mono, fontSize: 13, color: H.inkMid,
+        lineHeight: 1.65, marginBottom: 56, fontStyle: 'italic',
+      }}>
+        A pressed-specimen take on the ProjectRose identity — bone paper, sepia ink,
+        olive and ochre accents. The mark is botanical but restrained, the chrome
+        is cataloged like a museum drawer. Every tab, every panel gets a specimen
+        number. Feels at home next to a volume of field notes.
+      </div>
+
+      {/* ─── plate I · mark ─── */}
+      <div style={{ marginBottom: 56 }}>
+        <MarkPlate />
+      </div>
+
+      {/* ─── plate II · palette ─── */}
+      <div style={{ marginBottom: 56 }}>
+        <PalettePlate />
+      </div>
+
+      {/* ─── plate III · applied chrome ─── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{
+          fontFamily: H.mono, fontSize: 9, color: H.inkSoft,
+          letterSpacing: 2, paddingBottom: 6, borderBottom: `1px solid ${H.line}`,
+        }}>PLATE III · APPLIED · EDITOR CHROME</div>
+        <div style={{ borderBottom: `1px solid ${H.lineSoft}`, marginBottom: 24 }}/>
+
+        <div style={{
+          width: '100%', aspectRatio: '16/10', minHeight: 680,
+          boxShadow: '0 1px 3px rgba(46,36,24,0.08), 0 16px 48px rgba(46,36,24,0.12)',
+          border: `1px solid ${H.line}`,
+          overflow: 'hidden',
+        }}>
+          <HerbariumChrome />
+        </div>
+
+        <div style={{
+          display: 'flex', justifyContent: 'space-between',
+          marginTop: 12, fontFamily: H.mono, fontSize: 10,
+          color: H.inkSoft, letterSpacing: 1,
+        }}>
+          <span>FIG. 01 — titlebar / topbar / sidebar / editor / status</span>
+          <span style={{ fontStyle: 'italic' }}>1440 × 900</span>
+        </div>
+      </div>
+
+      {/* ─── plate IV · details ─── */}
+      <div style={{ marginBottom: 48 }}>
+        <div style={{
+          fontFamily: H.mono, fontSize: 9, color: H.inkSoft,
+          letterSpacing: 2, paddingBottom: 6, borderBottom: `1px solid ${H.line}`,
+        }}>PLATE IV · DETAILS</div>
+        <div style={{ borderBottom: `1px solid ${H.lineSoft}`, marginBottom: 24 }}/>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          {/* typography */}
+          <div style={{
+            background: H.paperLight, border: `1px solid ${H.line}`,
+            padding: '28px 32px',
+          }}>
+            <div style={{
+              fontFamily: H.mono, fontSize: 9, color: H.inkSoft,
+              letterSpacing: 1.6, marginBottom: 18,
+            }}>TYPE · IBM PLEX MONO</div>
+
+            <div style={{
+              fontFamily: H.mono, fontSize: 32, fontWeight: 300,
+              color: H.ink, marginBottom: 4, lineHeight: 1,
+            }}>ProjectRose</div>
+            <div style={{
+              fontFamily: H.mono, fontSize: 32, fontWeight: 500,
+              color: H.ink, marginBottom: 4, lineHeight: 1,
+            }}>Project<span style={{ color: H.sepia, fontStyle: 'italic' }}>Rose</span></div>
+            <div style={{
+              fontFamily: H.mono, fontSize: 32, fontWeight: 700,
+              color: H.ink, marginBottom: 20, lineHeight: 1,
+            }}>ProjectRose</div>
+
+            <div style={{
+              borderTop: `1px solid ${H.lineSoft}`, paddingTop: 18,
+              fontFamily: H.mono, fontSize: 12, color: H.inkMid, lineHeight: 1.7,
+            }}>
+              <div><span style={{ color: H.inkSoft }}>display</span> &nbsp;&nbsp; 32 / 500</div>
+              <div><span style={{ color: H.inkSoft }}>body</span> &nbsp;&nbsp;&nbsp;&nbsp; 13 / 400</div>
+              <div><span style={{ color: H.inkSoft }}>label</span> &nbsp;&nbsp;&nbsp; 10 / 500 <span style={{ letterSpacing: 1.6 }}>· TRACKED</span></div>
+              <div><span style={{ color: H.inkSoft }}>italic</span> &nbsp;&nbsp; <i>for Latin, sessions, notes</i></div>
+            </div>
+          </div>
+
+          {/* specimen tag system */}
+          <div style={{
+            background: H.paperLight, border: `1px solid ${H.line}`,
+            padding: '28px 32px',
+          }}>
+            <div style={{
+              fontFamily: H.mono, fontSize: 9, color: H.inkSoft,
+              letterSpacing: 1.6, marginBottom: 18,
+            }}>SPECIMEN · TABS & VIEWS</div>
+
+            {/* small tab sample */}
+            <div style={{ display: 'flex', border: `1px solid ${H.line}`, background: H.paperDark, marginBottom: 16 }}>
+              {[
+                { n: '01', l: 'main.rs', active: true },
+                { n: '02', l: 'editor.rs' },
+                { n: '03', l: 'chat.rs', mod: true },
+              ].map((t) => (
+                <div key={t.n} style={{
+                  padding: '10px 14px',
+                  background: t.active ? H.paperLight : 'transparent',
+                  borderRight: `1px solid ${H.line}`,
+                  fontFamily: H.mono, fontSize: 11,
+                  color: t.active ? H.ink : H.inkMid,
+                  display: 'flex', gap: 8, alignItems: 'center',
+                  borderTop: t.active ? `2px solid ${H.sepia}` : '2px solid transparent',
+                }}>
+                  <span style={{ fontSize: 9, color: t.active ? H.sepia : H.inkSoft }}>№{t.n}</span>
+                  <span>{t.l}</span>
+                  {t.mod && <span style={{ color: H.ochre }}>●</span>}
+                </div>
+              ))}
+            </div>
+
+            {/* view toggles */}
+            <div style={{ display: 'flex', border: `1px solid ${H.line}`, background: H.paperDark, marginBottom: 16 }}>
+              {['CODE', 'CHAT', 'GIT', 'DOCK', 'MAIL'].map((l, i, arr) => (
+                <div key={l} style={{
+                  padding: '8px 12px',
+                  background: i === 0 ? H.ink : 'transparent',
+                  color: i === 0 ? H.paperLight : H.inkMid,
+                  fontFamily: H.mono, fontSize: 10, letterSpacing: 1, fontWeight: 500,
+                  borderRight: i < arr.length - 1 ? `1px solid ${H.line}` : 'none',
+                  display: 'flex', gap: 6, alignItems: 'center',
+                }}>
+                  <span style={{
+                    fontSize: 8, opacity: 0.6,
+                    color: i === 0 ? H.paperLight : H.inkSoft,
+                  }}>№0{i+1}</span>
+                  {l}
+                </div>
+              ))}
+            </div>
+
+            <div style={{
+              fontFamily: H.mono, fontSize: 11, color: H.inkMid, lineHeight: 1.7,
+              borderTop: `1px solid ${H.lineSoft}`, paddingTop: 14,
+            }}>
+              Every view is a <i style={{ color: H.sepia }}>specimen</i>. Tabs and view
+              toggles carry numeric labels — <span style={{ color: H.sepia }}>№ 01</span>,
+              <span style={{ color: H.sepia }}> № 02</span>… — so the whole IDE feels
+              cataloged, not clicked-through.
+            </div>
+          </div>
+
+          {/* status states */}
+          <div style={{
+            background: H.paperLight, border: `1px solid ${H.line}`,
+            padding: '28px 32px', gridColumn: '1 / -1',
+          }}>
+            <div style={{
+              fontFamily: H.mono, fontSize: 9, color: H.inkSoft,
+              letterSpacing: 1.6, marginBottom: 18,
+            }}>STATES · INK USAGE</div>
+
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16,
+              fontFamily: H.mono, fontSize: 11,
+            }}>
+              {[
+                { color: H.sepia,  label: 'active / focus',     sub: 'sepia · accent' },
+                { color: H.olive,  label: 'saved / ok',          sub: 'olive · 5a6a30' },
+                { color: H.ochre,  label: 'modified / unsaved',  sub: 'ochre · a06a20' },
+                { color: '#b23838', label: 'error (reserved)',   sub: 'deeper · alert' },
+              ].map((s) => (
+                <div key={s.label} style={{
+                  padding: 14, background: H.paper, border: `1px solid ${H.lineSoft}`,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: s.color }}/>
+                    <span style={{ color: H.ink }}>{s.label}</span>
+                  </div>
+                  <div style={{ color: H.inkSoft, fontSize: 10, letterSpacing: 0.5, fontStyle: 'italic' }}>
+                    {s.sub}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── colophon ─── */}
+      <div style={{
+        borderTop: `1px solid ${H.line}`, paddingTop: 18,
+        display: 'flex', justifyContent: 'space-between',
+        fontFamily: H.mono, fontSize: 10, color: H.inkSoft, letterSpacing: 1.4,
+      }}>
+        <span>COLOPHON · set in IBM Plex Mono · bone paper · sepia, olive, ochre</span>
+        <span style={{ fontStyle: 'italic', color: H.sepia }}>Rosa gallica</span>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Page />);
+</script>
+</body>
+</html>

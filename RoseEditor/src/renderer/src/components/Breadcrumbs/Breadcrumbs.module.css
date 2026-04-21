@@ -2,16 +2,13 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 26px;
-  padding: 0 12px;
-  background: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-topbar-border);
-  font-size: var(--font-size-sm);
+  font-size: 11px;
+  letter-spacing: 0.2px;
   color: var(--color-text-muted);
-  flex-shrink: 0;
   user-select: none;
   overflow: hidden;
   white-space: nowrap;
+  font-family: var(--font-family-mono);
 }
 
 .root {
@@ -27,10 +24,11 @@
 
 .separator {
   color: var(--color-text-muted);
+  padding: 0 1px;
 }
 
 .segment {
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
 }
 
 .current {

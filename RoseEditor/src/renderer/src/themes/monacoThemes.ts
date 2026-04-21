@@ -36,38 +36,52 @@ export const roseDarkTheme: editor.IStandaloneThemeData = {
   }
 }
 
-export const roseLightTheme: editor.IStandaloneThemeData = {
+// Herbarium palette — bone paper, sepia ink, olive & ochre accents
+// All colors derived strictly from the Herbarium design token set
+export const roseHerbariumTheme: editor.IStandaloneThemeData = {
   base: 'vs',
-  inherit: true,
+  inherit: false,
   rules: [
-    { token: 'comment', foreground: '9ca0b0', fontStyle: 'italic' },
-    { token: 'keyword', foreground: '8839ef' },
-    { token: 'string', foreground: '40a02b' },
-    { token: 'number', foreground: 'fe640b' },
-    { token: 'type', foreground: 'df8e1d' },
-    { token: 'function', foreground: '1e66f5' },
-    { token: 'variable', foreground: '4c4f69' },
-    { token: 'constant', foreground: 'fe640b' },
-    { token: 'operator', foreground: '04a5e5' }
+    { token: '',          foreground: '2e2418' },                       // ink — base text
+    { token: 'comment',  foreground: '9c8c6e', fontStyle: 'italic' },   // inkSoft
+    { token: 'keyword',  foreground: '7a2a20', fontStyle: 'bold' },     // sepia
+    { token: 'string',   foreground: '5a6a30' },                        // olive
+    { token: 'number',   foreground: 'a06a20' },                        // ochre
+    { token: 'type',     foreground: 'a06a20', fontStyle: 'italic' },   // ochre italic
+    { token: 'function', foreground: '6b5c44' },                        // inkMid
+    { token: 'variable', foreground: '2e2418' },                        // ink
+    { token: 'constant', foreground: 'a06a20' },                        // ochre
+    { token: 'operator', foreground: '7a2a20' },                        // sepia
+    { token: 'regexp',   foreground: 'b23838' },                        // error red
+    { token: 'tag',      foreground: '7a2a20' },                        // sepia
+    { token: 'attribute.name',  foreground: '6b5c44' },                 // inkMid
+    { token: 'attribute.value', foreground: '5a6a30' },                 // olive
   ],
   colors: {
-    'editor.background': '#eff1f5',
-    'editor.foreground': '#4c4f69',
-    'editor.lineHighlightBackground': '#ccd0da',
-    'editor.selectionBackground': '#bcc0cc',
-    'editor.inactiveSelectionBackground': '#ccd0da',
-    'editorCursor.foreground': '#dc8a78',
-    'editorWhitespace.foreground': '#bcc0cc',
-    'editorIndentGuide.background': '#ccd0da',
-    'editorIndentGuide.activeBackground': '#bcc0cc',
-    'editorLineNumber.foreground': '#9ca0b0',
-    'editorLineNumber.activeForeground': '#4c4f69',
-    'editor.findMatchBackground': '#df8e1d40',
-    'editor.findMatchHighlightBackground': '#df8e1d20',
-    'editorGutter.background': '#eff1f5',
-    'minimap.background': '#e6e9ef',
-    'scrollbarSlider.background': '#ccd0da80',
-    'scrollbarSlider.hoverBackground': '#bcc0cc80',
-    'scrollbarSlider.activeBackground': '#9ca0b080'
+    'editor.background':                '#f1ebdf',  // paper
+    'editor.foreground':                '#2e2418',  // ink
+    'editor.lineHighlightBackground':   '#e8e0d0',  // paperDark
+    'editor.selectionBackground':       '#d6cbaf',  // line
+    'editor.inactiveSelectionBackground': '#e4dbc6', // lineSoft
+    'editorCursor.foreground':          '#7a2a20',  // sepia
+    'editorWhitespace.foreground':      '#d6cbaf',  // line
+    'editorIndentGuide.background1':    '#e4dbc6',  // lineSoft
+    'editorIndentGuide.activeBackground1': '#d6cbaf', // line
+    'editorLineNumber.foreground':      '#9c8c6e',  // inkSoft
+    'editorLineNumber.activeForeground': '#6b5c44', // inkMid
+    'editor.findMatchBackground':       '#a06a2040',
+    'editor.findMatchHighlightBackground': '#a06a2020',
+    'editorGutter.background':          '#f1ebdf',  // paper
+    'minimap.background':               '#e8e0d0',  // paperDark
+    'scrollbarSlider.background':       '#d6cbaf80', // line
+    'scrollbarSlider.hoverBackground':  '#b8ac9480', // lineStrong
+    'scrollbarSlider.activeBackground': '#9c8c6e80', // inkSoft
+    'editorBracketMatch.background':    '#d6cbaf',  // line
+    'editorBracketMatch.border':        '#7a2a20',  // sepia
+    'editor.wordHighlightBackground':   '#e8e0d0',  // paperDark
+    'editor.wordHighlightStrongBackground': '#e4dbc6', // lineSoft
+    'editorError.foreground':           '#b23838',
+    'editorWarning.foreground':         '#a06a20',  // ochre
+    'editorInfo.foreground':            '#5a6a30',  // olive
   }
 }

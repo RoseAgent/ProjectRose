@@ -1,7 +1,6 @@
 import { useEffect, useCallback, useState } from 'react'
 import { TopBar } from './components/TopBar/TopBar'
 import { FileActions } from './components/TopBar/FileActions'
-import { Breadcrumbs } from './components/Breadcrumbs/Breadcrumbs'
 import { EditorView } from './components/EditorView/EditorView'
 import { ChatView } from './components/ChatView/ChatView'
 import { DockerView } from './components/DockerView/DockerView'
@@ -39,7 +38,7 @@ function App(): JSX.Element {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    window.api.setNativeTheme(theme)
+    window.api.setNativeTheme(theme === 'herbarium' ? 'light' : theme)
   }, [theme])
 
   // Subscribe once to indexing progress events from the main process.
@@ -119,7 +118,7 @@ function App(): JSX.Element {
   if (!rootPath) {
     return (
       <div className={styles.app}>
-        <div className={styles.titleBar}>RoseEditor</div>
+        <div className={styles.titleBar} />
         <WelcomeView onOpenFolder={handleOpenFolder} />
       </div>
     )
@@ -127,7 +126,8 @@ function App(): JSX.Element {
 
   return (
     <div className={styles.app}>
-      <div className={styles.titleBar}>RoseEditor</div>
+      <div className={styles.titleBar} />
+      <TopBar />
       {needsSetup && (
         <SetupWizard
           rootPath={rootPath}
@@ -135,17 +135,14 @@ function App(): JSX.Element {
         />
       )}
       {activeView === 'editor' && (
-        <>
-          <div className={styles.toolbar}>
-            <FileActions
-              onOpenFolder={handleOpenFolder}
-              onOpenFile={handleOpenFile}
-              onNewFile={createNewFile}
-              onSave={saveActiveFile}
-            />
-          </div>
-          <Breadcrumbs />
-        </>
+        <div className={styles.toolbar}>
+          <FileActions
+            onOpenFolder={handleOpenFolder}
+            onOpenFile={handleOpenFile}
+            onNewFile={createNewFile}
+            onSave={saveActiveFile}
+          />
+        </div>
       )}
       <main className={styles.mainContent}>
         {activeView === 'editor' && <EditorView />}
@@ -157,7 +154,6 @@ function App(): JSX.Element {
         {activeView === 'activeListening' && <ActiveListeningView />}
         {activeView === 'email' && <EmailView />}
       </main>
-      <TopBar />
     </div>
   )
 }

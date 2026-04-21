@@ -22,17 +22,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 2px 12px;
+  padding: 3px 12px;
+  border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
 .terminalTitle {
-  font-weight: 600;
+  font-size: 9px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-size: 11px;
+  letter-spacing: 1.6px;
 }
 
 .terminalContainer {

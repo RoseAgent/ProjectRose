@@ -1,71 +1,114 @@
 .topBar {
   height: var(--topbar-height);
   background: var(--color-topbar-bg);
-  border-top: 1px solid var(--color-topbar-border);
-  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-topbar-border);
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  gap: 8px;
+  padding: 0 16px;
+  gap: 14px;
   user-select: none;
+  flex-shrink: 0;
+  position: relative;
+}
+
+/* double hairline — museum-label touch */
+.hairline {
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--color-border);
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Brand lockup ── */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0;
 }
 
-.fileActions {
-  display: flex;
-  gap: 4px;
+.wordmark {
+  line-height: 1.1;
 }
 
-.actionButton {
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  background: transparent;
-  transition: background 0.15s, color 0.15s;
-}
-
-.actionButton:hover {
-  background: var(--color-button-bg);
+.wordmarkName {
+  font-size: 13px;
+  font-weight: 500;
   color: var(--color-text-primary);
+  letter-spacing: 0.2px;
+  font-family: var(--font-family-mono);
 }
 
-.left {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.wordmarkRose {
+  color: var(--color-accent);
+  font-style: italic;
+}
+
+.wordmarkSub {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  letter-spacing: 1.4px;
+  margin-top: 2px;
+  font-family: var(--font-family-mono);
+}
+
+/* ── Vertical divider ── */
+.divider {
+  width: 1px;
+  height: 24px;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+/* ── Breadcrumb zone ── */
+.breadcrumbZone {
   min-width: 0;
+  overflow: hidden;
 }
 
-.center {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.right {
+/* ── Spacer ── */
+.spacer {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
 }
 
+/* ── Right zone ── */
+.right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+/* ── View Toggle (bordered rectangle, no radius) ── */
 .toggleGroup {
   display: flex;
+  border: 1px solid var(--color-border);
   background: var(--color-toggle-bg);
-  border-radius: var(--radius-md);
-  padding: 2px;
-  gap: 2px;
+  flex-shrink: 0;
 }
 
 .toggleBtn {
-  padding: 4px 14px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
+  padding: 6px 12px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1px;
   color: var(--color-text-secondary);
-  transition: background 0.15s, color 0.15s;
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.1s, color 0.1s;
+  font-family: var(--font-family-mono);
+  white-space: nowrap;
+}
+
+.toggleBtn:last-child {
+  border-right: none;
 }
 
 .toggleBtn:hover {
@@ -81,23 +124,49 @@
   color: var(--color-text-inverse);
 }
 
-.iconButton {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  font-size: 16px;
-  color: var(--color-text-secondary);
-  transition: background 0.15s, color 0.15s;
+/* ── Specimen number ── */
+.specimenNum {
+  font-size: 8px;
+  opacity: 0.6;
+  letter-spacing: 0;
 }
 
-.iconButton:hover {
+/* ── Theme Toggle ── */
+.themeBtn {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1.2px;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  padding: 4px 8px;
+  font-family: var(--font-family-mono);
+  transition: color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.themeBtn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+/* ── FileActions toolbar row (editor-only, below TopBar) ── */
+.fileActions {
+  display: flex;
+  gap: 4px;
+}
+
+.actionButton {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  background: transparent;
+  transition: background 0.15s, color 0.15s;
+  font-family: var(--font-family-mono);
+}
+
+.actionButton:hover {
   background: var(--color-button-bg);
   color: var(--color-text-primary);
-}
-
-.spacer {
-  flex: 1;
 }

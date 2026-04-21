@@ -8,7 +8,7 @@ import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import { useFileStore } from '../../stores/useFileStore'
 import { useThemeStore } from '../../stores/useThemeStore'
-import { roseDarkTheme, roseLightTheme } from '../../themes/monacoThemes'
+import { roseDarkTheme, roseHerbariumTheme } from '../../themes/monacoThemes'
 
 // Configure Monaco to use local workers instead of CDN
 self.MonacoEnvironment = {
@@ -55,16 +55,16 @@ export function MonacoEditor(): JSX.Element | null {
 
     if (!themesRegistered) {
       monacoInstance.editor.defineTheme('rose-dark', roseDarkTheme)
-      monacoInstance.editor.defineTheme('rose-light', roseLightTheme)
+      monacoInstance.editor.defineTheme('rose-herbarium', roseHerbariumTheme)
       themesRegistered = true
     }
 
-    monacoInstance.editor.setTheme(theme === 'dark' ? 'rose-dark' : 'rose-light')
+    monacoInstance.editor.setTheme(theme === 'dark' ? 'rose-dark' : 'rose-herbarium')
   }
 
   useEffect(() => {
     if (editorRef.current) {
-      monaco.editor.setTheme(theme === 'dark' ? 'rose-dark' : 'rose-light')
+      monaco.editor.setTheme(theme === 'dark' ? 'rose-dark' : 'rose-herbarium')
     }
   }, [theme])
 
@@ -91,7 +91,7 @@ export function MonacoEditor(): JSX.Element | null {
       height="100%"
       language={activeFile.language}
       value={activeFile.content}
-      theme={theme === 'dark' ? 'rose-dark' : 'rose-light'}
+      theme={theme === 'dark' ? 'rose-dark' : 'rose-herbarium'}
       onChange={(value) => {
         if (value !== undefined) {
           updateContent(activeFile.filePath, value)
@@ -99,7 +99,9 @@ export function MonacoEditor(): JSX.Element | null {
       }}
       onMount={handleMount}
       options={{
-        fontFamily: "var(--font-family-mono), 'Cascadia Code', Consolas, monospace",
+        fontFamily: theme === 'dark'
+          ? "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace"
+          : "'IBM Plex Mono', ui-monospace, monospace",
         fontSize: 14,
         lineHeight: 20,
         minimap: { enabled: true },

@@ -6,8 +6,12 @@ export function ThemeToggle(): JSX.Element {
   const toggleTheme = useThemeStore((s) => s.toggleTheme)
 
   return (
-    <button className={styles.iconButton} onClick={toggleTheme} title="Toggle theme">
-      {theme === 'dark' ? '\u2600' : '\u263D'}
+    <button
+      className={styles.themeBtn}
+      onClick={toggleTheme}
+      title={theme === 'dark' ? 'Switch to Herbarium' : 'Switch to Dark'}
+    >
+      {theme === 'dark' ? '\u263D DARK' : '\u2600 PAPER'}
     </button>
   )
 }

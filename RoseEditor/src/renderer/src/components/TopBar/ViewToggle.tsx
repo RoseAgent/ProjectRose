@@ -10,13 +10,14 @@ export function ViewToggle(): JSX.Element {
 
   return (
     <div className={styles.toggleGroup}>
-      {navItems.filter((item) => item.visible).map((item) => (
+      {navItems.filter((item) => item.visible).map((item, index) => (
         <button
           key={item.viewId}
           className={clsx(styles.toggleBtn, activeView === item.viewId && styles.toggleActive)}
           onClick={() => setActiveView(item.viewId)}
         >
-          {item.label}
+          <span className={styles.specimenNum}>№{String(index + 1).padStart(2, '0')}</span>
+          {item.label.toUpperCase()}
         </button>
       ))}
     </div>

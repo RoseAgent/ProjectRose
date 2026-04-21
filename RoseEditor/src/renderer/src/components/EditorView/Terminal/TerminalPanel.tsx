@@ -32,27 +32,27 @@ const DARK_THEME = {
   brightWhite: '#a6adc8'
 }
 
-const LIGHT_THEME = {
-  background: '#dce0e8',
-  foreground: '#4c4f69',
-  cursor: '#dc8a78',
-  selectionBackground: '#bcc0cc',
-  black: '#5c5f77',
-  red: '#d20f39',
-  green: '#40a02b',
-  yellow: '#df8e1d',
-  blue: '#1e66f5',
-  magenta: '#8839ef',
-  cyan: '#04a5e5',
-  white: '#acb0be',
-  brightBlack: '#6c6f85',
-  brightRed: '#d20f39',
-  brightGreen: '#40a02b',
-  brightYellow: '#df8e1d',
-  brightBlue: '#1e66f5',
-  brightMagenta: '#8839ef',
-  brightCyan: '#04a5e5',
-  brightWhite: '#bcc0cc'
+const HERBARIUM_THEME = {
+  background: '#e8e0d0',   // paperDark
+  foreground: '#2e2418',   // ink
+  cursor: '#7a2a20',        // sepia
+  selectionBackground: '#d6cbaf', // line
+  black: '#6b5c44',         // inkMid
+  red: '#b23838',
+  green: '#5a6a30',         // olive
+  yellow: '#a06a20',        // ochre
+  blue: '#4a6a8a',
+  magenta: '#7a2a20',       // sepia
+  cyan: '#3d7a6a',
+  white: '#9c8c6e',         // inkSoft
+  brightBlack: '#7a6858',
+  brightRed: '#c24040',
+  brightGreen: '#6a7a38',
+  brightYellow: '#b07a28',
+  brightBlue: '#5a7a9a',
+  brightMagenta: '#9b5a40',
+  brightCyan: '#4a8a7a',
+  brightWhite: '#d6cbaf'   // line
 }
 
 export function TerminalPanel(): JSX.Element {
@@ -72,12 +72,16 @@ export function TerminalPanel(): JSX.Element {
   useEffect(() => {
     if (!containerRef.current) return
 
+    const xtermFont = theme === 'dark'
+      ? "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace"
+      : "'IBM Plex Mono', ui-monospace, monospace"
+
     const term = new Terminal({
-      fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace",
+      fontFamily: xtermFont,
       fontSize: 13,
       lineHeight: 1.3,
       cursorBlink: true,
-      theme: theme === 'dark' ? DARK_THEME : LIGHT_THEME
+      theme: theme === 'dark' ? DARK_THEME : HERBARIUM_THEME
     })
 
     const fitAddon = new FitAddon()
@@ -151,9 +155,12 @@ export function TerminalPanel(): JSX.Element {
 
   // Sync theme
   useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.options.theme = theme === 'dark' ? DARK_THEME : LIGHT_THEME
-    }
+    const term = terminalRef.current
+    if (!term) return
+    term.options.theme = theme === 'dark' ? DARK_THEME : HERBARIUM_THEME
+    term.options.fontFamily = theme === 'dark'
+      ? "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace"
+      : "'IBM Plex Mono', ui-monospace, monospace"
   }, [theme])
 
   // Refit on height change
