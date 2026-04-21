@@ -112,6 +112,32 @@
   opacity: 0.75;
 }
 
+.refreshBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tabBtn {
+  font-size: 12px;
+  padding: 4px 12px;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.tabBtn:hover {
+  background: var(--color-hover);
+}
+
+.tabBtnActive {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border-color: var(--color-accent);
+}
+
 /* ── Service health ── */
 
 .serviceList {

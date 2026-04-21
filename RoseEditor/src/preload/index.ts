@@ -339,6 +339,22 @@ const api = {
     }
   },
 
+  // Extensions
+  extension: {
+    list: (): Promise<{ installed: import('../shared/extension-types').InstalledExtension[] }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_LIST),
+    install: (downloadUrl: string, extensionId?: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_INSTALL, downloadUrl, extensionId),
+    uninstall: (id: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_UNINSTALL, id),
+    enable: (id: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_ENABLE, id),
+    disable: (id: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_DISABLE, id),
+    fetchRegistry: (registryUrl: string): Promise<import('../shared/extension-types').ExtensionRegistry> =>
+      ipcRenderer.invoke(IPC.EXTENSION_FETCH_REGISTRY, registryUrl)
+  },
+
   // Git
   git: {
     isRepo: (cwd: string): Promise<boolean> =>

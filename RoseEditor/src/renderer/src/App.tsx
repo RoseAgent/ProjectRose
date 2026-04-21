@@ -3,15 +3,11 @@ import { TopBar } from './components/TopBar/TopBar'
 import { FileActions } from './components/TopBar/FileActions'
 import { EditorView } from './components/EditorView/EditorView'
 import { ChatView } from './components/ChatView/ChatView'
-import { DockerView } from './components/DockerView/DockerView'
-import { GitView } from './components/GitView/GitView'
 import { HeartbeatView } from './components/HeartbeatView/HeartbeatView'
 import { SettingsView } from './components/SettingsView/SettingsView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
-import { ActiveListeningView } from './components/ActiveListeningView/ActiveListeningView'
-import { EmailView } from './components/EmailView/EmailView'
-import { DiscordView } from './components/DiscordView/DiscordView'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
+import { getExtensionByViewId } from './extensions/registry'
 import { useThemeStore } from './stores/useThemeStore'
 import { useViewStore } from './stores/useViewStore'
 import { useFileStore } from './stores/useFileStore'
@@ -160,13 +156,12 @@ function App(): JSX.Element {
       <main className={styles.mainContent}>
         {activeView === 'editor' && <EditorView />}
         {activeView === 'chat' && <ChatView />}
-        {activeView === 'docker' && <DockerView />}
-        {activeView === 'git' && <GitView />}
         {activeView === 'heartbeat' && <HeartbeatView />}
         {activeView === 'settings' && <SettingsView />}
-        {activeView === 'activeListening' && <ActiveListeningView />}
-        {activeView === 'email' && <EmailView />}
-        {activeView === 'discord' && <DiscordView />}
+        {(() => {
+          const ext = getExtensionByViewId(activeView)
+          return ext?.PageView ? <ext.PageView /> : null
+        })()}
       </main>
     </div>
   )

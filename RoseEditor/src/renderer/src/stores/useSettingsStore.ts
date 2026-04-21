@@ -4,15 +4,10 @@ import type { ModelConfig, RouterConfig, CompressionConfig } from '../types/elec
 import { useProjectStore } from './useProjectStore'
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { viewId: 'chat',            label: 'Chat',      visible: true },
-  { viewId: 'activeListening', label: 'Listen',    visible: true },
-  { viewId: 'docker',          label: 'Docker',    visible: true },
-  { viewId: 'git',             label: 'Git',       visible: true },
-  { viewId: 'editor',          label: 'Editor',    visible: true },
-  { viewId: 'heartbeat',       label: 'Heartbeat', visible: true },
-  { viewId: 'settings',        label: 'Settings',  visible: true },
-  { viewId: 'email',           label: 'Email',     visible: true },
-  { viewId: 'discord',         label: 'Discord',   visible: true },
+  { viewId: 'chat',      label: 'Chat',      visible: true },
+  { viewId: 'editor',    label: 'Editor',    visible: true },
+  { viewId: 'heartbeat', label: 'Heartbeat', visible: true },
+  { viewId: 'settings',  label: 'Settings',  visible: true },
 ]
 
 interface SettingsState {
@@ -36,6 +31,7 @@ interface SettingsState {
   providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
   router: RouterConfig
   compression: CompressionConfig
+  extensions: Record<string, Record<string, unknown>>
   loaded: boolean
   load: () => Promise<void>
   update: (patch: Partial<Omit<SettingsState, 'loaded' | 'load' | 'update'>>) => Promise<void>
@@ -62,6 +58,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' } },
   router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
   compression: { provider: 'anthropic', modelName: '', baseUrl: '' },
+  extensions: {},
   loaded: false,
 
   load: async () => {

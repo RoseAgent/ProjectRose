@@ -1,6 +1,6 @@
 import { ipcMain, app } from 'electron'
 import { join, dirname } from 'path'
-import { readFile, writeFile, mkdir } from 'fs/promises'
+import { readFile, writeFile, mkdir, readdir } from 'fs/promises'
 import { get as httpGet } from 'http'
 import { IPC } from '../../shared/ipcChannels'
 import { NavItem } from '../../shared/types'
@@ -47,18 +47,24 @@ export interface AppSettings {
   providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
   router: RouterConfig
   compression: CompressionConfig
+  // Namespaced extension settings: { 'rose-discord': { global: {...}, project: {...} } }
+  extensions: Record<string, Record<string, unknown>>
+}
+
+// Migrate old view IDs to extension IDs
+const NAV_ID_MIGRATIONS: Record<string, string> = {
+  discord: 'rose-discord',
+  email: 'rose-email',
+  git: 'rose-git',
+  docker: 'rose-docker',
+  activeListening: 'rose-listen'
 }
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { viewId: 'chat',            label: 'Chat',      visible: true },
-  { viewId: 'activeListening', label: 'Listen',    visible: true },
-  { viewId: 'docker',          label: 'Docker',    visible: true },
-  { viewId: 'git',             label: 'Git',       visible: true },
-  { viewId: 'editor',          label: 'Editor',    visible: true },
-  { viewId: 'heartbeat',       label: 'Heartbeat', visible: true },
-  { viewId: 'settings',        label: 'Settings',  visible: true },
-  { viewId: 'email',           label: 'Email',     visible: true },
-  { viewId: 'discord',         label: 'Discord',   visible: true },
+  { viewId: 'chat',      label: 'Chat',      visible: true },
+  { viewId: 'editor',    label: 'Editor',    visible: true },
+  { viewId: 'heartbeat', label: 'Heartbeat', visible: true },
+  { viewId: 'settings',  label: 'Settings',  visible: true },
 ]
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -81,10 +87,29 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultModelId: '',
   providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' } },
   router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
-  compression: { provider: 'anthropic', modelName: '', baseUrl: '' }
+  compression: { provider: 'anthropic', modelName: '', baseUrl: '' },
+  extensions: {}
 }
 
 const GLOBAL_SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
+const EXTENSIONS_DIR = join(app.getPath('userData'), 'extensions')
+
+async function getInstalledExtensionIds(): Promise<Set<string>> {
+  try {
+    const entries = await readdir(EXTENSIONS_DIR)
+    const ids = new Set<string>()
+    for (const entry of entries) {
+      try {
+        const raw = await readFile(join(EXTENSIONS_DIR, entry, 'rose-extension.json'), 'utf-8')
+        const manifest = JSON.parse(raw)
+        if (manifest?.id) ids.add(manifest.id as string)
+      } catch { /* skip invalid entries */ }
+    }
+    return ids
+  } catch {
+    return new Set()
+  }
+}
 
 const SENSITIVE_FIELDS = ['providerKeys', 'imapPassword', 'discordBotToken'] as const
 
@@ -107,10 +132,17 @@ function getRepoConfigPath(rootPath: string): string {
   return join(rootPath, '.rose', 'config.json')
 }
 
-function mergeNavItems(stored: NavItem[]): NavItem[] {
-  const known = new Set(stored.map((n) => n.viewId))
+async function mergeNavItems(stored: NavItem[]): Promise<NavItem[]> {
+  const installedIds = await getInstalledExtensionIds()
+  // Keep core items + only rose-* items that are actually installed on disk
+  const filtered = stored.filter((n) => !n.viewId.startsWith('rose-') || installedIds.has(n.viewId))
+  const migrated = filtered.map((n) => ({
+    ...n,
+    viewId: NAV_ID_MIGRATIONS[n.viewId] ?? n.viewId
+  }))
+  const known = new Set(migrated.map((n) => n.viewId))
   const missing = DEFAULT_NAV_ITEMS.filter((n) => !known.has(n.viewId))
-  return [...stored, ...missing]
+  return [...migrated, ...missing]
 }
 
 export async function readSettings(rootPath?: string): Promise<AppSettings> {
@@ -132,7 +164,7 @@ export async function readSettings(rootPath?: string): Promise<AppSettings> {
     ...pick(globalSettings, SENSITIVE_FIELDS)
   }
 
-  merged.navItems = mergeNavItems(merged.navItems)
+  merged.navItems = await mergeNavItems(merged.navItems)
   return merged
 }
 

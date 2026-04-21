@@ -21,19 +21,13 @@ export interface TerminalResizePayload {
   rows: number
 }
 
-export type ActiveView =
-  | 'editor'
-  | 'chat'
-  | 'docker'
-  | 'git'
-  | 'heartbeat'
-  | 'settings'
-  | 'activeListening'
-  | 'email'
-  | 'discord'
+export type BaseView = 'editor' | 'chat' | 'heartbeat' | 'settings'
+
+// Accepts base views and extension IDs (e.g. 'rose-discord')
+export type ActiveView = BaseView | (string & Record<never, never>)
 
 export interface NavItem {
-  viewId: ActiveView
+  viewId: string
   label: string
   visible: boolean
 }

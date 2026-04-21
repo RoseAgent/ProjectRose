@@ -132,6 +132,14 @@ export const IPC = {
   DISCORD_MESSAGE_CREATE:   'discord:messageCreate',
   DISCORD_CONNECTION_STATE: 'discord:connectionState',
 
+  // Extensions
+  EXTENSION_LIST: 'extension:list',
+  EXTENSION_INSTALL: 'extension:install',
+  EXTENSION_UNINSTALL: 'extension:uninstall',
+  EXTENSION_ENABLE: 'extension:enable',
+  EXTENSION_DISABLE: 'extension:disable',
+  EXTENSION_FETCH_REGISTRY: 'extension:fetchRegistry',
+
   // Active Listening
   ACTIVE_LISTENING_LABEL_SPEAKER: 'activeSpeech:labelSpeaker',
   ACTIVE_LISTENING_TRAIN: 'activeSpeech:train',

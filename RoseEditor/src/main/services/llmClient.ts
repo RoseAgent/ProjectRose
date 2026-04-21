@@ -15,15 +15,9 @@ import {
   handleFindReferences,
   handleGetProjectOverview,
   handleRunCommand,
-  handleListEmails,
-  handleReadEmail,
-  handleMoveEmailToFolder,
-  handleDeleteEmail,
-  handleListDiscordChannels,
-  handleReadDiscordMessages,
-  handleSendDiscordMessage,
   type PythonToolMeta
 } from './toolHandlers'
+import { getAllBuiltinExtensionTools, type ExtensionToolEntry } from '../extensions/builtinTools'
 import type { Message } from '../../shared/roseModelTypes'
 import type { ModelConfig, RouterConfig, CompressionConfig } from '../ipc/settingsHandlers'
 
@@ -165,57 +159,37 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
       inputSchema: z.object({}),
       execute: wrapExecute('get_project_overview', () => handleGetProjectOverview(), projectRoot)
     }),
-    list_emails: tool({
-      description: 'List emails from the configured inbox. Returns summaries with UIDs, senders, subjects, dates, and folder classification (inbox/spam/quarantine). Use the uid from results to read or delete a specific email.',
-      inputSchema: z.object({
-        folder: z.enum(['inbox', 'spam', 'quarantine']).optional().describe('Filter by folder. Omit to list all emails.')
-      }),
-      execute: wrapExecute('list_emails', handleListEmails, projectRoot)
-    }),
-    read_email: tool({
-      description: 'Read the full sanitized body of an email by UID. Links are stripped for safety. Returns a quarantine notice if prompt injection is detected in the body.',
-      inputSchema: z.object({
-        uid: z.number().describe('The email UID from list_emails')
-      }),
-      execute: wrapExecute('read_email', handleReadEmail, projectRoot)
-    }),
-    move_email_to_folder: tool({
-      description: 'Move an email to a folder to categorize it. Folders: inbox, spam, quarantine.',
-      inputSchema: z.object({
-        uid: z.number().describe('The email UID'),
-        folder: z.enum(['inbox', 'spam', 'quarantine']).describe('Target folder')
-      }),
-      execute: wrapExecute('move_email_to_folder', handleMoveEmailToFolder, projectRoot)
-    }),
-    delete_email: tool({
-      description: 'Permanently delete an email by UID from the IMAP inbox.',
-      inputSchema: z.object({
-        uid: z.number().describe('The email UID to delete')
-      }),
-      execute: wrapExecute('delete_email', handleDeleteEmail, projectRoot)
-    }),
-    list_discord_channels: tool({
-      description: 'List all Discord channels the bot has access to, grouped by server. Returns channel names and IDs needed for reading or sending messages.',
-      inputSchema: z.object({}),
-      execute: wrapExecute('list_discord_channels', handleListDiscordChannels, projectRoot)
-    }),
-    read_discord_messages: tool({
-      description: 'Read recent messages from a Discord channel. Returns messages with author, timestamp, and content.',
-      inputSchema: z.object({
-        channelId: z.string().describe('The Discord channel ID'),
-        limit: z.number().optional().describe('Number of messages to fetch (default 20, max 100)')
-      }),
-      execute: wrapExecute('read_discord_messages', handleReadDiscordMessages, projectRoot)
-    }),
-    send_discord_message: tool({
-      description: 'Send a message to a Discord channel.',
-      inputSchema: z.object({
-        channelId: z.string().describe('The Discord channel ID'),
-        content: z.string().describe('The message text to send')
-      }),
-      execute: wrapExecute('send_discord_message', (input) => handleSendDiscordMessage(input), projectRoot)
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string): Record<string, any> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: Record<string, any> = {}
+  for (const entry of entries) {
+    const shape: Record<string, z.ZodTypeAny> = {}
+    const props = entry.schema?.properties ?? {}
+    for (const [key, def] of Object.entries(props as Record<string, { type: string; description?: string; enum?: string[] }>)) {
+      let zodType: z.ZodTypeAny
+      if (def.enum) {
+        zodType = z.enum(def.enum as [string, ...string[]])
+      } else if (def.type === 'number') {
+        zodType = z.number()
+      } else {
+        zodType = z.string()
+      }
+      const required = (entry.schema?.required as string[] | undefined)?.includes(key) ?? false
+      shape[key] = required
+        ? zodType.describe(def.description ?? '')
+        : zodType.optional().describe(def.description ?? '')
+    }
+    result[entry.name] = tool({
+      description: entry.description,
+      inputSchema: z.object(shape),
+      execute: wrapExecute(entry.name, entry.execute, projectRoot)
     })
   }
+  return result
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -249,6 +223,7 @@ export async function streamChat(params: {
   const model = resolveModel(modelConfig, providerKeys)
   const tools = {
     ...buildCoreTools(projectRoot),
+    ...buildExtensionTools(getAllBuiltinExtensionTools(), projectRoot),
     ...buildPythonTools(pythonTools, projectRoot)
   }
   for (const name of disabledCoreTools ?? []) delete tools[name]

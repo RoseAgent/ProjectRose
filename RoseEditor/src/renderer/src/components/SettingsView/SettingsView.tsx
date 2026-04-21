@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { ExtensionsTab } from './ExtensionsTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useEmailStore } from '../../stores/useEmailStore'
@@ -249,11 +250,15 @@ export function SettingsView(): JSX.Element {
     }
   }, [activePage])
 
+  // Views that have their own settings pages; all others show the placeholder or are skipped
+  const SETTINGS_PAGES = new Set(['chat', 'heartbeat', 'rose-email', 'rose-discord'])
+
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard' },
     ...navItems
-      .filter((n) => n.viewId !== 'settings' && n.visible)
-      .map((n) => ({ id: n.viewId, label: n.label }))
+      .filter((n) => n.viewId !== 'settings' && n.visible && SETTINGS_PAGES.has(n.viewId))
+      .map((n) => ({ id: n.viewId, label: n.label })),
+    { id: 'extensions', label: 'Extensions' }
   ]
 
   useEffect(() => {
@@ -974,6 +979,12 @@ export function SettingsView(): JSX.Element {
     )
   }
 
+  function renderExtensions(): JSX.Element {
+    return (
+      <ExtensionsTab />
+    )
+  }
+
   function renderDiscord(): JSX.Element {
     const guilds = Array.from(new Map(discordChannels_list.map((c) => [c.guildId, c.guildName])).entries())
 
@@ -1038,8 +1049,9 @@ export function SettingsView(): JSX.Element {
       case 'dashboard': return renderDashboard()
       case 'chat': return renderChat()
       case 'heartbeat': return renderHeartbeat()
-      case 'email': return renderEmail()
-      case 'discord': return renderDiscord()
+      case 'rose-email': return renderEmail()
+      case 'rose-discord': return renderDiscord()
+      case 'extensions': return renderExtensions()
       default: return renderPlaceholder()
     }
   }

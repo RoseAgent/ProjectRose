@@ -260,6 +260,12 @@ export interface ElectronAPI {
 
   // Git
   git: GitAPI
+
+  // Extensions
+  extension: ExtensionAPI
+
+  // Active Listening / RoseSpeech
+  activeSpeech: ActiveSpeechAPI
 }
 
 export interface ChatSessionMeta {
@@ -437,6 +443,29 @@ export interface GitAPI {
   stashDrop: (cwd: string, index: number) => Promise<GitOpResult>
   stashApply: (cwd: string, index: number) => Promise<GitOpResult>
   onHeadChanged: (callback: (payload: { cwd: string }) => void) => () => void
+}
+
+export interface ExtensionAPI {
+  list: () => Promise<{ installed: import('@shared/extension-types').InstalledExtension[] }>
+  install: (downloadUrl: string, extensionId?: string) => Promise<{ ok: boolean }>
+  uninstall: (id: string) => Promise<{ ok: boolean }>
+  enable: (id: string) => Promise<{ ok: boolean }>
+  disable: (id: string) => Promise<{ ok: boolean }>
+  fetchRegistry: (registryUrl: string) => Promise<import('@shared/extension-types').ExtensionRegistry>
+}
+
+export interface ActiveSpeechAPI {
+  getSpeakers: () => Promise<Array<{ id: number; name: string; created_at: string }>>
+  createSpeaker: (name: string) => Promise<{ id: number; name: string }>
+  addSample: (payload: { speakerId: number; source: string; audioBuffer: ArrayBuffer; projectId?: string }) => Promise<{ id: number }>
+  labelSpeaker: (payload: { utteranceId: number; speakerId?: number; speakerName?: string }) => Promise<{ ok: boolean; speaker_id: number }>
+  train: () => Promise<{ job_id: number }>
+  trainStatus: (jobId: number) => Promise<{ status: string; accuracy: number | null; deployed: boolean; error: string | null }>
+  trainHistory: () => Promise<Array<{ id: number; accuracy: number; is_active: boolean; trained_at: string; sample_count: number; notes: string | null }>>
+  createSession: (projectId?: string) => Promise<{ id: number }>
+  endSession: (sessionId: number) => Promise<{ ok: boolean }>
+  getUtterances: (sessionId: number) => Promise<Array<{ id: number; text: string; speaker_name: string | null; speaker_id: number | null }>>
+  getSessions: () => Promise<Array<{ id: number; project_id: string | null; started_at: string; ended_at: string | null }>>
 }
 
 declare global {

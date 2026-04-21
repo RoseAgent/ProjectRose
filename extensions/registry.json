@@ -1,0 +1,54 @@
+{
+  "extensions": [
+    {
+      "id": "rose-discord",
+      "name": "Discord",
+      "version": "1.0.0",
+      "description": "Discord channel integration and messaging. Browse channels, read messages, and give your agent the ability to post to Discord.",
+      "author": "ProjectRose",
+      "firstParty": true,
+      "downloadUrl": "https://github.com/ghalrym/ProjectRose/releases/download/v1.0.0/rose-discord.zip",
+      "categories": ["communication"]
+    },
+    {
+      "id": "rose-email",
+      "name": "Email",
+      "version": "1.0.0",
+      "description": "IMAP email management with spam filtering and prompt injection protection. Let your agent read, triage, and manage your inbox.",
+      "author": "ProjectRose",
+      "firstParty": true,
+      "downloadUrl": "https://github.com/ghalrym/ProjectRose/releases/download/v1.0.0/rose-email.zip",
+      "categories": ["communication"]
+    },
+    {
+      "id": "rose-git",
+      "name": "Git",
+      "version": "1.0.0",
+      "description": "Full-featured Git UI: branches, commits, diffs, staging, stashes, tags, and remote operations.",
+      "author": "ProjectRose",
+      "firstParty": true,
+      "downloadUrl": "https://github.com/ghalrym/ProjectRose/releases/download/v1.0.0/rose-git.zip",
+      "categories": ["dev-tools"]
+    },
+    {
+      "id": "rose-docker",
+      "name": "Docker",
+      "version": "1.0.0",
+      "description": "Docker container management via docker-compose. Inspect containers, view logs, start/stop services.",
+      "author": "ProjectRose",
+      "firstParty": true,
+      "downloadUrl": "https://github.com/ghalrym/ProjectRose/releases/download/v1.0.0/rose-docker.zip",
+      "categories": ["dev-tools"]
+    },
+    {
+      "id": "rose-listen",
+      "name": "Listen",
+      "version": "1.0.0",
+      "description": "Active listening with speaker diarization. Train the model on your team's voices and get speaker-labeled transcripts.",
+      "author": "ProjectRose",
+      "firstParty": true,
+      "downloadUrl": "https://github.com/ghalrym/ProjectRose/releases/download/v1.0.0/rose-listen.zip",
+      "categories": ["productivity"]
+    }
+  ]
+}
