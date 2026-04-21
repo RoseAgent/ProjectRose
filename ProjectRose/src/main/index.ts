@@ -4,6 +4,7 @@ import { createWindow } from './window'
 import { registerAllHandlers } from './ipc'
 import { buildAppMenu } from './menu'
 import { disposeAllTerminals } from './services/terminalService'
+import { stopLsp } from './services/lspManager'
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.roseeditor.app')
@@ -23,5 +24,6 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   disposeAllTerminals()
+  stopLsp()
   if (process.platform !== 'darwin') app.quit()
 })

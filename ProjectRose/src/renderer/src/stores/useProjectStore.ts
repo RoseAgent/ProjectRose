@@ -35,7 +35,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => ({
       recentProjects: projects
     })
 
-    // Index project files with RoseLibrary in the background
+    // Start LSP servers for this project
     window.api.indexProject(path).catch(() => {})
   },
 

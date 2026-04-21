@@ -38,13 +38,11 @@ function App(): JSX.Element {
   // Check service availability at startup
   useEffect(() => {
     window.api.checkServicesHealth().then((results) => {
-      const libOk = results.find((r) => r.name === 'RoseLibrary')?.status === 'up'
       const speechOk = results.find((r) => r.name === 'RoseSpeech')?.status === 'up'
-      setServiceStatus(libOk, speechOk)
-      if (!libOk) toast.warning('RoseLibrary is offline — code search and indexing are unavailable.')
+      setServiceStatus(speechOk)
       if (!speechOk) toast.error('RoseSpeech is offline — voice input is unavailable.')
     }).catch(() => {
-      setServiceStatus(false, false)
+      setServiceStatus(false)
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

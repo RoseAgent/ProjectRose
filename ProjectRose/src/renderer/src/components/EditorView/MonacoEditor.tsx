@@ -9,6 +9,7 @@ import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import { useFileStore } from '../../stores/useFileStore'
 import { useThemeStore } from '../../stores/useThemeStore'
 import { roseDarkTheme, roseHerbariumTheme } from '../../themes/monacoThemes'
+import { initLspClient } from '../../services/lspClient'
 
 // Configure Monaco to use local workers instead of CDN
 self.MonacoEnvironment = {
@@ -40,6 +41,7 @@ for (const defaults of [
 }
 
 let themesRegistered = false
+let lspInitialized = false
 
 export function MonacoEditor(): JSX.Element | null {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
@@ -60,6 +62,11 @@ export function MonacoEditor(): JSX.Element | null {
     }
 
     monacoInstance.editor.setTheme(theme === 'dark' ? 'rose-dark' : 'rose-herbarium')
+
+    if (!lspInitialized) {
+      lspInitialized = true
+      initLspClient()
+    }
   }
 
   useEffect(() => {

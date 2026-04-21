@@ -1,20 +1,4 @@
 services:
-  roselibrary:
-    build: ./RoseLibrary
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./RoseLibrary/src:/app/src
-      - roselibrary-data:/data
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      ROSE_OLLAMA_BASE_URL: http://host.docker.internal:11434
-      ROSE_OBSERVABILITY_URL: http://roseobservability:8020
-    depends_on:
-      - roseobservability
-    command: uv run uvicorn roselibrary.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src
-
   rosetrainer:
     build: ./RoseTrainer
     ports:
@@ -87,6 +71,5 @@ services:
     command: uv run uvicorn roseobservability.main:app --host 0.0.0.0 --port 8020 --reload --reload-dir src
 
 volumes:
-  roselibrary-data:
   roseobservability-data:
   postgres-data:

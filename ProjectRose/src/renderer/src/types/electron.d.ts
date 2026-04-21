@@ -127,19 +127,6 @@ export interface AppSettingsData {
   router: RouterConfig
   compression: CompressionConfig
 }
-import type {
-  HealthResponse,
-  FileHashEntry,
-  FileCheckResult,
-  FileUpdateItem,
-  BulkUpdateResponse,
-  IndexStatus,
-  SearchRequest,
-  SearchResult,
-  FindReferencesRequest,
-  ReferenceResult
-} from '@shared/roseLibraryTypes'
-
 export interface IndexingProgress {
   phase: 'checking' | 'indexing' | 'done' | 'error'
   total: number
@@ -224,18 +211,17 @@ export interface ElectronAPI {
   checkServicesHealth: () => Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>>
   transcribeAudio: (audioBuffer: ArrayBuffer) => Promise<string>
 
-  // Indexing
+  // Indexing / LSP startup
   indexProject: (rootPath: string) => Promise<IndexingResult>
-  indexFile: (filePath: string, content: string, rootPath: string) => Promise<void>
   onIndexingProgress: (callback: (progress: IndexingProgress) => void) => () => void
 
-  // RoseLibrary
-  roseHealth: () => Promise<HealthResponse>
-  roseCheckFiles: (files: FileHashEntry[]) => Promise<FileCheckResult[]>
-  roseUpdateFiles: (files: FileUpdateItem[]) => Promise<BulkUpdateResponse>
-  roseStatus: () => Promise<IndexStatus>
-  roseSearch: (params: SearchRequest) => Promise<SearchResult[]>
-  roseFindReferences: (params: FindReferencesRequest) => Promise<ReferenceResult[]>
+  // LSP bridge
+  lsp: {
+    sendToServer: (server: 'py' | 'ts', msg: object) => void
+    onMessage: (server: 'py' | 'ts', callback: (msg: unknown) => void) => () => void
+    onStarted: (callback: (status: { py: boolean; ts: boolean }) => void) => () => void
+    onStopped: (callback: () => void) => () => void
+  }
 
   // Tools + Project settings
   tools: {

@@ -220,8 +220,7 @@ function pingService(name: string, url: string): Promise<ServiceHealth> {
 }
 
 const SERVICES = [
-  { name: 'RoseLibrary', url: 'http://127.0.0.1:8000/' },
-  { name: 'RoseSpeech',  url: 'http://127.0.0.1:8040/' }
+  { name: 'RoseSpeech', url: 'http://127.0.0.1:8040/' }
 ]
 
 export function registerSettingsHandlers(): void {
@@ -236,7 +235,6 @@ export function registerSettingsHandlers(): void {
 
   ipcMain.handle(IPC.HEALTH_CHECK_ALL, async () => {
     const results = await Promise.all(SERVICES.map((s) => pingService(s.name, s.url)))
-    serviceStatus.roseLibrary = results.find((r) => r.name === 'RoseLibrary')?.status === 'up'
     serviceStatus.roseSpeech = results.find((r) => r.name === 'RoseSpeech')?.status === 'up'
     return results
   })

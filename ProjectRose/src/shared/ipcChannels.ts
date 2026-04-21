@@ -37,7 +37,6 @@ export const IPC = {
   WHISPER_TRANSCRIBE: 'whisper:transcribe',
 
   INDEXING_PROJECT: 'indexing:project',
-  INDEXING_FILE: 'indexing:file',
   INDEXING_PROGRESS: 'indexing:progress',
 
   AI_CHAT: 'ai:chat',
@@ -50,12 +49,12 @@ export const IPC = {
   AI_THINKING: 'ai:thinking',
   AI_TOKEN: 'ai:token',
 
-  ROSE_HEALTH: 'rose:health',
-  ROSE_CHECK_FILES: 'rose:checkFiles',
-  ROSE_UPDATE_FILES: 'rose:updateFiles',
-  ROSE_STATUS: 'rose:status',
-  ROSE_SEARCH: 'rose:search',
-  ROSE_FIND_REFERENCES: 'rose:findReferences',
+  LSP_PY_TO_SERVER: 'lsp:py:toServer',
+  LSP_PY_FROM_SERVER: 'lsp:py:fromServer',
+  LSP_TS_TO_SERVER: 'lsp:ts:toServer',
+  LSP_TS_FROM_SERVER: 'lsp:ts:fromServer',
+  LSP_STARTED: 'lsp:started',
+  LSP_STOPPED: 'lsp:stopped',
 
   // Docker view
   DOCKER_CHECK: 'docker:check',

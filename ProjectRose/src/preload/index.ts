@@ -199,12 +199,9 @@ const api = {
     return () => { ipcRenderer.removeListener(IPC.AI_STREAM_RESET, handler) }
   },
 
-  // Indexing
+  // Indexing / LSP startup
   indexProject: (rootPath: string): Promise<{ indexed: number; total: number; error?: string }> =>
     ipcRenderer.invoke(IPC.INDEXING_PROJECT, rootPath),
-
-  indexFile: (filePath: string, content: string, rootPath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.INDEXING_FILE, { filePath, content, rootPath }),
 
   onIndexingProgress: (callback: (progress: { phase: string; total: number; completed: number; message: string }) => void): (() => void) => {
     const handler = (_event: unknown, progress: { phase: string; total: number; completed: number; message: string }): void =>
@@ -215,24 +212,28 @@ const api = {
     }
   },
 
-  // RoseLibrary
-  roseHealth: (): Promise<unknown> =>
-    ipcRenderer.invoke(IPC.ROSE_HEALTH),
-
-  roseCheckFiles: (files: { path: string; hash: string }[]): Promise<unknown> =>
-    ipcRenderer.invoke(IPC.ROSE_CHECK_FILES, files),
-
-  roseUpdateFiles: (files: { path: string; content: string }[]): Promise<unknown> =>
-    ipcRenderer.invoke(IPC.ROSE_UPDATE_FILES, files),
-
-  roseStatus: (): Promise<unknown> =>
-    ipcRenderer.invoke(IPC.ROSE_STATUS),
-
-  roseSearch: (params: { query: string; limit?: number; metadata_weight?: number; code_weight?: number }): Promise<unknown> =>
-    ipcRenderer.invoke(IPC.ROSE_SEARCH, params),
-
-  roseFindReferences: (params: { symbol_name: string; file_path?: string; direction?: string }): Promise<unknown> =>
-    ipcRenderer.invoke(IPC.ROSE_FIND_REFERENCES, params),
+  // LSP bridge
+  lsp: {
+    sendToServer: (server: 'py' | 'ts', msg: object): void => {
+      ipcRenderer.send(server === 'py' ? IPC.LSP_PY_TO_SERVER : IPC.LSP_TS_TO_SERVER, msg)
+    },
+    onMessage: (server: 'py' | 'ts', callback: (msg: unknown) => void): (() => void) => {
+      const channel = server === 'py' ? IPC.LSP_PY_FROM_SERVER : IPC.LSP_TS_FROM_SERVER
+      const handler = (_event: unknown, msg: unknown): void => callback(msg)
+      ipcRenderer.on(channel, handler)
+      return () => { ipcRenderer.removeListener(channel, handler) }
+    },
+    onStarted: (callback: (status: { py: boolean; ts: boolean }) => void): (() => void) => {
+      const handler = (_event: unknown, status: { py: boolean; ts: boolean }): void => callback(status)
+      ipcRenderer.on(IPC.LSP_STARTED, handler)
+      return () => { ipcRenderer.removeListener(IPC.LSP_STARTED, handler) }
+    },
+    onStopped: (callback: () => void): (() => void) => {
+      const handler = (): void => callback()
+      ipcRenderer.on(IPC.LSP_STOPPED, handler)
+      return () => { ipcRenderer.removeListener(IPC.LSP_STOPPED, handler) }
+    }
+  },
 
   // Docker
   docker: {

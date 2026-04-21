@@ -178,10 +178,6 @@ export const useFileStore = create<FileState>()((set, get) => ({
         activeFilePath: state.activeFilePath === filePath ? savePath : state.activeFilePath
       }))
 
-      // Re-index with RoseLibrary
-      if (rootPath) {
-        window.api.indexFile(savePath, file.content, rootPath).catch(() => {})
-      }
     } else {
       await window.api.writeFile(filePath, file.content)
       set((state) => ({
@@ -189,11 +185,6 @@ export const useFileStore = create<FileState>()((set, get) => ({
           f.filePath === filePath ? { ...f, savedContent: file.content } : f
         )
       }))
-
-      // Re-index with RoseLibrary
-      if (rootPath) {
-        window.api.indexFile(filePath, file.content, rootPath).catch(() => {})
-      }
     }
   },
 

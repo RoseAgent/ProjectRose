@@ -1,19 +1,4 @@
 services:
-  roselibrary:
-    build: ./RoseLibrary
-    ports:
-      - "8000:8000"
-    volumes:
-      - roselibrary-data:/data
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      ROSE_OLLAMA_BASE_URL: http://host.docker.internal:11434
-      ROSE_OBSERVABILITY_URL: http://roseobservability:8020
-    depends_on:
-      - roseobservability
-    restart: unless-stopped
-
   rosetrainer:
     build: ./RoseTrainer
     ports:
@@ -79,6 +64,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  roselibrary-data:
   roseobservability-data:
   postgres-data:

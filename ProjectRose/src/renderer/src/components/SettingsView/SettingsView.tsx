@@ -77,8 +77,7 @@ export function SettingsView(): JSX.Element {
   const [testState, setTestState] = useState<TestState>('idle')
   const [testError, setTestError] = useState('')
   const [services, setServices] = useState<ServiceHealth[]>([
-    { name: 'RoseLibrary', url: 'http://127.0.0.1:8000', status: 'checking' },
-    { name: 'RoseSpeech',  url: 'http://127.0.0.1:8040', status: 'checking' }
+    { name: 'RoseSpeech', url: 'http://127.0.0.1:8040', status: 'checking' }
   ])
 
   useEffect(() => {

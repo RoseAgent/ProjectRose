@@ -3,12 +3,11 @@ import { join, relative, basename } from 'path'
 import { execSync } from 'child_process'
 import { platform } from 'os'
 import { BrowserWindow } from 'electron'
-import { roseLibraryClient, setActiveProjectRoot } from './roseLibraryClient'
-import { isIndexableFile } from './fileService'
 import { IPC } from '../../shared/ipcChannels'
-import { serviceStatus } from './serviceStatus'
+import { lspRequest } from './lspManager'
 
 const modifiedFiles: string[] = []
+let _activeProjectRoot: string | null = null
 
 export function resetModifiedFiles(): void {
   modifiedFiles.length = 0
@@ -18,7 +17,9 @@ export function getModifiedFiles(): string[] {
   return modifiedFiles.splice(0)
 }
 
-export { setActiveProjectRoot }
+export function setActiveProjectRoot(rootPath: string): void {
+  _activeProjectRoot = rootPath
+}
 
 function notifyRenderer(event: string, data: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -47,13 +48,6 @@ export async function handleWriteFile(input: Record<string, unknown>, projectRoo
   modifiedFiles.push(absolute)
   notifyRenderer(IPC.AI_FILE_MODIFIED, { path: absolute })
 
-  if (isIndexableFile(absolute) && projectRoot) {
-    const rel = relative(projectRoot, absolute).replace(/\\/g, '/')
-    try {
-      await roseLibraryClient.updateFiles([{ path: rel, content }])
-    } catch {}
-  }
-
   return `File written: ${filePath}`
 }
 
@@ -67,44 +61,55 @@ export async function handleListDirectory(input: Record<string, unknown>, projec
 }
 
 export async function handleSearchCode(input: Record<string, unknown>): Promise<string> {
-  if (!serviceStatus.roseLibrary) {
-    return 'RoseLibrary service is offline. Code search is unavailable. Please inform the user that the service is temporarily down and try a different approach.'
-  }
   const query = String(input.query || '')
   const limit = Number(input.limit) || 10
-  const results = await roseLibraryClient.search({ query, limit })
-  return JSON.stringify(results)
+
+  // Try TypeScript server first (most projects are TS), then Python
+  for (const server of ['ts', 'py'] as const) {
+    try {
+      const results = await lspRequest(server, 'workspace/symbol', { query }) as any[]
+      if (!Array.isArray(results) || results.length === 0) continue
+      const formatted = results.slice(0, limit).map((s: any) => ({
+        name: s.name,
+        kind: s.kind,
+        location: s.location,
+        containerName: s.containerName
+      }))
+      return JSON.stringify(formatted)
+    } catch { /* try next server */ }
+  }
+
+  return JSON.stringify({ message: 'No language server available or no results found for: ' + query })
 }
 
 export async function handleFindReferences(input: Record<string, unknown>): Promise<string> {
-  if (!serviceStatus.roseLibrary) {
-    return 'RoseLibrary service is offline. Reference lookup is unavailable. Please inform the user that the service is temporarily down and try a different approach.'
-  }
   const symbolName = String(input.symbol_name || '')
-  const filePath = input.file_path ? String(input.file_path) : undefined
-  const direction = (input.direction as 'inbound' | 'outbound' | 'both') || 'both'
-  const results = await roseLibraryClient.findReferences({ symbol_name: symbolName, file_path: filePath, direction })
-  return JSON.stringify(results)
+
+  // Find the symbol location via workspace/symbol
+  for (const server of ['ts', 'py'] as const) {
+    try {
+      const symbols = await lspRequest(server, 'workspace/symbol', { query: symbolName }) as any[]
+      if (!Array.isArray(symbols) || symbols.length === 0) continue
+
+      const target = symbols.find((s: any) => s.name === symbolName) ?? symbols[0]
+      const loc = target.location
+      if (!loc?.uri || !loc?.range) continue
+
+      const refs = await lspRequest(server, 'textDocument/references', {
+        textDocument: { uri: loc.uri },
+        position: loc.range.start,
+        context: { includeDeclaration: true }
+      }) as any[]
+
+      return JSON.stringify(Array.isArray(refs) ? refs : [])
+    } catch { /* try next server */ }
+  }
+
+  return JSON.stringify({ message: 'No language server available or symbol not found: ' + symbolName })
 }
 
 export async function handleGetProjectOverview(): Promise<string> {
-  const overview = await roseLibraryClient.overview()
-  const lines: string[] = [
-    `## Repository Map (${overview.total_files} files, ${overview.total_symbols} symbols, ${overview.total_references} references)`,
-    ''
-  ]
-  for (const file of overview.files) {
-    const deps = file.depends_on.length > 0 ? ` | depends on: ${file.depends_on.join(', ')}` : ''
-    const usedBy = file.depended_on_by.length > 0 ? ` | used by: ${file.depended_on_by.join(', ')}` : ''
-    lines.push(`### ${file.path} [${file.language}]${deps}${usedBy}`)
-    for (const sym of file.symbols) {
-      const params = sym.parameters ? `(${sym.parameters})` : ''
-      const doc = sym.docstring ? ` — ${sym.docstring}` : ''
-      lines.push(`  - ${sym.type} ${sym.qualified_name}${params}${doc}`)
-    }
-    lines.push('')
-  }
-  return lines.join('\n')
+  return 'Project overview is not available in this version. Use search_code to find specific symbols.'
 }
 
 export async function handleRunCommand(input: Record<string, unknown>, projectRoot: string): Promise<string> {
