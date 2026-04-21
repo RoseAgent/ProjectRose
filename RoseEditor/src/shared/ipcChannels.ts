@@ -123,6 +123,15 @@ export const IPC = {
   SESSION_SAVE: 'session:save',
   SESSION_DELETE: 'session:delete',
 
+  // Discord view
+  DISCORD_CONNECT:          'discord:connect',
+  DISCORD_DISCONNECT:       'discord:disconnect',
+  DISCORD_GET_CHANNELS:     'discord:getChannels',
+  DISCORD_FETCH_MESSAGES:   'discord:fetchMessages',
+  DISCORD_SEND_MESSAGE:     'discord:sendMessage',
+  DISCORD_MESSAGE_CREATE:   'discord:messageCreate',
+  DISCORD_CONNECTION_STATE: 'discord:connectionState',
+
   // Active Listening
   ACTIVE_LISTENING_LABEL_SPEAKER: 'activeSpeech:labelSpeaker',
   ACTIVE_LISTENING_TRAIN: 'activeSpeech:train',

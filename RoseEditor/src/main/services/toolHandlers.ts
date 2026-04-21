@@ -17,6 +17,7 @@ import {
   fetchEmailBody,
   type EmailSummary
 } from './emailService'
+import { fetchDiscordChannels, fetchDiscordMessages, sendDiscordMessage } from './discordService'
 
 const modifiedFiles: string[] = []
 
@@ -272,6 +273,46 @@ export async function handleDeleteEmail(input: Record<string, unknown>, projectR
   } catch (err) {
     return `Failed to delete email: ${(err as Error).message}`
   }
+}
+
+export async function handleListDiscordChannels(_input: Record<string, unknown>, projectRoot: string): Promise<string> {
+  const cfg = await readSettings(projectRoot)
+  const enabledIds = new Set(cfg.discordChannels)
+  const all = await fetchDiscordChannels()
+  const channels = enabledIds.size > 0 ? all.filter((c) => enabledIds.has(c.id)) : all
+  if (channels.length === 0) return 'No Discord channels are enabled. Configure them in Settings > Discord.'
+  const byGuild = channels.reduce<Record<string, typeof channels>>((acc, ch) => {
+    (acc[ch.guildName] ??= []).push(ch)
+    return acc
+  }, {})
+  return Object.entries(byGuild).map(([guild, chs]) =>
+    `Server: ${guild}\n${chs.map(c => `  #${c.name} (ID: ${c.id})`).join('\n')}`
+  ).join('\n\n')
+}
+
+export async function handleReadDiscordMessages(input: Record<string, unknown>, projectRoot: string): Promise<string> {
+  const channelId = String(input.channelId || '')
+  const limit = Math.min(Number(input.limit) || 20, 100)
+  if (!channelId) return 'Missing channelId parameter.'
+  const cfg = await readSettings(projectRoot)
+  if (!cfg.discordBotToken) return 'Discord not configured. Set a bot token in Settings.'
+  const messages = await fetchDiscordMessages(channelId, limit)
+  if (messages.length === 0) return 'No messages found in that channel.'
+  return messages.map(m => {
+    const ts = new Date(m.timestamp).toLocaleString()
+    let line = `[${ts}] @${m.authorUsername}: ${m.content}`
+    if (m.attachments.length > 0) line += ` [${m.attachments.map(a => a.filename).join(', ')}]`
+    if (m.embeds.length > 0) line += ` [embed: ${m.embeds.map(e => e.title || 'untitled').join(', ')}]`
+    return line
+  }).join('\n')
+}
+
+export async function handleSendDiscordMessage(input: Record<string, unknown>): Promise<string> {
+  const channelId = String(input.channelId || '')
+  const content = String(input.content || '')
+  if (!channelId || !content) return 'Missing channelId or content parameter.'
+  await sendDiscordMessage(channelId, content)
+  return `Message sent to channel ${channelId}.`
 }
 
 export interface PythonToolMeta {

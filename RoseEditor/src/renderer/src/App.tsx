@@ -10,6 +10,7 @@ import { SettingsView } from './components/SettingsView/SettingsView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
 import { ActiveListeningView } from './components/ActiveListeningView/ActiveListeningView'
 import { EmailView } from './components/EmailView/EmailView'
+import { DiscordView } from './components/DiscordView/DiscordView'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
 import { useThemeStore } from './stores/useThemeStore'
 import { useViewStore } from './stores/useViewStore'
@@ -17,6 +18,7 @@ import { useFileStore } from './stores/useFileStore'
 import { useProjectStore } from './stores/useProjectStore'
 import { useIndexingStore } from './stores/useIndexingStore'
 import { useSettingsStore } from './stores/useSettingsStore'
+import { useDiscordStore } from './stores/useDiscordStore'
 import styles from './App.module.css'
 
 function App(): JSX.Element {
@@ -30,7 +32,8 @@ function App(): JSX.Element {
   const refreshTree = useProjectStore((s) => s.refreshTree)
   const toggleTerminal = useViewStore((s) => s.toggleTerminal)
 
-  const { heartbeatEnabled, heartbeatIntervalMinutes, load: loadSettings } = useSettingsStore()
+  const { heartbeatEnabled, heartbeatIntervalMinutes, discordBotToken, discordChannels, load: loadSettings } = useSettingsStore()
+  const { connect: discordConnect, initEnabledChannels, loadChannels: discordLoadChannels } = useDiscordStore()
   const [needsSetup, setNeedsSetup] = useState(false)
 
   // Load persisted settings on mount
@@ -38,6 +41,13 @@ function App(): JSX.Element {
 
   // Reload settings when a project is opened to merge in repo config
   useEffect(() => { if (rootPath) loadSettings() }, [rootPath, loadSettings])
+
+  // Auto-connect Discord and sync enabled channels whenever token/channels change
+  useEffect(() => {
+    initEnabledChannels(discordChannels)
+    if (!discordBotToken) return
+    discordConnect().then(() => discordLoadChannels()).catch(() => {})
+  }, [discordBotToken, discordChannels]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -156,6 +166,7 @@ function App(): JSX.Element {
         {activeView === 'settings' && <SettingsView />}
         {activeView === 'activeListening' && <ActiveListeningView />}
         {activeView === 'email' && <EmailView />}
+        {activeView === 'discord' && <DiscordView />}
       </main>
     </div>
   )

@@ -19,6 +19,9 @@ import {
   handleReadEmail,
   handleMoveEmailToFolder,
   handleDeleteEmail,
+  handleListDiscordChannels,
+  handleReadDiscordMessages,
+  handleSendDiscordMessage,
   type PythonToolMeta
 } from './toolHandlers'
 import type { Message } from '../../shared/roseModelTypes'
@@ -190,6 +193,27 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
         uid: z.number().describe('The email UID to delete')
       }),
       execute: wrapExecute('delete_email', handleDeleteEmail, projectRoot)
+    }),
+    list_discord_channels: tool({
+      description: 'List all Discord channels the bot has access to, grouped by server. Returns channel names and IDs needed for reading or sending messages.',
+      inputSchema: z.object({}),
+      execute: wrapExecute('list_discord_channels', handleListDiscordChannels, projectRoot)
+    }),
+    read_discord_messages: tool({
+      description: 'Read recent messages from a Discord channel. Returns messages with author, timestamp, and content.',
+      inputSchema: z.object({
+        channelId: z.string().describe('The Discord channel ID'),
+        limit: z.number().optional().describe('Number of messages to fetch (default 20, max 100)')
+      }),
+      execute: wrapExecute('read_discord_messages', handleReadDiscordMessages, projectRoot)
+    }),
+    send_discord_message: tool({
+      description: 'Send a message to a Discord channel.',
+      inputSchema: z.object({
+        channelId: z.string().describe('The Discord channel ID'),
+        content: z.string().describe('The message text to send')
+      }),
+      execute: wrapExecute('send_discord_message', (input) => handleSendDiscordMessage(input), projectRoot)
     })
   }
 }

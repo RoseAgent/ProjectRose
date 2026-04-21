@@ -30,6 +30,7 @@ export type ActiveView =
   | 'settings'
   | 'activeListening'
   | 'email'
+  | 'discord'
 
 export interface NavItem {
   viewId: ActiveView

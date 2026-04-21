@@ -315,6 +315,30 @@ const api = {
       ipcRenderer.invoke('project:setSettings', rootPath, patch)
   },
 
+  // Discord
+  discord: {
+    connect: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.DISCORD_CONNECT),
+    disconnect: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.DISCORD_DISCONNECT),
+    getChannels: (): Promise<unknown[]> =>
+      ipcRenderer.invoke(IPC.DISCORD_GET_CHANNELS),
+    fetchMessages: (channelId: string, limit: number, beforeId?: string): Promise<unknown[]> =>
+      ipcRenderer.invoke(IPC.DISCORD_FETCH_MESSAGES, channelId, limit, beforeId),
+    sendMessage: (channelId: string, content: string): Promise<unknown> =>
+      ipcRenderer.invoke(IPC.DISCORD_SEND_MESSAGE, channelId, content),
+    onMessageCreate: (callback: (msg: unknown) => void): (() => void) => {
+      const handler = (_e: unknown, msg: unknown): void => callback(msg)
+      ipcRenderer.on(IPC.DISCORD_MESSAGE_CREATE, handler)
+      return () => { ipcRenderer.removeListener(IPC.DISCORD_MESSAGE_CREATE, handler) }
+    },
+    onConnectionState: (callback: (state: { connected: boolean }) => void): (() => void) => {
+      const handler = (_e: unknown, state: { connected: boolean }): void => callback(state)
+      ipcRenderer.on(IPC.DISCORD_CONNECTION_STATE, handler)
+      return () => { ipcRenderer.removeListener(IPC.DISCORD_CONNECTION_STATE, handler) }
+    }
+  },
+
   // Git
   git: {
     isRepo: (cwd: string): Promise<boolean> =>

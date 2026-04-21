@@ -12,6 +12,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { viewId: 'heartbeat',       label: 'Heartbeat', visible: true },
   { viewId: 'settings',        label: 'Settings',  visible: true },
   { viewId: 'email',           label: 'Email',     visible: true },
+  { viewId: 'discord',         label: 'Discord',   visible: true },
 ]
 
 interface SettingsState {
@@ -27,6 +28,8 @@ interface SettingsState {
   imapUser: string
   imapPassword: string
   imapTLS: boolean
+  discordBotToken: string
+  discordChannels: string[]
   navItems: NavItem[]
   models: ModelConfig[]
   defaultModelId: string
@@ -51,6 +54,8 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   imapUser: '',
   imapPassword: '',
   imapTLS: true,
+  discordBotToken: '',
+  discordChannels: [],
   navItems: DEFAULT_NAV_ITEMS,
   models: [],
   defaultModelId: '',

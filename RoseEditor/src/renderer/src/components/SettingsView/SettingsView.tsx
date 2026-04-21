@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useEmailStore } from '../../stores/useEmailStore'
+import { useDiscordStore } from '../../stores/useDiscordStore'
 import { NavItem } from '../../../../shared/types'
 import type { ModelConfig, ToolMeta } from '../../types/electron'
 import styles from './SettingsView.module.css'
@@ -38,11 +39,20 @@ const BEDROCK_FALLBACK = [
 export function SettingsView(): JSX.Element {
   const {
     heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId,
-    imapHost, imapPort, imapUser, imapPassword, imapTLS, navItems,
-    models, defaultModelId, providerKeys, router, compression, update
+    imapHost, imapPort, imapUser, imapPassword, imapTLS,
+    discordBotToken,
+    navItems, models, defaultModelId, providerKeys, router, compression, update
   } = useSettingsStore()
 
   const rootPath = useProjectStore((s) => s.rootPath)
+  const {
+    channels: discordChannels_list,
+    enabledChannelIds: discordEnabledIds,
+    connected: discordConnected,
+    toggleChannel: discordToggleChannel,
+    loadChannels: discordRefreshChannels
+  } = useDiscordStore()
+
   const [availableTools, setAvailableTools] = useState<ToolMeta[]>([])
   const [disabledTools, setDisabledTools] = useState<string[]>([])
 
@@ -964,12 +974,72 @@ export function SettingsView(): JSX.Element {
     )
   }
 
+  function renderDiscord(): JSX.Element {
+    const guilds = Array.from(new Map(discordChannels_list.map((c) => [c.guildId, c.guildName])).entries())
+
+    return (
+      <>
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Discord Bot</div>
+          <div className={styles.settingCard}>
+            <div className={styles.settingLabel}>Bot Token</div>
+            <div className={styles.settingDesc}>
+              Create a bot at discord.com/developers, enable the Guilds, GuildMessages, and MessageContent
+              (privileged) intents, invite the bot to your servers, then paste the token below.
+            </div>
+            <input
+              className={styles.input}
+              type="password"
+              placeholder="Bot token…"
+              value={discordBotToken}
+              onChange={(e) => update({ discordBotToken: e.target.value })}
+            />
+            <div className={styles.settingDesc} style={{ marginTop: 8 }}>
+              Status: {discordConnected ? '● Connected' : '○ Disconnected'}
+            </div>
+          </div>
+        </section>
+
+        {discordBotToken && (
+          <section className={styles.section}>
+            <div className={styles.sectionTitle} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              Visible Channels
+              <button className={styles.testBtn} onClick={() => discordRefreshChannels()}>Refresh</button>
+            </div>
+            <div className={styles.settingDesc} style={{ marginBottom: 8 }}>
+              Checked channels appear in the Discord view and are accessible to the AI tools.
+            </div>
+            {discordChannels_list.length === 0 && (
+              <div className={styles.emptyState}>No channels found. Make sure the bot is connected.</div>
+            )}
+            {guilds.map(([guildId, guildName]) => (
+              <div key={guildId} className={styles.settingCard}>
+                <div className={styles.settingLabel}>{guildName}</div>
+                {discordChannels_list.filter((c) => c.guildId === guildId).map((ch) => (
+                  <label key={ch.id} className={styles.checkboxRow}>
+                    <input
+                      type="checkbox"
+                      checked={discordEnabledIds.includes(ch.id)}
+                      onChange={() => discordToggleChannel(ch.id)}
+                    />
+                    <span># {ch.name}</span>
+                  </label>
+                ))}
+              </div>
+            ))}
+          </section>
+        )}
+      </>
+    )
+  }
+
   function renderPage(): JSX.Element {
     switch (activePage) {
       case 'dashboard': return renderDashboard()
       case 'chat': return renderChat()
       case 'heartbeat': return renderHeartbeat()
       case 'email': return renderEmail()
+      case 'discord': return renderDiscord()
       default: return renderPlaceholder()
     }
   }

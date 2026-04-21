@@ -39,6 +39,8 @@ export interface AppSettings {
   imapUser: string
   imapPassword: string
   imapTLS: boolean
+  discordBotToken: string
+  discordChannels: string[]
   navItems: NavItem[]
   models: ModelConfig[]
   defaultModelId: string
@@ -56,6 +58,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { viewId: 'heartbeat',       label: 'Heartbeat', visible: true },
   { viewId: 'settings',        label: 'Settings',  visible: true },
   { viewId: 'email',           label: 'Email',     visible: true },
+  { viewId: 'discord',         label: 'Discord',   visible: true },
 ]
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -71,6 +74,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   imapUser: '',
   imapPassword: '',
   imapTLS: true,
+  discordBotToken: '',
+  discordChannels: [],
   navItems: DEFAULT_NAV_ITEMS,
   models: [],
   defaultModelId: '',
@@ -81,7 +86,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 const GLOBAL_SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
 
-const SENSITIVE_FIELDS = ['providerKeys', 'imapPassword'] as const
+const SENSITIVE_FIELDS = ['providerKeys', 'imapPassword', 'discordBotToken'] as const
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function pick(obj: any, keys: readonly string[]): any {
@@ -102,6 +107,12 @@ function getRepoConfigPath(rootPath: string): string {
   return join(rootPath, '.rose', 'config.json')
 }
 
+function mergeNavItems(stored: NavItem[]): NavItem[] {
+  const known = new Set(stored.map((n) => n.viewId))
+  const missing = DEFAULT_NAV_ITEMS.filter((n) => !known.has(n.viewId))
+  return [...stored, ...missing]
+}
+
 export async function readSettings(rootPath?: string): Promise<AppSettings> {
   let globalSettings: Partial<AppSettings> = {}
   try { globalSettings = JSON.parse(await readFile(GLOBAL_SETTINGS_PATH, 'utf-8')) } catch { /* defaults */ }
@@ -114,12 +125,15 @@ export async function readSettings(rootPath?: string): Promise<AppSettings> {
     try { repoConfig = JSON.parse(await readFile(getRepoConfigPath(rootPath), 'utf-8')) } catch { /* not created yet */ }
   }
 
-  return {
+  const merged: AppSettings = {
     ...DEFAULT_SETTINGS,
     ...nonSensitiveFallback,
     ...repoConfig,
     ...pick(globalSettings, SENSITIVE_FIELDS)
   }
+
+  merged.navItems = mergeNavItems(merged.navItems)
+  return merged
 }
 
 export async function writeSettings(settings: AppSettings, rootPath?: string): Promise<void> {

@@ -48,6 +48,64 @@ export interface CompressionConfig {
   baseUrl: string
 }
 
+export interface DiscordChannel {
+  id: string
+  name: string
+  guildId: string
+  guildName: string
+  type: number
+}
+
+export interface DiscordAttachment {
+  id: string
+  filename: string
+  url: string
+  size: number
+  contentType?: string
+}
+
+export interface DiscordEmbed {
+  title?: string
+  description?: string
+  url?: string
+  color?: number
+  fields?: Array<{ name: string; value: string; inline?: boolean }>
+  image?: { url: string }
+  thumbnail?: { url: string }
+  footer?: { text: string }
+}
+
+export interface DiscordReaction {
+  emoji: string
+  count: number
+}
+
+export interface DiscordMessage {
+  id: string
+  channelId: string
+  authorId: string
+  authorUsername: string
+  authorDisplayName: string
+  avatarUrl: string | null
+  content: string
+  timestamp: string
+  editedTimestamp: string | null
+  attachments: DiscordAttachment[]
+  embeds: DiscordEmbed[]
+  reactions: DiscordReaction[]
+  referencedMessageId: string | null
+}
+
+export interface DiscordAPI {
+  connect: () => Promise<{ ok: boolean; error?: string }>
+  disconnect: () => Promise<void>
+  getChannels: () => Promise<DiscordChannel[]>
+  fetchMessages: (channelId: string, limit: number, beforeId?: string) => Promise<DiscordMessage[]>
+  sendMessage: (channelId: string, content: string) => Promise<DiscordMessage>
+  onMessageCreate: (callback: (msg: DiscordMessage) => void) => () => void
+  onConnectionState: (callback: (state: { connected: boolean }) => void) => () => void
+}
+
 export interface AppSettingsData {
   heartbeatEnabled: boolean
   heartbeatIntervalMinutes: number
@@ -61,6 +119,8 @@ export interface AppSettingsData {
   imapUser: string
   imapPassword: string
   imapTLS: boolean
+  discordBotToken: string
+  discordChannels: string[]
   models: ModelConfig[]
   defaultModelId: string
   providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
@@ -191,6 +251,9 @@ export interface ElectronAPI {
 
   // Email
   email: EmailAPI
+
+  // Discord
+  discord: DiscordAPI
 
   // Docker
   docker: DockerAPI
