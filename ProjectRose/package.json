@@ -1,7 +1,7 @@
 {
-  "name": "rose-editor",
+  "name": "projectrose",
   "version": "0.1.0",
-  "description": "RoseEditor - A code editor IDE with AI chat integration",
+  "description": "ProjectRose - A code editor IDE with AI chat integration",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -15,8 +15,8 @@
     "dist": "electron-vite build && electron-builder"
   },
   "build": {
-    "appId": "com.roseeditor.app",
-    "productName": "RoseEditor",
+    "appId": "com.projectrose.app",
+    "productName": "ProjectRose",
     "icon": "build/icon",
     "directories": {
       "output": "release"

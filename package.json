@@ -7,6 +7,6 @@
     "RoseExtensions/rose-git",
     "RoseExtensions/rose-docker",
     "RoseExtensions/rose-listen",
-    "RoseEditor"
+    "ProjectRose"
   ]
 }

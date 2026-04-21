@@ -18,7 +18,7 @@ export function createWindow(): BrowserWindow {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    title: 'RoseEditor',
+    title: 'ProjectRose',
     icon: ICON_PATH,
     titleBarStyle: 'hidden',
     titleBarOverlay: {

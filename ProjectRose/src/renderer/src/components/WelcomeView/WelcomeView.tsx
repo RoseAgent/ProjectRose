@@ -119,7 +119,7 @@ export function WelcomeView({ onOpenFolder }: WelcomeViewProps): JSX.Element {
       </button>
 
       <div className={styles.header}>
-        <div className={styles.title}>RoseEditor</div>
+        <div className={styles.title}>ProjectRose</div>
         <div className={styles.subtitle}>A code editor for local AI</div>
       </div>
 

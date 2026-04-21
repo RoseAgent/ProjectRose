@@ -46,7 +46,7 @@ jobs:
         run: uv run pytest tests/ -v
 
   editor:
-    name: RoseEditor (typecheck)
+    name: ProjectRose (typecheck)
     runs-on: ubuntu-latest
 
     steps:
@@ -58,12 +58,12 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: RoseEditor/package-lock.json
+          cache-dependency-path: ProjectRose/package-lock.json
 
-      - name: Install dependencies - RoseEditor
-        working-directory: ./RoseEditor
+      - name: Install dependencies - ProjectRose
+        working-directory: ./ProjectRose
         run: npm ci
 
-      - name: Typecheck RoseEditor
-        working-directory: ./RoseEditor
+      - name: Typecheck ProjectRose
+        working-directory: ./ProjectRose
         run: npm run typecheck

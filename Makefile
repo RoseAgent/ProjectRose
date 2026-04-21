@@ -2,14 +2,14 @@
 
 # ── Editor ────────────────────────────────────────────────────────────
 
-build: ## Install dependencies and build RoseEditor
-	cd RoseEditor && npm install && npm run build
+build: ## Install dependencies and build ProjectRose
+	cd ProjectRose && npm install && npm run build
 
-run: ## Launch RoseEditor in dev mode
-	cd RoseEditor && npm run dev
+run: ## Launch ProjectRose in dev mode
+	cd ProjectRose && npm run dev
 
-dist: ## Package RoseEditor as a Windows installer
-	cd RoseEditor && npm install && npm run dist
+dist: ## Package ProjectRose as a Windows installer
+	cd ProjectRose && npm install && npm run dist
 
 # ── Servers (Docker) ──────────────────────────────────────────────────
 
@@ -31,12 +31,12 @@ logs: ## Tail logs from production servers
 # ── Combined ──────────────────────────────────────────────────────────
 
 start: up ## Start servers then launch editor in dev mode
-	cd RoseEditor && npm run dev
+	cd ProjectRose && npm run dev
 
 clean: ## Remove Docker volumes and build artifacts
 	docker compose down -v
 	docker compose -f docker-compose.dev.yml down -v
-	rm -rf RoseEditor/node_modules RoseEditor/out RoseEditor/release
+	rm -rf ProjectRose/node_modules ProjectRose/out ProjectRose/release
 
 # ── Data ──────────────────────────────────────────────────────────────
 
