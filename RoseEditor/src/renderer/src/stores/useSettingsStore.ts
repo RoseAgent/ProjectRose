@@ -29,7 +29,7 @@ interface SettingsState {
   navItems: NavItem[]
   models: ModelConfig[]
   defaultModelId: string
-  providerKeys: { anthropic: string; openai: string }
+  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
   router: RouterConfig
   compression: CompressionConfig
   loaded: boolean
@@ -53,7 +53,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   navItems: DEFAULT_NAV_ITEMS,
   models: [],
   defaultModelId: '',
-  providerKeys: { anthropic: '', openai: '' },
+  providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' } },
   router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
   compression: { provider: 'anthropic', modelName: '', baseUrl: '' },
   loaded: false,

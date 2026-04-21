@@ -8,7 +8,7 @@ import { NavItem } from '../../shared/types'
 export interface ModelConfig {
   id: string
   displayName: string
-  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
+  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' | 'bedrock'
   modelName: string
   baseUrl: string
   tags: string[]
@@ -21,7 +21,7 @@ export interface RouterConfig {
 }
 
 export interface CompressionConfig {
-  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
+  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' | 'bedrock'
   modelName: string
   baseUrl: string
 }
@@ -42,7 +42,7 @@ export interface AppSettings {
   navItems: NavItem[]
   models: ModelConfig[]
   defaultModelId: string
-  providerKeys: { anthropic: string; openai: string }
+  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
   router: RouterConfig
   compression: CompressionConfig
 }
@@ -74,7 +74,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   navItems: DEFAULT_NAV_ITEMS,
   models: [],
   defaultModelId: '',
-  providerKeys: { anthropic: '', openai: '' },
+  providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' } },
   router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
   compression: { provider: 'anthropic', modelName: '', baseUrl: '' }
 }

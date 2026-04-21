@@ -24,6 +24,16 @@ const INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30, 60]
 
 const ANTHROPIC_FALLBACK = ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']
 const OPENAI_FALLBACK = ['gpt-4o', 'gpt-4o-mini', 'o1', 'o1-mini', 'o3', 'o3-mini', 'o4-mini']
+const BEDROCK_FALLBACK = [
+  'anthropic.claude-opus-4-20250514-v1:0',
+  'anthropic.claude-3-5-sonnet-20241022-v2:0',
+  'anthropic.claude-3-5-haiku-20241022-v1:0',
+  'anthropic.claude-3-opus-20240229-v1:0',
+  'meta.llama3-70b-instruct-v1:0',
+  'meta.llama3-8b-instruct-v1:0',
+  'amazon.titan-text-express-v1',
+  'mistral.mistral-large-2402-v1:0'
+]
 
 export function SettingsView(): JSX.Element {
   const {
@@ -349,6 +359,20 @@ export function SettingsView(): JSX.Element {
       )
     }
 
+    if (provider === 'bedrock') {
+      return (
+        <select
+          className={styles.select}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {!value && <option value="" disabled>Select a Bedrock model</option>}
+          {value && !BEDROCK_FALLBACK.includes(value) && <option value={value}>{value}</option>}
+          {BEDROCK_FALLBACK.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+        </select>
+      )
+    }
+
     let options: string[]
     let isFetching: boolean
     let placeholder: string
@@ -404,6 +428,30 @@ export function SettingsView(): JSX.Element {
               value={providerKeys.openai}
               onChange={(e) => update({ providerKeys: { ...providerKeys, openai: e.target.value } })}
               onBlur={(e) => { setOpenaiModels([]); fetchOpenAIModels(e.target.value) }}
+            />
+            <div className={styles.settingLabel}>AWS Bedrock Region</div>
+            <input
+              className={styles.input}
+              type="text"
+              placeholder="us-east-1"
+              value={providerKeys.bedrock?.region ?? 'us-east-1'}
+              onChange={(e) => update({ providerKeys: { ...providerKeys, bedrock: { ...providerKeys.bedrock, region: e.target.value } } })}
+            />
+            <div className={styles.settingLabel}>AWS Access Key ID</div>
+            <input
+              className={styles.input}
+              type="password"
+              placeholder="AKIA..."
+              value={providerKeys.bedrock?.accessKeyId ?? ''}
+              onChange={(e) => update({ providerKeys: { ...providerKeys, bedrock: { ...providerKeys.bedrock, accessKeyId: e.target.value } } })}
+            />
+            <div className={styles.settingLabel}>AWS Secret Access Key</div>
+            <input
+              className={styles.input}
+              type="password"
+              placeholder="wJalrXUtn..."
+              value={providerKeys.bedrock?.secretAccessKey ?? ''}
+              onChange={(e) => update({ providerKeys: { ...providerKeys, bedrock: { ...providerKeys.bedrock, secretAccessKey: e.target.value } } })}
             />
           </div>
         </section>
@@ -484,6 +532,7 @@ export function SettingsView(): JSX.Element {
                 <option value="openai">OpenAI</option>
                 <option value="ollama">Ollama (local)</option>
                 <option value="openai-compatible">OpenAI-compatible</option>
+                <option value="bedrock">AWS Bedrock</option>
               </select>
               {(m.provider === 'ollama' || m.provider === 'openai-compatible') && (
                 <>
@@ -543,6 +592,7 @@ export function SettingsView(): JSX.Element {
               <option value="openai">OpenAI</option>
               <option value="ollama">Ollama (local)</option>
               <option value="openai-compatible">OpenAI-compatible</option>
+              <option value="bedrock">AWS Bedrock</option>
             </select>
             {(compression.provider === 'ollama' || compression.provider === 'openai-compatible') && (
               <>

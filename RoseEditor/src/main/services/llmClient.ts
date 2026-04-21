@@ -3,6 +3,7 @@ import type { ToolExecutionOptions } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOllama } from 'ai-sdk-ollama'
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { z } from 'zod'
 import { BrowserWindow } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
@@ -27,8 +28,14 @@ function notifyRenderer(channel: string, payload: unknown): void {
   }
 }
 
+type ProviderKeys = {
+  anthropic: string
+  openai: string
+  bedrock?: { region: string; accessKeyId: string; secretAccessKey: string }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function resolveModel(model: ModelConfig, providerKeys: { anthropic: string; openai: string }): any {
+export function resolveModel(model: ModelConfig, providerKeys: ProviderKeys): any {
   switch (model.provider) {
     case 'openai': {
       const provider = createOpenAI({ apiKey: providerKeys.openai || undefined })
@@ -42,6 +49,15 @@ export function resolveModel(model: ModelConfig, providerKeys: { anthropic: stri
       const provider = createOpenAI({
         apiKey: 'not-needed',
         baseURL: model.baseUrl
+      })
+      return provider(model.modelName)
+    }
+    case 'bedrock': {
+      const creds = providerKeys.bedrock
+      const provider = createAmazonBedrock({
+        region: creds?.region || 'us-east-1',
+        accessKeyId: creds?.accessKeyId || undefined,
+        secretAccessKey: creds?.secretAccessKey || undefined
       })
       return provider(model.modelName)
     }
@@ -168,7 +184,7 @@ export async function streamChat(params: {
   systemPrompt: string
   pythonTools: PythonToolMeta[]
   model: ModelConfig
-  providerKeys: { anthropic: string; openai: string }
+  providerKeys: ProviderKeys
   projectRoot: string
   disabledCoreTools?: string[]
 }): Promise<void> {
@@ -216,7 +232,7 @@ export async function streamChat(params: {
 export async function compressMessages(
   messages: Message[],
   compression: CompressionConfig,
-  providerKeys: { anthropic: string; openai: string }
+  providerKeys: ProviderKeys
 ): Promise<Message[]> {
   if (messages.length <= 40) return messages
 
