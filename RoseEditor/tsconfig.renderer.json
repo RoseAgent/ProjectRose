@@ -7,11 +7,42 @@
     "jsx": "react-jsx",
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "outDir": "./out/renderer",
     "paths": {
       "@renderer/*": ["./src/renderer/src/*"],
-      "@shared/*": ["./src/shared/*"]
+      "@shared/*": ["./src/shared/*"],
+      "@ext/rose-discord": ["../RoseExtensions/rose-discord"],
+      "@ext/rose-discord/*": ["../RoseExtensions/rose-discord/*"],
+      "@ext/rose-email": ["../RoseExtensions/rose-email"],
+      "@ext/rose-email/*": ["../RoseExtensions/rose-email/*"],
+      "@ext/rose-git": ["../RoseExtensions/rose-git"],
+      "@ext/rose-git/*": ["../RoseExtensions/rose-git/*"],
+      "@ext/rose-docker": ["../RoseExtensions/rose-docker"],
+      "@ext/rose-docker/*": ["../RoseExtensions/rose-docker/*"],
+      "@ext/rose-listen": ["../RoseExtensions/rose-listen"],
+      "@ext/rose-listen/*": ["../RoseExtensions/rose-listen/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "clsx": ["./node_modules/clsx"],
+      "clsx/*": ["./node_modules/clsx/*"],
+      "monaco-editor": ["./node_modules/monaco-editor"],
+      "monaco-editor/*": ["./node_modules/monaco-editor/*"],
+      "@xterm/xterm": ["./node_modules/@xterm/xterm"],
+      "@xterm/xterm/*": ["./node_modules/@xterm/xterm/*"],
+      "@xterm/addon-fit": ["./node_modules/@xterm/addon-fit"],
+      "@xterm/addon-fit/*": ["./node_modules/@xterm/addon-fit/*"],
+      "@xterm/addon-web-links": ["./node_modules/@xterm/addon-web-links"],
+      "@xterm/addon-web-links/*": ["./node_modules/@xterm/addon-web-links/*"]
     }
   },
-  "include": ["src/renderer/src/**/*", "src/shared/**/*"]
+  "include": [
+    "src/renderer/src/**/*",
+    "src/shared/**/*",
+    "../RoseExtensions/rose-discord/src/renderer/**/*",
+    "../RoseExtensions/rose-email/src/renderer/**/*",
+    "../RoseExtensions/rose-git/src/renderer/**/*",
+    "../RoseExtensions/rose-docker/src/renderer/**/*",
+    "../RoseExtensions/rose-listen/src/renderer/**/*"
+  ]
 }

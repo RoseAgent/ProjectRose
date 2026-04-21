@@ -3,8 +3,6 @@ import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
-import type { AppSettings } from '../ipc/settingsHandlers'
-
 export interface EmailSummary {
   uid: number
   subject: string
@@ -40,7 +38,13 @@ export interface EmailMessageMeta {
   injectionDetected: boolean
 }
 
-export type ImapCfg = Pick<AppSettings, 'imapHost' | 'imapPort' | 'imapUser' | 'imapPassword' | 'imapTLS'>
+export interface ImapCfg {
+  imapHost: string
+  imapPort: number
+  imapUser: string
+  imapPassword: string
+  imapTLS: boolean
+}
 
 export const DEFAULT_INJECTION_PATTERNS: InjectionPattern[] = [
   { id: 'bi-1', pattern: 'ignore previous instructions', isRegex: false, enabled: true, builtin: true },

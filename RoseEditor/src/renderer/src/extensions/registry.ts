@@ -1,10 +1,10 @@
 import type { ComponentType } from 'react'
 import type { ExtensionManifest } from '../../../shared/extension-types'
-import { DiscordView } from '../components/DiscordView/DiscordView'
-import { EmailView } from '../components/EmailView/EmailView'
-import { GitView } from '../components/GitView/GitView'
-import { DockerView } from '../components/DockerView/DockerView'
-import { ActiveListeningView } from '../components/ActiveListeningView/ActiveListeningView'
+import { manifest as discordManifest, DiscordView } from '@ext/rose-discord/renderer'
+import { manifest as emailManifest, EmailView } from '@ext/rose-email/renderer'
+import { manifest as gitManifest, GitView } from '@ext/rose-git/renderer'
+import { manifest as dockerManifest, DockerView } from '@ext/rose-docker/renderer'
+import { manifest as listenManifest, ActiveListeningView } from '@ext/rose-listen/renderer'
 
 export interface RendererExtension {
   manifest: ExtensionManifest
@@ -13,66 +13,11 @@ export interface RendererExtension {
 }
 
 const BUILTIN_EXTENSIONS: RendererExtension[] = [
-  {
-    manifest: {
-      id: 'rose-discord',
-      name: 'Discord',
-      version: '1.0.0',
-      description: 'Discord channel integration and messaging',
-      author: 'ProjectRose',
-      navItem: { label: 'Discord', iconName: 'discord' },
-      provides: { pageView: true, globalSettings: true, agentTools: true }
-    },
-    PageView: DiscordView
-  },
-  {
-    manifest: {
-      id: 'rose-email',
-      name: 'Email',
-      version: '1.0.0',
-      description: 'IMAP email management',
-      author: 'ProjectRose',
-      navItem: { label: 'Email', iconName: 'email' },
-      provides: { pageView: true, globalSettings: true, agentTools: true }
-    },
-    PageView: EmailView
-  },
-  {
-    manifest: {
-      id: 'rose-git',
-      name: 'Git',
-      version: '1.0.0',
-      description: 'Git repository management',
-      author: 'ProjectRose',
-      navItem: { label: 'Git', iconName: 'git' },
-      provides: { pageView: true }
-    },
-    PageView: GitView
-  },
-  {
-    manifest: {
-      id: 'rose-docker',
-      name: 'Docker',
-      version: '1.0.0',
-      description: 'Docker container management',
-      author: 'ProjectRose',
-      navItem: { label: 'Docker', iconName: 'docker' },
-      provides: { pageView: true }
-    },
-    PageView: DockerView
-  },
-  {
-    manifest: {
-      id: 'rose-listen',
-      name: 'Listen',
-      version: '1.0.0',
-      description: 'Active listening with speaker diarization',
-      author: 'ProjectRose',
-      navItem: { label: 'Listen', iconName: 'listen' },
-      provides: { pageView: true, globalSettings: true }
-    },
-    PageView: ActiveListeningView
-  }
+  { manifest: discordManifest as ExtensionManifest, PageView: DiscordView },
+  { manifest: emailManifest as ExtensionManifest,   PageView: EmailView },
+  { manifest: gitManifest as ExtensionManifest,     PageView: GitView },
+  { manifest: dockerManifest as ExtensionManifest,  PageView: DockerView },
+  { manifest: listenManifest as ExtensionManifest,  PageView: ActiveListeningView }
 ]
 
 // ViewId migration: old hardcoded nav IDs → new extension IDs

@@ -145,7 +145,7 @@ export function ExtensionsTab(): JSX.Element {
               description={ext.description}
               version={ext.version}
               author={ext.author}
-              badge={ext.firstParty ? 'Official' : undefined}
+              badge={undefined}
               enabled={true}
               onToggle={undefined}
               onUninstall={undefined}

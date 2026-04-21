@@ -2,6 +2,8 @@ import { BrowserWindow, shell, ipcMain } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 
+const ICON_PATH = join(__dirname, '../../build/icon.ico')
+
 // Theme colors matching variables.css
 const THEME_COLORS = {
   dark: { bg: '#11111b', fg: '#cdd6f4' },
@@ -17,6 +19,7 @@ export function createWindow(): BrowserWindow {
     minWidth: 800,
     minHeight: 600,
     title: 'RoseEditor',
+    icon: ICON_PATH,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
       color: THEME_COLORS.dark.bg,

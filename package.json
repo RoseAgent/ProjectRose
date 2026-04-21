@@ -1,0 +1,12 @@
+{
+  "name": "projectrose-monorepo",
+  "private": true,
+  "workspaces": [
+    "RoseExtensions/rose-discord",
+    "RoseExtensions/rose-email",
+    "RoseExtensions/rose-git",
+    "RoseExtensions/rose-docker",
+    "RoseExtensions/rose-listen",
+    "RoseEditor"
+  ]
+}

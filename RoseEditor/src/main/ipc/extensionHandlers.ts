@@ -7,38 +7,18 @@ import http from 'http'
 import { pipeline } from 'stream/promises'
 import { IPC } from '../../shared/ipcChannels'
 import type { InstalledExtension, ExtensionManifest, ExtensionRegistry } from '../../shared/extension-types'
+import discordManifest from '@ext/rose-discord/rose-extension.json'
+import emailManifest from '@ext/rose-email/rose-extension.json'
+import gitManifest from '@ext/rose-git/rose-extension.json'
+import dockerManifest from '@ext/rose-docker/rose-extension.json'
+import listenManifest from '@ext/rose-listen/rose-extension.json'
 
 const FIRST_PARTY_MANIFESTS: Record<string, ExtensionManifest> = {
-  'rose-discord': {
-    id: 'rose-discord', name: 'Discord', version: '1.0.0',
-    description: 'Discord channel integration and messaging', author: 'ProjectRose',
-    navItem: { label: 'Discord', iconName: 'discord' },
-    provides: { pageView: true, globalSettings: true, agentTools: true }
-  },
-  'rose-email': {
-    id: 'rose-email', name: 'Email', version: '1.0.0',
-    description: 'IMAP email management', author: 'ProjectRose',
-    navItem: { label: 'Email', iconName: 'email' },
-    provides: { pageView: true, globalSettings: true, agentTools: true }
-  },
-  'rose-git': {
-    id: 'rose-git', name: 'Git', version: '1.0.0',
-    description: 'Git repository management', author: 'ProjectRose',
-    navItem: { label: 'Git', iconName: 'git' },
-    provides: { pageView: true }
-  },
-  'rose-docker': {
-    id: 'rose-docker', name: 'Docker', version: '1.0.0',
-    description: 'Docker container management', author: 'ProjectRose',
-    navItem: { label: 'Docker', iconName: 'docker' },
-    provides: { pageView: true }
-  },
-  'rose-listen': {
-    id: 'rose-listen', name: 'Listen', version: '1.0.0',
-    description: 'Active listening with speaker diarization', author: 'ProjectRose',
-    navItem: { label: 'Listen', iconName: 'listen' },
-    provides: { pageView: true, globalSettings: true }
-  }
+  'rose-discord': discordManifest as ExtensionManifest,
+  'rose-email':   emailManifest as ExtensionManifest,
+  'rose-git':     gitManifest as ExtensionManifest,
+  'rose-docker':  dockerManifest as ExtensionManifest,
+  'rose-listen':  listenManifest as ExtensionManifest
 }
 
 const EXTENSIONS_DIR = join(app.getPath('userData'), 'extensions')

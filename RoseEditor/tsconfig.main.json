@@ -6,10 +6,27 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "outDir": "./out/main",
     "paths": {
-      "@shared/*": ["./src/shared/*"]
+      "@shared/*": ["./src/shared/*"],
+      "@main/*": ["./src/main/*"],
+      "@ext/rose-discord": ["../RoseExtensions/rose-discord"],
+      "@ext/rose-discord/*": ["../RoseExtensions/rose-discord/*"],
+      "@ext/rose-email": ["../RoseExtensions/rose-email"],
+      "@ext/rose-email/*": ["../RoseExtensions/rose-email/*"],
+      "@ext/rose-git": ["../RoseExtensions/rose-git"],
+      "@ext/rose-git/*": ["../RoseExtensions/rose-git/*"],
+      "@ext/rose-docker": ["../RoseExtensions/rose-docker"],
+      "@ext/rose-docker/*": ["../RoseExtensions/rose-docker/*"],
+      "@ext/rose-listen": ["../RoseExtensions/rose-listen"],
+      "@ext/rose-listen/*": ["../RoseExtensions/rose-listen/*"]
     }
   },
-  "include": ["src/main/**/*", "src/shared/**/*"]
+  "include": [
+    "src/main/**/*",
+    "src/shared/**/*",
+    "../RoseExtensions/rose-discord/src/main/**/*",
+    "../RoseExtensions/rose-email/src/main/**/*"
+  ]
 }
