@@ -6,8 +6,9 @@ const ICON_PATH = join(__dirname, '../../build/icon.ico')
 
 // Theme colors matching variables.css
 const THEME_COLORS = {
-  dark: { bg: '#11111b', fg: '#cdd6f4' },
-  light: { bg: '#dce0e8', fg: '#4c4f69' }
+  dark:      { bg: '#11111b', fg: '#cdd6f4' },
+  light:     { bg: '#dce0e8', fg: '#4c4f69' },
+  herbarium: { bg: '#e8e0d0', fg: '#2e2418' },
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -56,7 +57,7 @@ export function createWindow(): BrowserWindow {
 }
 
 // Update title bar overlay colors when theme changes
-ipcMain.on('theme:changed', (_event, theme: 'dark' | 'light') => {
+ipcMain.on('theme:changed', (_event, theme: 'dark' | 'light' | 'herbarium') => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     const colors = THEME_COLORS[theme]
     mainWindow.setTitleBarOverlay({

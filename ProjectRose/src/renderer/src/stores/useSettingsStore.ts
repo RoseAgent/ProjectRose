@@ -4,7 +4,7 @@ import type { ModelConfig, RouterConfig, CompressionConfig } from '../types/elec
 import { useProjectStore } from './useProjectStore'
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { viewId: 'chat',      label: 'Chat',      visible: true },
+  { viewId: 'chat',      label: 'Sessions',  visible: true },
   { viewId: 'editor',    label: 'Editor',    visible: true },
   { viewId: 'heartbeat', label: 'Heartbeat', visible: true },
   { viewId: 'settings',  label: 'Settings',  visible: true },
@@ -64,7 +64,11 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   load: async () => {
     const rootPath = useProjectStore.getState().rootPath ?? undefined
     const s = await window.api.getSettings(rootPath)
-    set({ ...s, loaded: true })
+    const navItems = DEFAULT_NAV_ITEMS.map((def) => {
+      const persisted = (s.navItems as NavItem[] | undefined)?.find((n) => n.viewId === def.viewId)
+      return persisted ? { ...persisted, label: def.label } : def
+    })
+    set({ ...s, navItems, loaded: true })
   },
 
   update: async (patch) => {

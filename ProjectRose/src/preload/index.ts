@@ -3,7 +3,7 @@ import { IPC } from '../shared/ipcChannels'
 
 const api = {
   // Theme
-  setNativeTheme: (theme: 'dark' | 'light'): void => {
+  setNativeTheme: (theme: 'dark' | 'light' | 'herbarium'): void => {
     ipcRenderer.send('theme:changed', theme)
   },
 

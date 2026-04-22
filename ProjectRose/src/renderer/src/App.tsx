@@ -4,6 +4,7 @@ import { TopBar } from './components/TopBar/TopBar'
 import { FileActions } from './components/TopBar/FileActions'
 import { EditorView } from './components/EditorView/EditorView'
 import { ChatView } from './components/ChatView/ChatView'
+import { ChatPanel } from './components/ChatView/ChatPanel'
 import { HeartbeatView } from './components/HeartbeatView/HeartbeatView'
 import { SettingsView } from './components/SettingsView/SettingsView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
@@ -61,7 +62,7 @@ function App(): JSX.Element {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    window.api.setNativeTheme(theme === 'herbarium' ? 'light' : theme)
+    window.api.setNativeTheme(theme)
   }, [theme])
 
   // Subscribe once to indexing progress events from the main process.
@@ -169,15 +170,18 @@ function App(): JSX.Element {
           />
         </div>
       )}
-      <main className={styles.mainContent}>
-        {activeView === 'editor' && <EditorView />}
-        {activeView === 'chat' && <ChatView />}
-        {activeView === 'heartbeat' && <HeartbeatView />}
-        {activeView === 'settings' && <SettingsView />}
-        {(() => {
-          const ext = getExtensionByViewId(activeView)
-          return ext?.PageView ? <ext.PageView /> : null
-        })()}
+      <main className={`${styles.mainContent} ${activeView === 'chat' ? styles.mainContentSessions : ''}`}>
+        <div className={styles.viewArea}>
+          {activeView === 'editor' && <EditorView />}
+          {activeView === 'chat' && <ChatView />}
+          {activeView === 'heartbeat' && <HeartbeatView />}
+          {activeView === 'settings' && <SettingsView />}
+          {(() => {
+            const ext = getExtensionByViewId(activeView)
+            return ext?.PageView ? <ext.PageView /> : null
+          })()}
+        </div>
+        <ChatPanel />
       </main>
     </div>
   )

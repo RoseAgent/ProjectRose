@@ -170,7 +170,7 @@ export interface ElectronAPI {
   onAiStreamReset: (callback: (data: { errorMessage: string; fallbackModel: string }) => void) => () => void
 
   // Theme
-  setNativeTheme: (theme: 'dark' | 'light') => void
+  setNativeTheme: (theme: 'dark' | 'light' | 'herbarium') => void
 
   // Menu events
   onMenuNewFile: (callback: () => void) => () => void

@@ -80,29 +80,31 @@ export function ChatInput(): JSX.Element {
         disabled={isLoading}
         rows={2}
       />
-      <button
-        className={clsx(styles.micBtn, {
-          [styles.micRecording]: micState === 'recording',
-          [styles.micTranscribing]: micState === 'transcribing',
-          [styles.micOffline]: roseSpeechOnline === false
-        })}
-        onClick={handleMicClick}
-        disabled={isLoading || micState === 'transcribing' || roseSpeechOnline === false}
-        title={
-          roseSpeechOnline === false
-            ? 'RoseSpeech is offline — speech input unavailable'
-            : micState === 'recording' ? 'Stop recording' : 'Record voice message'
-        }
-      >
-        {micState === 'transcribing' ? '…' : '🎙'}
-      </button>
-      <button
-        className={styles.sendBtn}
-        onClick={sendMessage}
-        disabled={isLoading || !inputValue.trim()}
-      >
-        {isLoading ? 'Thinking...' : 'Send'}
-      </button>
+      <div className={styles.btnStack}>
+        <button
+          className={clsx(styles.micBtn, {
+            [styles.micRecording]: micState === 'recording',
+            [styles.micTranscribing]: micState === 'transcribing',
+            [styles.micOffline]: roseSpeechOnline === false
+          })}
+          onClick={handleMicClick}
+          disabled={isLoading || micState === 'transcribing' || roseSpeechOnline === false}
+          title={
+            roseSpeechOnline === false
+              ? 'RoseSpeech is offline — speech input unavailable'
+              : micState === 'recording' ? 'Stop recording' : 'Record voice message'
+          }
+        >
+          {micState === 'transcribing' ? '…' : '🎙'}
+        </button>
+        <button
+          className={styles.sendBtn}
+          onClick={sendMessage}
+          disabled={isLoading || !inputValue.trim()}
+        >
+          {isLoading ? 'Thinking...' : 'Send'}
+        </button>
+      </div>
     </div>
   )
 }

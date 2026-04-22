@@ -9,7 +9,7 @@
 }
 
 .titleBar {
-  height: 32px;
+  height: 36px;
   background: var(--color-titlebar-bg);
   -webkit-app-region: drag;
   flex-shrink: 0;
@@ -28,8 +28,19 @@
 
 .mainContent {
   flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  overflow: hidden;
+}
+
+.mainContentSessions {
+  grid-template-columns: 220px 1fr;
+}
+
+.viewArea {
   display: flex;
   overflow: hidden;
+  min-width: 0;
 }
 
 .placeholder {
