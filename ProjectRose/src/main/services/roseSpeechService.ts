@@ -53,6 +53,10 @@ export async function startRoseSpeech(): Promise<void> {
     })
   }
 
+  proc.on('error', (err) => {
+    console.error('[RoseSpeech] failed to start:', err.message)
+    proc = null
+  })
   proc.stdout?.on('data', (d: Buffer) => {
     for (const line of d.toString().trimEnd().split('\n')) {
       console.log('[RoseSpeech]', line)

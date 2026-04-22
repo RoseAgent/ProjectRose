@@ -7,19 +7,6 @@ import http from 'http'
 import { pipeline } from 'stream/promises'
 import { IPC } from '../../shared/ipcChannels'
 import type { InstalledExtension, ExtensionManifest, ExtensionRegistry } from '../../shared/extension-types'
-import discordManifest from '@ext/rose-discord/rose-extension.json'
-import emailManifest from '@ext/rose-email/rose-extension.json'
-import gitManifest from '@ext/rose-git/rose-extension.json'
-import dockerManifest from '@ext/rose-docker/rose-extension.json'
-import listenManifest from '@ext/rose-listen/rose-extension.json'
-
-const FIRST_PARTY_MANIFESTS: Record<string, ExtensionManifest> = {
-  'rose-discord': discordManifest as ExtensionManifest,
-  'rose-email':   emailManifest as ExtensionManifest,
-  'rose-git':     gitManifest as ExtensionManifest,
-  'rose-docker':  dockerManifest as ExtensionManifest,
-  'rose-listen':  listenManifest as ExtensionManifest
-}
 
 const EXTENSIONS_DIR = join(app.getPath('userData'), 'extensions')
 
@@ -106,20 +93,9 @@ export function registerExtensionHandlers(): void {
     return { installed }
   })
 
-  ipcMain.handle(IPC.EXTENSION_INSTALL, async (_event, downloadUrl: string, extensionId?: string) => {
+  ipcMain.handle(IPC.EXTENSION_INSTALL, async (_event, downloadUrl: string) => {
     await ensureExtensionsDir()
 
-    // First-party extensions: code is already bundled, just write the manifest
-    if (extensionId && FIRST_PARTY_MANIFESTS[extensionId]) {
-      const manifest = FIRST_PARTY_MANIFESTS[extensionId]
-      const destDir = join(EXTENSIONS_DIR, extensionId)
-      await mkdir(destDir, { recursive: true })
-      await writeFile(join(destDir, 'rose-extension.json'), JSON.stringify(manifest, null, 2), 'utf-8')
-      await writeFile(join(destDir, '.state.json'), JSON.stringify({ enabled: true }), 'utf-8')
-      return { ok: true }
-    }
-
-    // Third-party: download and extract zip
     const tmpZip = join(EXTENSIONS_DIR, `_tmp_${Date.now()}.zip`)
     try {
       await downloadFile(downloadUrl, tmpZip)

@@ -18,6 +18,8 @@ env/
 
 # Node / Electron (per-subproject .gitignore handles more)
 node_modules/
+ProjectRose/test-results/
+ProjectRose/playwright-report/
 
 # Website — its own git repo
 website/

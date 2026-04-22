@@ -30,4 +30,5 @@ test('window has a non-empty title', async () => {
 test('displays welcome view when no project is open', async () => {
   // The welcome screen should render with open project options
   await expect(win.getByRole('button', { name: 'Open Project' })).toBeVisible({ timeout: 5000 })
+
 })
