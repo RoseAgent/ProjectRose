@@ -66,7 +66,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
           name: ${{ github.ref_type == 'tag' && github.ref_name || 'Nightly Build' }}
-          files: ProjectRose/release/**/*.{exe,dmg,deb,rpm,AppImage,zip}
+          files: ProjectRose/release/**/*.{exe,dmg,AppImage}
           draft: false
           generate_release_notes: ${{ github.ref_type == 'tag' }}
           prerelease: ${{ github.ref_type != 'tag' || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
