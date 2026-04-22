@@ -74,7 +74,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
       const persisted = (s.navItems as NavItem[] | undefined)?.find((n) => n.viewId === def.viewId)
       return persisted ? { ...persisted, label: def.label } : def
     })
-    set({ ...s, navItems, loaded: true })
+    // Only mark loaded:true once we have a project rootPath.
+    // A rootPath-less load returns global defaults (heartbeatEnabled:true) which
+    // must not unblock the heartbeat before the project-specific settings arrive.
+    set({ ...s, navItems, loaded: rootPath !== undefined })
   },
 
   update: async (patch) => {
