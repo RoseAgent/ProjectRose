@@ -1,49 +1,33 @@
-.PHONY: build run dist up down dev dev-down logs start clean
+.PHONY: build run dist build-rosespeech setup start clean help
 
-# ── Editor ────────────────────────────────────────────────────────────
+# ── Editor ─────────────────────────────────────────────────────────────
 
-build: ## Install dependencies and build ProjectRose
+build: ## Install npm dependencies and compile ProjectRose
 	cd ProjectRose && npm install && npm run build
 
-run: ## Launch ProjectRose in dev mode
+run: ## Launch ProjectRose in dev mode (RoseSpeech starts automatically)
 	cd ProjectRose && npm run dev
 
-dist: ## Package ProjectRose as a Windows installer
+dist: build-rosespeech ## Package ProjectRose as a distributable installer
 	cd ProjectRose && npm install && npm run dist
 
-# ── Servers (Docker) ──────────────────────────────────────────────────
+# ── RoseSpeech ─────────────────────────────────────────────────────────
 
-up: ## Start both servers in production mode
-	docker compose up -d --build
+setup: ## Install RoseSpeech Python dependencies (developers only — not needed by end users)
+	pip install -r RoseSpeech/requirements.txt
 
-down: ## Stop production servers
-	docker compose down
+build-rosespeech: ## Bundle RoseSpeech into a self-contained executable via PyInstaller
+	cd RoseSpeech && pyinstaller rosespeech.spec --noconfirm --distpath ../rosespeech-dist
 
-dev: ## Start both servers in dev mode with hot reload
-	docker compose -f docker-compose.dev.yml up --build -d
+# ── Combined ───────────────────────────────────────────────────────────
 
-dev-down: ## Stop dev servers
-	docker compose -f docker-compose.dev.yml down
-
-logs: ## Tail logs from production servers
-	docker compose logs -f
-
-# ── Combined ──────────────────────────────────────────────────────────
-
-start: up ## Start servers then launch editor in dev mode
+start: setup build ## Install all dependencies then launch in dev mode
 	cd ProjectRose && npm run dev
 
-clean: ## Remove Docker volumes and build artifacts
-	docker compose down -v
-	docker compose -f docker-compose.dev.yml down -v
-	rm -rf ProjectRose/node_modules ProjectRose/out ProjectRose/release
+clean: ## Remove build artifacts
+	rm -rf ProjectRose/node_modules ProjectRose/out ProjectRose/release rosespeech-dist
 
-# ── Data ──────────────────────────────────────────────────────────────
-
-download-pile: ## Download Common Pile dataset to ./pile/ (run once, large download)
-	pip install -q huggingface_hub && PILE_DIR=./pile python RoseTrainer/scripts/download_pile.py
-
-# ── Help ──────────────────────────────────────────────────────────────
+# ── Help ───────────────────────────────────────────────────────────────
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'

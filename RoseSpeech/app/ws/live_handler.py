@@ -18,15 +18,13 @@ import uuid
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
-from app.models.database import get_pool
+from app.models.database import get_pool, DATA_DIR
 from app.services.whisper_svc import transcribe_bytes
 from app.services.recognizer import identify_speaker
 
 router = APIRouter()
 
-RECORDINGS_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "data", "recordings")
-)
+RECORDINGS_DIR = os.path.join(DATA_DIR, "recordings")
 SILENCE_MIN_CHARS = 2
 
 

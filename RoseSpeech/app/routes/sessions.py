@@ -4,14 +4,12 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.models.database import get_db
+from app.models.database import get_db, DATA_DIR
 from app.services.recognizer import add_recording_embedding
 
 router = APIRouter(prefix="/sessions")
 
-RECORDINGS_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "data", "recordings")
-)
+RECORDINGS_DIR = os.path.join(DATA_DIR, "recordings")
 
 
 class SessionCreate(BaseModel):

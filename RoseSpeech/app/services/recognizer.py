@@ -8,9 +8,10 @@ from typing import Optional
 
 import numpy as np
 
+from app.models.database import DATA_DIR
 from app.services.diarizer import embed_audio_bytes, embed_audio_file
 
-MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "models")
+MODELS_DIR = os.path.join(DATA_DIR, "models")
 EMBEDDINGS_PATH = os.path.join(MODELS_DIR, "speaker_embeddings.json")
 CONFIDENCE_THRESHOLD = 0.75
 

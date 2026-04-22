@@ -21,6 +21,13 @@
     "directories": {
       "output": "release"
     },
+    "extraResources": [
+      {
+        "from": "../rosespeech-dist/rosespeech",
+        "to": "rosespeech",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "icon": "build/icon.ico",
       "target": [

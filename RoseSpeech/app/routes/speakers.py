@@ -3,14 +3,12 @@ import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from app.models.database import get_db
+from app.models.database import get_db, DATA_DIR
 from app.services.recognizer import add_recording_embedding
 
 router = APIRouter(prefix="/speakers")
 
-RECORDINGS_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "data", "recordings")
-)
+RECORDINGS_DIR = os.path.join(DATA_DIR, "recordings")
 
 
 class SpeakerCreate(BaseModel):
