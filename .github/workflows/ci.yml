@@ -7,10 +7,6 @@ on:
   pull_request:
     branches: [master]
 
-defaults:
-  run:
-    working-directory: ProjectRose
-
 jobs:
   typecheck:
     name: Type Check
@@ -21,10 +17,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: ProjectRose/package-lock.json
+          cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Run type checks
+        working-directory: ProjectRose
         run: npm run typecheck
 
   unit-tests:
@@ -36,10 +33,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: ProjectRose/package-lock.json
+          cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Run unit tests
+        working-directory: ProjectRose
         run: npm run test:unit
 
   e2e-tests:
@@ -51,12 +49,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: ProjectRose/package-lock.json
+          cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Download Electron binary
         run: node node_modules/electron/install.js
       - name: Build app
+        working-directory: ProjectRose
         run: npm run build
       - name: Run E2E tests
+        working-directory: ProjectRose
         run: npm run test:e2e
