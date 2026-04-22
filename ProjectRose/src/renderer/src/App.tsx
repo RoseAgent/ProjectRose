@@ -7,6 +7,7 @@ import { ChatView } from './components/ChatView/ChatView'
 import { ChatPanel } from './components/ChatView/ChatPanel'
 import { HeartbeatView } from './components/HeartbeatView/HeartbeatView'
 import { SettingsView } from './components/SettingsView/SettingsView'
+import { AccountView } from './components/AccountView/AccountView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
 import { getExtensionByViewId } from './extensions/registry'
@@ -176,6 +177,7 @@ function App(): JSX.Element {
           {activeView === 'chat' && <ChatView />}
           {activeView === 'heartbeat' && <HeartbeatView />}
           {activeView === 'settings' && <SettingsView />}
+          {activeView === 'account' && <AccountView />}
           {(() => {
             const ext = getExtensionByViewId(activeView)
             return ext?.PageView ? <ext.PageView /> : null

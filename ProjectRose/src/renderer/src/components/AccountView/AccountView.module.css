@@ -1,0 +1,112 @@
+.container {
+  padding: 40px;
+  max-width: 560px;
+}
+
+.section {
+  margin-bottom: 32px;
+}
+
+.label {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+
+.heading {
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+
+.description {
+  font-size: 13px;
+  color: var(--ink-mid);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.field {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--ink-soft);
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.value {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.badge {
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: var(--sepia);
+  padding: 2px 8px;
+  border: 1px solid var(--sepia);
+}
+
+.progressTrack {
+  height: 4px;
+  background: var(--line);
+  margin: 8px 0 4px;
+}
+
+.progressBar {
+  height: 100%;
+  background: var(--sepia);
+  transition: width 0.3s ease;
+}
+
+.usageText {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.muted {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.btnPrimary {
+  padding: 12px 24px;
+  background: var(--sepia);
+  color: var(--paper);
+  border: none;
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  cursor: pointer;
+  font-family: var(--mono);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btnSecondary {
+  padding: 12px 24px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  cursor: pointer;
+  font-family: var(--mono);
+}
+
+.btnSecondary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

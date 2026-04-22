@@ -139,6 +139,12 @@ export const IPC = {
   EXTENSION_DISABLE: 'extension:disable',
   EXTENSION_FETCH_REGISTRY: 'extension:fetchRegistry',
 
+  // Account auth
+  AUTH_LOGIN: 'auth:login',
+  AUTH_LOGOUT: 'auth:logout',
+  AUTH_GET_STATUS: 'auth:getStatus',
+  AUTH_CHANGED: 'auth:changed',
+
   // Active Listening
   ACTIVE_LISTENING_LABEL_SPEAKER: 'activeSpeech:labelSpeaker',
   ACTIVE_LISTENING_TRAIN: 'activeSpeech:train',

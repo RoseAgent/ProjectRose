@@ -30,7 +30,7 @@ export interface EmailMessageMeta {
 export interface ModelConfig {
   id: string
   displayName: string
-  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' | 'bedrock'
+  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' | 'bedrock' | 'projectrose'
   modelName: string
   baseUrl: string
   tags: string[]
@@ -123,7 +123,7 @@ export interface AppSettingsData {
   discordChannels: string[]
   models: ModelConfig[]
   defaultModelId: string
-  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
+  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string }; projectrose: { accessToken: string; refreshToken: string; email: string; plan: string } | null }
   router: RouterConfig
   compression: CompressionConfig
 }
@@ -252,6 +252,9 @@ export interface ElectronAPI {
 
   // Active Listening / RoseSpeech
   activeSpeech: ActiveSpeechAPI
+
+  // Account auth
+  auth: AuthAPI
 }
 
 export interface ChatSessionMeta {
@@ -438,6 +441,13 @@ export interface ExtensionAPI {
   enable: (id: string) => Promise<{ ok: boolean }>
   disable: (id: string) => Promise<{ ok: boolean }>
   fetchRegistry: (registryUrl: string) => Promise<import('@shared/extension-types').ExtensionRegistry>
+}
+
+export interface AuthAPI {
+  login: () => Promise<void>
+  logout: () => Promise<void>
+  getStatus: () => Promise<{ loggedIn: boolean; email: string; plan: string }>
+  onChanged: (callback: (data: { loggedIn: boolean; email: string }) => void) => () => void
 }
 
 export interface ActiveSpeechAPI {

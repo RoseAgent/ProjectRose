@@ -5,7 +5,7 @@ import { useProjectStore } from '../../stores/useProjectStore'
 import { useEmailStore } from '../../stores/useEmailStore'
 import { useDiscordStore } from '../../stores/useDiscordStore'
 import { NavItem } from '../../../../shared/types'
-import type { ModelConfig, ToolMeta } from '../../types/electron'
+import type { ModelConfig, CompressionConfig, ToolMeta } from '../../types/electron'
 import styles from './SettingsView.module.css'
 
 type TestState = 'idle' | 'testing' | 'ok' | 'fail'
@@ -74,11 +74,22 @@ export function SettingsView(): JSX.Element {
   const [newInjectionPattern, setNewInjectionPattern] = useState('')
   const [newInjectionIsRegex, setNewInjectionIsRegex] = useState(false)
 
+  const [authStatus, setAuthStatus] = useState<{ loggedIn: boolean; email: string; plan: string }>({ loggedIn: false, email: '', plan: '' })
+  const [authLoading, setAuthLoading] = useState(false)
+  const [hostMode, setHostMode] = useState<'projectrose' | 'self'>('projectrose')
+
   const [testState, setTestState] = useState<TestState>('idle')
   const [testError, setTestError] = useState('')
   const [services, setServices] = useState<ServiceHealth[]>([
     { name: 'RoseSpeech', url: 'http://127.0.0.1:8040', status: 'checking' }
   ])
+
+  useEffect(() => {
+    window.api.auth.getStatus().then(setAuthStatus).catch(() => {})
+    return window.api.auth.onChanged((data) => {
+      setAuthStatus((prev) => ({ ...prev, loggedIn: data.loggedIn, email: data.email }))
+    })
+  }, [])
 
   useEffect(() => {
     if (!rootPath) return
@@ -430,6 +441,68 @@ export function SettingsView(): JSX.Element {
     return (
       <>
         <section className={styles.section}>
+          <div className={styles.sectionTitle}>Host</div>
+          <div className={styles.hostToggle}>
+            <button
+              type="button"
+              className={`${styles.hostToggleBtn} ${hostMode === 'projectrose' ? styles.hostToggleBtnActive : ''}`}
+              onClick={() => setHostMode('projectrose')}
+            >
+              ProjectRose
+            </button>
+            <button
+              type="button"
+              className={`${styles.hostToggleBtn} ${hostMode === 'self' ? styles.hostToggleBtnActive : ''}`}
+              onClick={() => setHostMode('self')}
+            >
+              Self
+            </button>
+          </div>
+        </section>
+
+        {hostMode === 'projectrose' && (
+          <section className={styles.section}>
+            <div className={styles.sectionTitle}>ProjectRose Account</div>
+            {authStatus.loggedIn ? (
+              <div className={styles.settingCard}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div>
+                    <div className={styles.settingLabel}>Signed in as</div>
+                    <div style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{authStatus.email}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={async () => { setAuthLoading(true); await window.api.auth.logout(); setAuthLoading(false) }}
+                    disabled={authLoading}
+                  >
+                    {authLoading ? 'Signing out...' : 'Sign Out'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className={styles.settingCard}>
+                <div className={styles.settingLabel} style={{ marginBottom: 12 }}>
+                  Sign in to use the managed AI endpoint — no API keys needed.
+                </div>
+                <button
+                  type="button"
+                  className={styles.btnPrimary}
+                  disabled
+                >
+                  Sign In →
+                </button>
+                <div className={styles.settingDesc} style={{ marginTop: 8 }}>
+                  The ProjectRose hosted service is currently being built. Check back soon.
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {hostMode === 'self' && (
+          <>
+          <section className={styles.section}>
           <div className={styles.sectionTitle}>Provider API Keys</div>
           <div className={styles.settingCard}>
             <div className={styles.settingLabel}>Anthropic Key</div>
@@ -607,7 +680,7 @@ export function SettingsView(): JSX.Element {
             <select
               className={styles.select}
               value={compression.provider}
-              onChange={(e) => update({ compression: { ...compression, provider: e.target.value as ModelConfig['provider'], modelName: '' } })}
+              onChange={(e) => update({ compression: { ...compression, provider: e.target.value as CompressionConfig['provider'], modelName: '' } })}
             >
               <option value="anthropic">Anthropic (Claude)</option>
               <option value="openai">OpenAI</option>
@@ -637,6 +710,8 @@ export function SettingsView(): JSX.Element {
             )}
           </div>
         </section>
+          </>
+        )}
 
         <section className={styles.section}>
           <div className={styles.sectionTitle}>Tools</div>

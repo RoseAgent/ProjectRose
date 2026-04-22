@@ -4,7 +4,7 @@ import type { ModelConfig, RouterConfig, CompressionConfig } from '../types/elec
 import { useProjectStore } from './useProjectStore'
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { viewId: 'chat',      label: 'Sessions',  visible: true },
+  { viewId: 'chat',      label: 'Agent',     visible: true },
   { viewId: 'editor',    label: 'Editor',    visible: true },
   { viewId: 'heartbeat', label: 'Heartbeat', visible: true },
   { viewId: 'settings',  label: 'Settings',  visible: true },
@@ -28,7 +28,7 @@ interface SettingsState {
   navItems: NavItem[]
   models: ModelConfig[]
   defaultModelId: string
-  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
+  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string }; projectrose: { accessToken: string; refreshToken: string; email: string; plan: string } | null }
   router: RouterConfig
   compression: CompressionConfig
   extensions: Record<string, Record<string, unknown>>
@@ -55,7 +55,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   navItems: DEFAULT_NAV_ITEMS,
   models: [],
   defaultModelId: '',
-  providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' } },
+  providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' }, projectrose: null },
   router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
   compression: { provider: 'anthropic', modelName: '', baseUrl: '' },
   extensions: {},

@@ -18,6 +18,9 @@
     "appId": "com.projectrose.app",
     "productName": "ProjectRose",
     "icon": "build/icon",
+    "protocols": [
+      { "name": "ProjectRose", "schemes": ["projectrose"] }
+    ],
     "directories": {
       "output": "release"
     },

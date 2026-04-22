@@ -356,6 +356,21 @@ const api = {
       ipcRenderer.invoke(IPC.EXTENSION_FETCH_REGISTRY, registryUrl)
   },
 
+  // Account auth
+  auth: {
+    login: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.AUTH_LOGIN),
+    logout: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.AUTH_LOGOUT),
+    getStatus: (): Promise<{ loggedIn: boolean; email: string; plan: string }> =>
+      ipcRenderer.invoke(IPC.AUTH_GET_STATUS),
+    onChanged: (callback: (data: { loggedIn: boolean; email: string }) => void): (() => void) => {
+      const handler = (_e: unknown, data: { loggedIn: boolean; email: string }): void => callback(data)
+      ipcRenderer.on(IPC.AUTH_CHANGED, handler)
+      return () => { ipcRenderer.removeListener(IPC.AUTH_CHANGED, handler) }
+    }
+  },
+
   // Git
   git: {
     isRepo: (cwd: string): Promise<boolean> =>

@@ -33,6 +33,7 @@ type ProviderKeys = {
   anthropic: string
   openai: string
   bedrock?: { region: string; accessKeyId: string; secretAccessKey: string }
+  projectrose?: { accessToken: string; refreshToken: string; email: string; plan: string } | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,6 +62,14 @@ export function resolveModel(model: ModelConfig, providerKeys: ProviderKeys): an
         secretAccessKey: creds?.secretAccessKey || undefined
       })
       return provider(model.modelName)
+    }
+    case 'projectrose': {
+      const token = providerKeys.projectrose?.accessToken ?? ''
+      const provider = createOpenAI({
+        apiKey: token,
+        baseURL: model.baseUrl || 'https://projectrose.ai/api/ai'
+      })
+      return provider(model.modelName || 'managed')
     }
     case 'anthropic':
     default: {
