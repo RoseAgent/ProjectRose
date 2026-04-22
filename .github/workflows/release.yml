@@ -9,7 +9,12 @@ permissions:
   contents: write
 
 jobs:
+  ci:
+    name: Run CI checks
+    uses: ./.github/workflows/ci.yml
+
   release:
+    needs: ci
     strategy:
       matrix:
         include:
@@ -37,6 +42,10 @@ jobs:
         working-directory: ProjectRose
         run: npm ci
 
+      - name: Create rosespeech placeholder (CI has no rosespeech binary)
+        run: mkdir -p rosespeech-dist/rosespeech
+        shell: bash
+
       - name: Build and package (Windows)
         if: matrix.platform == 'win'
         working-directory: ProjectRose
@@ -63,6 +72,7 @@ jobs:
         with:
           files: ProjectRose/release/**/*.{exe,dmg,deb,rpm,AppImage,zip}
           draft: false
+          generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

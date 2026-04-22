@@ -1,6 +1,17 @@
 import { resolve } from 'path'
+import { readFileSync } from 'fs'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { createLogger } from 'vite'
 import react from '@vitejs/plugin-react'
+
+// Suppress the Monaco marked.js missing-sourcemap warning.
+// The warning fires on the server logger — intercepting here is the guaranteed fix.
+const rendererLogger = createLogger()
+const _warn = rendererLogger.warn.bind(rendererLogger)
+rendererLogger.warn = (msg, opts) => {
+  if (msg.includes('marked.umd.js.map')) return
+  _warn(msg, opts)
+}
 
 export default defineConfig({
   main: {
@@ -31,7 +42,22 @@ export default defineConfig({
     }
   },
   renderer: {
-    plugins: [react()],
+    customLogger: rendererLogger,
+    plugins: [
+      react(),
+      {
+        // Belt-and-suspenders: strip the sourceMappingURL before Vite reads it.
+        // Vite appends ?v=<hash> to IDs, so we must split on '?' before matching.
+        name: 'strip-monaco-marked-sourcemap',
+        load(id) {
+          const file = id.split('?')[0]
+          if (file.includes('monaco-editor') && file.endsWith('marked.js')) {
+            const code = readFileSync(file, 'utf-8')
+            return { code: code.replace(/\/\/# sourceMappingURL=\S+/g, ''), map: null }
+          }
+        }
+      }
+    ],
     optimizeDeps: {
       exclude: ['monaco-editor']
     },
@@ -47,7 +73,6 @@ export default defineConfig({
         '@ext/rose-git':     resolve('../RoseExtensions/rose-git'),
         '@ext/rose-docker':  resolve('../RoseExtensions/rose-docker'),
         '@ext/rose-listen':  resolve('../RoseExtensions/rose-listen'),
-        // Redirect bare imports from extension files to RoseEditor's node_modules
         'sonner':                 resolve('../node_modules/sonner'),
         'clsx':                   resolve('../node_modules/clsx'),
         'monaco-editor':          resolve('../node_modules/monaco-editor'),

@@ -1,5 +1,4 @@
 import { ipcMain } from 'electron'
-import { Blob } from 'node:buffer'
 import { IPC } from '../../shared/ipcChannels'
 import { readSettings } from './settingsHandlers'
 

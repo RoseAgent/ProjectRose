@@ -8,7 +8,7 @@ import { ChatInput } from './ChatInput'
 import styles from './ChatPanel.module.css'
 
 type RenderItem =
-  | { type: 'message'; message: ChatMessage }
+  | { type: 'message'; message: Exclude<ChatMessage, ToolMessage> }
   | { type: 'tool-group'; messages: ToolMessage[]; key: string }
 
 function groupMessages(messages: ChatMessage[]): RenderItem[] {
@@ -24,7 +24,7 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
       }
       items.push({ type: 'tool-group', messages: group, key: group[0].id })
     } else {
-      items.push({ type: 'message', message: msg })
+      items.push({ type: 'message', message: msg as Exclude<ChatMessage, ToolMessage> })
       i++
     }
   }

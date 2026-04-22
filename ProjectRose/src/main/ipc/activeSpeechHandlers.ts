@@ -1,5 +1,4 @@
 import { ipcMain } from 'electron'
-import { Blob } from 'node:buffer'
 import { IPC } from '../../shared/ipcChannels'
 
 const BASE = 'http://127.0.0.1:8040'

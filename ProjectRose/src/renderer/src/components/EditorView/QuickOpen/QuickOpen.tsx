@@ -2,32 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useProjectStore } from '../../../stores/useProjectStore'
 import { useFileStore } from '../../../stores/useFileStore'
-import type { FileNode } from '../../../../../shared/types'
+import { flattenTree, fuzzyMatch, getBasename } from '../../../utils/treeUtils'
 import styles from './QuickOpen.module.css'
-
-function flattenTree(node: FileNode): string[] {
-  if (!node.isDirectory) return [node.path]
-  const results: string[] = []
-  for (const child of node.children ?? []) {
-    results.push(...flattenTree(child))
-  }
-  return results
-}
-
-function fuzzyMatch(path: string, query: string): boolean {
-  if (!query) return true
-  const lower = path.toLowerCase()
-  const q = query.toLowerCase()
-  let qi = 0
-  for (let i = 0; i < lower.length && qi < q.length; i++) {
-    if (lower[i] === q[qi]) qi++
-  }
-  return qi === q.length
-}
-
-function getBasename(p: string): string {
-  return p.replace(/\\/g, '/').split('/').pop() ?? p
-}
 
 interface QuickOpenProps {
   onClose: () => void

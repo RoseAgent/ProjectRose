@@ -126,6 +126,7 @@ export interface AppSettingsData {
   providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string }; projectrose: { accessToken: string; refreshToken: string; email: string; plan: string } | null }
   router: RouterConfig
   compression: CompressionConfig
+  navItems: import('../../../shared/types').NavItem[]
 }
 export interface IndexingProgress {
   phase: 'checking' | 'indexing' | 'done' | 'error'
@@ -204,7 +205,7 @@ export interface ElectronAPI {
   // Project setup
   checkRoseMd: (rootPath: string) => Promise<boolean>
   ensureScaffold: (rootPath: string) => Promise<void>
-  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string }) => Promise<void>
+  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string }) => Promise<void>
 
   // Heartbeat
   runHeartbeat: (rootPath: string) => Promise<string>

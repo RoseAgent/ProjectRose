@@ -3,6 +3,7 @@ import { useProjectStore } from '../../../stores/useProjectStore'
 import { useFileStore } from '../../../stores/useFileStore'
 import { FileTreeNode } from './FileTreeNode'
 import { ContextMenu } from './ContextMenu'
+import { joinPath } from '../../../utils/pathUtils'
 import type { FileNode } from '../../../../../shared/types'
 import styles from './FileTree.module.css'
 
@@ -21,9 +22,6 @@ interface NewEntryState {
   kind: 'file' | 'folder'
 }
 
-function joinPath(a: string, b: string): string {
-  return a.replace(/[\\/]$/, '') + '/' + b
-}
 
 export function FileTree({ onFileClick }: FileTreeProps): JSX.Element {
   const fileTree = useProjectStore((s) => s.fileTree)

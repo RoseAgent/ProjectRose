@@ -1,0 +1,9 @@
+appId: com.projectrose.app
+productName: ProjectRose
+icon: build/icon
+directories:
+  output: release
+win:
+  icon: build/icon.ico
+  target:
+    - nsis
