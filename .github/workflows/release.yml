@@ -2,6 +2,7 @@ name: Release
 
 on:
   push:
+    branches: [master]
     tags:
       - 'v*'
 
@@ -36,10 +37,9 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: ProjectRose/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: ProjectRose
         run: npm ci --ignore-scripts
 
       - name: Create rosespeech placeholder (CI has no rosespeech binary)
@@ -70,9 +70,11 @@ jobs:
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || 'Nightly Build' }}
           files: ProjectRose/release/**/*.{exe,dmg,deb,rpm,AppImage,zip}
           draft: false
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          generate_release_notes: ${{ github.ref_type == 'tag' }}
+          prerelease: ${{ github.ref_type != 'tag' || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
