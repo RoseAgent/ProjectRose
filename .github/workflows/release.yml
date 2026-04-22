@@ -46,6 +46,14 @@ jobs:
         run: mkdir -p rosespeech-dist/rosespeech
         shell: bash
 
+      - name: Copy node-pty into app node_modules for packaging
+        shell: bash
+        run: cp -r node_modules/node-pty ProjectRose/node_modules/node-pty
+
+      - name: Rebuild node-pty for Electron ABI
+        shell: bash
+        run: node_modules/.bin/electron-rebuild -f -w node-pty --module-dir ProjectRose
+
       - name: Build and package (Windows)
         if: matrix.platform == 'win'
         working-directory: ProjectRose

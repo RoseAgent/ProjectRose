@@ -27,6 +27,7 @@
   "build": {
     "appId": "com.projectrose.app",
     "productName": "ProjectRose",
+    "npmRebuild": false,
     "icon": "build/icon",
     "protocols": [
       {
