@@ -37,6 +37,9 @@ interface SettingsState {
   update: (patch: Partial<Omit<SettingsState, 'loaded' | 'load' | 'update'>>) => Promise<void>
 }
 
+// Prevents a stale rootPath-less load from overwriting a newer rootPath-specific load.
+let loadGeneration = 0
+
 export const useSettingsStore = create<SettingsState>()((set) => ({
   heartbeatEnabled: true,
   heartbeatIntervalMinutes: 5,
@@ -62,8 +65,11 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   loaded: false,
 
   load: async () => {
+    const gen = ++loadGeneration
+    set({ loaded: false })
     const rootPath = useProjectStore.getState().rootPath ?? undefined
     const s = await window.api.getSettings(rootPath)
+    if (gen !== loadGeneration) return
     const navItems = DEFAULT_NAV_ITEMS.map((def) => {
       const persisted = (s.navItems as NavItem[] | undefined)?.find((n) => n.viewId === def.viewId)
       return persisted ? { ...persisted, label: def.label } : def
@@ -74,6 +80,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   update: async (patch) => {
     const rootPath = useProjectStore.getState().rootPath ?? undefined
     const s = await window.api.setSettings(patch, rootPath)
-    set(s)
+    const navItems = DEFAULT_NAV_ITEMS.map((def) => {
+      const persisted = (s.navItems as NavItem[] | undefined)?.find((n) => n.viewId === def.viewId)
+      return persisted ? { ...persisted, label: def.label } : def
+    })
+    set({ ...s, navItems })
   }
 }))

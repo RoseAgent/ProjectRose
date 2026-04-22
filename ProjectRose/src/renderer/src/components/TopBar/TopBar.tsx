@@ -2,7 +2,6 @@ import { useProjectStore } from '../../stores/useProjectStore'
 import { RoseMark } from './RoseMark'
 import { ViewToggle } from './ViewToggle'
 import { ThemeToggle } from './ThemeToggle'
-import { IndexingStatus } from './IndexingStatus'
 import { Breadcrumbs } from '../Breadcrumbs/Breadcrumbs'
 import styles from './TopBar.module.css'
 
@@ -41,7 +40,6 @@ export function TopBar(): JSX.Element {
       <div className={styles.spacer} />
 
       <div className={styles.right}>
-        <IndexingStatus />
         <ThemeToggle />
       </div>
     </div>

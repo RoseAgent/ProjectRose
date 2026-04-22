@@ -32,7 +32,7 @@ function App(): JSX.Element {
   const refreshTree = useProjectStore((s) => s.refreshTree)
   const toggleTerminal = useViewStore((s) => s.toggleTerminal)
 
-  const { heartbeatEnabled, heartbeatIntervalMinutes, discordBotToken, discordChannels, load: loadSettings } = useSettingsStore()
+  const { heartbeatEnabled, heartbeatIntervalMinutes, loaded: settingsLoaded, discordBotToken, discordChannels, load: loadSettings } = useSettingsStore()
   const { connect: discordConnect, initEnabledChannels, loadChannels: discordLoadChannels } = useDiscordStore()
   const setServiceStatus = useServiceStore((s) => s.setStatus)
   const [needsSetup, setNeedsSetup] = useState(false)
@@ -88,8 +88,9 @@ function App(): JSX.Element {
   }, [rootPath])
 
   // Run heartbeat on project open and then on the configured interval.
+  // Wait for settings to load so we respect the persisted enabled flag.
   useEffect(() => {
-    if (!rootPath || needsSetup || !heartbeatEnabled) return
+    if (!rootPath || needsSetup || !settingsLoaded || !heartbeatEnabled) return
 
     window.api.runHeartbeat(rootPath).catch(() => {})
 
@@ -98,7 +99,7 @@ function App(): JSX.Element {
     }, heartbeatIntervalMinutes * 60 * 1000)
 
     return () => clearInterval(interval)
-  }, [rootPath, needsSetup, heartbeatEnabled, heartbeatIntervalMinutes])
+  }, [rootPath, needsSetup, settingsLoaded, heartbeatEnabled, heartbeatIntervalMinutes])
 
   // Poll the file tree every minute to catch external changes.
   useEffect(() => {
