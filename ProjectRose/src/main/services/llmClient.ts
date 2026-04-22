@@ -15,6 +15,10 @@ import {
   handleFindReferences,
   handleGetProjectOverview,
   handleRunCommand,
+  handleMemoryWrite,
+  handleMemorySearch,
+  handleMemoryList,
+  handleMemoryDelete,
   type PythonToolMeta
 } from './toolHandlers'
 import { getAllBuiltinExtensionTools, type ExtensionToolEntry } from '../extensions/builtinTools'
@@ -167,6 +171,38 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
       description: 'Get a structured map of the entire project: every file with its language, symbols (functions, classes, methods), and dependency relationships.',
       inputSchema: z.object({}),
       execute: wrapExecute('get_project_overview', () => handleGetProjectOverview(), projectRoot)
+    }),
+    memory_write: tool({
+      description: 'Create or update a memory drawer in the memory palace. Wing and room organize the palace (e.g. wing="people" room="general"). Drawer is the filename without extension. Use this proactively to remember useful information.',
+      inputSchema: z.object({
+        wing: z.string().describe('Wing name without prefix, e.g. "people", "code", "project"'),
+        room: z.string().describe('Room name without prefix, e.g. "general", "architecture", "decisions"'),
+        drawer: z.string().describe('Drawer filename without .md extension'),
+        content: z.string().describe('Markdown body content to store'),
+        tags: z.array(z.string()).optional().describe('Optional tags for categorization')
+      }),
+      execute: wrapExecute('memory_write', handleMemoryWrite, projectRoot)
+    }),
+    memory_search: tool({
+      description: 'Keyword search across all memory drawers. Returns matching drawer paths with context snippets. Use this to recall relevant information before starting a task.',
+      inputSchema: z.object({
+        query: z.string().describe('Search terms to look for in memory drawers')
+      }),
+      execute: wrapExecute('memory_search', handleMemorySearch, projectRoot)
+    }),
+    memory_list: tool({
+      description: 'List the full memory palace hierarchy: all wings, their rooms, and drawer names. Use this to get an overview of what is stored.',
+      inputSchema: z.object({}),
+      execute: wrapExecute('memory_list', (input, root) => handleMemoryList(input, root), projectRoot)
+    }),
+    memory_delete: tool({
+      description: 'Delete a specific memory drawer. Use when information is outdated or no longer relevant.',
+      inputSchema: z.object({
+        wing: z.string().describe('Wing name without prefix'),
+        room: z.string().describe('Room name without prefix'),
+        drawer: z.string().describe('Drawer filename without .md extension')
+      }),
+      execute: wrapExecute('memory_delete', handleMemoryDelete, projectRoot)
     }),
   }
 }

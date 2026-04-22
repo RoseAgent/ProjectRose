@@ -35,25 +35,12 @@ async function filterDueTasks(files: string[], tasksDir: string): Promise<string
   return due
 }
 
-function buildHeartbeatPrompt(rootPath: string, notes: string[], dueTasks: string[]): string {
+function buildHeartbeatPrompt(rootPath: string, dueTasks: string[]): string {
   const parts: string[] = [
     `You are processing the deferred work queue for the project at: ${rootPath}`,
     '',
     'Your job:'
   ]
-
-  if (notes.length > 0) {
-    parts.push(
-      '',
-      `## Process Notes (${notes.length} files in .projectrose/heartbeat/notes/)`,
-      ...notes.map((n) => `- ${n}`),
-      '',
-      'For each note: read it with read_file, determine which memory file it relates to',
-      '(.projectrose/memory/people/, .projectrose/memory/places/, or .projectrose/memory/things/),',
-      'then update or create that memory file. Finally, delete the note by writing an empty string',
-      'to it or using run_command to remove it.'
-    )
-  }
 
   if (dueTasks.length > 0) {
     parts.push(
@@ -71,15 +58,13 @@ function buildHeartbeatPrompt(rootPath: string, notes: string[], dueTasks: strin
 }
 
 export async function runHeartbeat(rootPath: string): Promise<string> {
-  const notesDir = prPath(rootPath, 'heartbeat', 'notes')
   const tasksDir = prPath(rootPath, 'heartbeat', 'tasks')
   const logsDir = prPath(rootPath, 'heartbeat', 'logs')
 
-  const notes = await listMdFiles(notesDir)
   const allTasks = await listMdFiles(tasksDir)
   const dueTasks = await filterDueTasks(allTasks, tasksDir)
 
-  if (notes.length === 0 && dueTasks.length === 0) {
+  if (dueTasks.length === 0) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     const logPath = join(logsDir, `${timestamp}.md`)
     const logContent = `# Heartbeat — ${new Date().toLocaleString()}\n\nNothing to process.\n`
@@ -87,7 +72,7 @@ export async function runHeartbeat(rootPath: string): Promise<string> {
     return 'Nothing to process.'
   }
 
-  const prompt = buildHeartbeatPrompt(rootPath, notes, dueTasks)
+  const prompt = buildHeartbeatPrompt(rootPath, dueTasks)
   const { content } = await heartbeatChat([{ role: 'user', content: prompt }], rootPath)
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-')

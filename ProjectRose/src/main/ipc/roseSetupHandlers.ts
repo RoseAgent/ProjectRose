@@ -30,9 +30,15 @@ Reply in plain text. Only use tools when the user explicitly asks you to do some
 
 ${AUTONOMY_TEXT[autonomy] ?? AUTONOMY_TEXT.high}
 
-## Context
+## Memory Palace
 
-You have a \`.projectrose/memory/\` folder with notes about people, places, and projects, and a \`.projectrose/heartbeat/notes/\` folder for recording new information. Use them when relevant to an actual task.
+You have a memory palace at \`.projectrose/memory/\` organized as wings → rooms → drawers.
+- \`memory_list\` — see all stored memories
+- \`memory_search\` — find relevant context by keyword
+- \`memory_write\` — save new information (wing, room, drawer, content)
+- \`memory_delete\` — remove outdated memories
+
+Be proactive: search memory at the start of relevant tasks, and write memories when you learn something worth keeping about the user, project, or codebase.
 `
 }
 
@@ -68,10 +74,7 @@ export function registerRoseSetupHandlers(): void {
 
       // Create scaffold directories
       const dirs = [
-        prPath(rootPath, 'memory', 'people'),
-        prPath(rootPath, 'memory', 'places'),
-        prPath(rootPath, 'memory', 'things'),
-        prPath(rootPath, 'heartbeat', 'notes'),
+        prPath(rootPath, 'memory', 'wing_people', 'room_general'),
         prPath(rootPath, 'heartbeat', 'tasks'),
         prPath(rootPath, 'heartbeat', 'logs'),
         prPath(rootPath, 'tools')
@@ -81,10 +84,11 @@ export function registerRoseSetupHandlers(): void {
         await touch(join(dir, '.gitkeep'))
       }
 
-      // Bootstrap user.md
+      // Bootstrap identity drawer
+      const today = new Date().toISOString().split('T')[0]
       await writeFile(
-        prPath(rootPath, 'memory', 'people', 'user.md'),
-        `# User\n\n_No information collected yet._\n`,
+        prPath(rootPath, 'memory', 'wing_people', 'room_general', 'user.md'),
+        `---\ntags: [people, identity]\nupdated: ${today}\n---\n\n# User\n\n_No information collected yet._\n`,
         { flag: 'wx' }
       ).catch(() => {})
 
@@ -101,10 +105,7 @@ export function registerRoseSetupHandlers(): void {
 
   ipcMain.handle(IPC.ROSE_ENSURE_SCAFFOLD, async (_event, rootPath: string) => {
     const dirs = [
-      prPath(rootPath, 'memory', 'people'),
-      prPath(rootPath, 'memory', 'places'),
-      prPath(rootPath, 'memory', 'things'),
-      prPath(rootPath, 'heartbeat', 'notes'),
+      prPath(rootPath, 'memory', 'wing_people', 'room_general'),
       prPath(rootPath, 'heartbeat', 'tasks'),
       prPath(rootPath, 'heartbeat', 'logs'),
       prPath(rootPath, 'tools')

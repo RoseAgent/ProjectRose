@@ -22,6 +22,15 @@ function notifyRenderer(channel: string, payload: unknown): void {
 const FALLBACK_AGENT_MD = `You are ProjectRose AI, a coding assistant embedded in the ProjectRose IDE.
 
 Reply in plain text. Only use tools when the user explicitly asks you to do something — read a file, run a command, search the code, etc. Never call tools for greetings, questions, or conversational messages.
+
+## Memory Palace
+You have a memory palace at \`.projectrose/memory/\` organized as wings → rooms → drawers.
+- \`memory_list\` — see all stored memories
+- \`memory_search\` — find relevant context by keyword
+- \`memory_write\` — save new information (wing, room, drawer, content)
+- \`memory_delete\` — remove outdated memories
+
+Be proactive: search memory at the start of relevant tasks, and write memories when you learn something worth keeping about the user, project, or codebase.
 `
 
 async function buildAgentMd(rootPath: string): Promise<string> {
@@ -36,7 +45,18 @@ async function buildAgentMd(rootPath: string): Promise<string> {
     // ROSE.md not yet created — use fallback
   }
 
-  return `${rose}
+  let identitySection = ''
+  try {
+    const raw = await readFile(prPath(rootPath, 'memory', 'wing_people', 'room_general', 'user.md'), 'utf-8')
+    const body = raw.replace(/^---[\s\S]*?---\n/, '').trim()
+    if (body && !body.includes('_No information collected yet._')) {
+      identitySection = `\n\n## Known User Context\n${body}`
+    }
+  } catch {
+    // no identity drawer yet
+  }
+
+  return `${rose}${identitySection}
 
 ## Environment
 - Operating system: ${os}
