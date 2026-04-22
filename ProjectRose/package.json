@@ -28,6 +28,7 @@
     "appId": "com.projectrose.app",
     "productName": "ProjectRose",
     "npmRebuild": false,
+    "asarUnpack": ["**/node_modules/node-pty/**"],
     "icon": "build/icon",
     "protocols": [
       {
