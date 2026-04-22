@@ -49,23 +49,17 @@ jobs:
       - name: Build and package (Windows)
         if: matrix.platform == 'win'
         working-directory: ProjectRose
-        run: npm run dist -- --win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist -- --win --publish never
 
       - name: Build and package (macOS)
         if: matrix.platform == 'mac'
         working-directory: ProjectRose
-        run: npm run dist -- --mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist -- --mac --publish never
 
       - name: Build and package (Linux)
         if: matrix.platform == 'linux'
         working-directory: ProjectRose
-        run: npm run dist -- --linux
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist -- --linux --publish never
 
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v2

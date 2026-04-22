@@ -2,6 +2,11 @@
   "name": "projectrose",
   "version": "0.1.0",
   "description": "ProjectRose - A code editor IDE with AI chat integration",
+  "author": "RoseAgent",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RoseAgent/ProjectRose.git"
+  },
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
