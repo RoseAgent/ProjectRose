@@ -1,6 +1,6 @@
 import { platform } from 'os'
-import { join } from 'path'
 import { readFile } from 'fs/promises'
+import { prPath } from '../lib/projectPaths'
 import { BrowserWindow } from 'electron'
 import { setActiveProjectRoot } from './toolHandlers'
 import { discoverPythonTools, getModifiedFiles, resetModifiedFiles } from './toolHandlers'
@@ -31,7 +31,7 @@ async function buildAgentMd(rootPath: string): Promise<string> {
 
   let rose = FALLBACK_AGENT_MD
   try {
-    rose = await readFile(join(rootPath, 'ROSE.md'), 'utf-8')
+    rose = await readFile(prPath(rootPath, 'ROSE.md'), 'utf-8')
   } catch {
     // ROSE.md not yet created — use fallback
   }

@@ -74,7 +74,7 @@ export async function readDirectoryTree(
   const files: FileNode[] = []
 
   for (const entry of entries) {
-    if (entry.name.startsWith('.') && depth === 0 && entry.isDirectory()) continue
+    if (entry.name.startsWith('.') && entry.name !== '.projectrose' && depth === 0 && entry.isDirectory()) continue
 
     const entryPath = join(dirPath, entry.name)
 

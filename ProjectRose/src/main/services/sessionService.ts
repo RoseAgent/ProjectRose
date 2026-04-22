@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import { join } from 'path'
+import { prPath } from '../lib/projectPaths'
 
 export interface SessionMeta {
   id: string
@@ -13,11 +13,11 @@ export interface Session extends SessionMeta {
 }
 
 function sessionsDir(rootPath: string): string {
-  return join(rootPath, 'sessions')
+  return prPath(rootPath, 'sessions')
 }
 
 function sessionPath(rootPath: string, sessionId: string): string {
-  return join(sessionsDir(rootPath), `session-${sessionId}.json`)
+  return prPath(rootPath, 'sessions', `session-${sessionId}.json`)
 }
 
 export async function listSessions(rootPath: string): Promise<SessionMeta[]> {
@@ -28,7 +28,7 @@ export async function listSessions(rootPath: string): Promise<SessionMeta[]> {
     for (const entry of entries) {
       if (!entry.startsWith('session-') || !entry.endsWith('.json')) continue
       try {
-        const raw = await fs.readFile(join(dir, entry), 'utf-8')
+        const raw = await fs.readFile(prPath(rootPath, 'sessions', entry), 'utf-8')
         const session = JSON.parse(raw) as Session
         metas.push({ id: session.id, title: session.title, createdAt: session.createdAt, updatedAt: session.updatedAt })
       } catch {

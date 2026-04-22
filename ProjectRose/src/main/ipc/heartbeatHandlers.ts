@@ -4,6 +4,7 @@ import { readdir, readFile, writeFile, stat } from 'fs/promises'
 import { execSync } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
 import { heartbeatChat } from '../services/aiService'
+import { prPath } from '../lib/projectPaths'
 
 async function listMdFiles(dir: string): Promise<string[]> {
   try {
@@ -44,20 +45,20 @@ function buildHeartbeatPrompt(rootPath: string, notes: string[], dueTasks: strin
   if (notes.length > 0) {
     parts.push(
       '',
-      `## Process Notes (${notes.length} files in heartbeat/notes/)`,
+      `## Process Notes (${notes.length} files in .projectrose/heartbeat/notes/)`,
       ...notes.map((n) => `- ${n}`),
       '',
-      'For each note: read it with read_file, determine which memory/ file it relates to',
-      '(memory/people/, memory/places/, or memory/things/), then update or create that',
-      'memory file. Finally, delete the note by writing an empty string to it or using',
-      'run_command to remove it.'
+      'For each note: read it with read_file, determine which memory file it relates to',
+      '(.projectrose/memory/people/, .projectrose/memory/places/, or .projectrose/memory/things/),',
+      'then update or create that memory file. Finally, delete the note by writing an empty string',
+      'to it or using run_command to remove it.'
     )
   }
 
   if (dueTasks.length > 0) {
     parts.push(
       '',
-      `## Execute Due Tasks (${dueTasks.length} tasks in heartbeat/tasks/)`,
+      `## Execute Due Tasks (${dueTasks.length} tasks in .projectrose/heartbeat/tasks/)`,
       ...dueTasks.map((t) => `- ${t}`),
       '',
       'For each due task: read the file, execute the described task using available tools,',
@@ -70,9 +71,9 @@ function buildHeartbeatPrompt(rootPath: string, notes: string[], dueTasks: strin
 }
 
 export async function runHeartbeat(rootPath: string): Promise<string> {
-  const notesDir = join(rootPath, 'heartbeat', 'notes')
-  const tasksDir = join(rootPath, 'heartbeat', 'tasks')
-  const logsDir = join(rootPath, 'heartbeat', 'logs')
+  const notesDir = prPath(rootPath, 'heartbeat', 'notes')
+  const tasksDir = prPath(rootPath, 'heartbeat', 'tasks')
+  const logsDir = prPath(rootPath, 'heartbeat', 'logs')
 
   const notes = await listMdFiles(notesDir)
   const allTasks = await listMdFiles(tasksDir)
@@ -97,13 +98,13 @@ export async function runHeartbeat(rootPath: string): Promise<string> {
   // Commit any changes the agent made to its own files. Never push.
   try {
     const status = execSync(
-      'git status --porcelain -- ROSE.md memory/ heartbeat/ tools/',
+      'git status --porcelain -- .projectrose/',
       { cwd: rootPath, encoding: 'utf-8' }
     ).trim()
 
     if (status) {
       const label = new Date().toISOString().slice(0, 16).replace('T', ' ')
-      execSync('git add ROSE.md memory/ heartbeat/ tools/', { cwd: rootPath, stdio: 'ignore' })
+      execSync('git add .projectrose/', { cwd: rootPath, stdio: 'ignore' })
       execSync(`git commit -m "Heartbeat: update agent files [${label}]"`, { cwd: rootPath, stdio: 'ignore' })
     }
   } catch {
@@ -114,7 +115,7 @@ export async function runHeartbeat(rootPath: string): Promise<string> {
 }
 
 async function getLogFiles(rootPath: string): Promise<string[]> {
-  const logsDir = join(rootPath, 'heartbeat', 'logs')
+  const logsDir = prPath(rootPath, 'heartbeat', 'logs')
   try {
     const files = await readdir(logsDir)
     const mdFiles = files.filter((f) => f.endsWith('.md') && f !== '.gitkeep')
@@ -141,7 +142,7 @@ export function registerHeartbeatHandlers(): void {
   })
 
   ipcMain.handle(IPC.HEARTBEAT_LOG_CONTENT, async (_event, payload: { rootPath: string; filename: string }) => {
-    const logPath = join(payload.rootPath, 'heartbeat', 'logs', payload.filename)
+    const logPath = prPath(payload.rootPath, 'heartbeat', 'logs', payload.filename)
     return readFile(logPath, 'utf-8')
   })
 }

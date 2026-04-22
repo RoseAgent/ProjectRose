@@ -134,7 +134,7 @@ function omit(obj: any, keys: readonly string[]): any {
 }
 
 function getRepoConfigPath(rootPath: string): string {
-  return join(rootPath, '.rose', 'config.json')
+  return join(rootPath, '.projectrose', 'config.json')
 }
 
 async function mergeNavItems(stored: NavItem[]): Promise<NavItem[]> {

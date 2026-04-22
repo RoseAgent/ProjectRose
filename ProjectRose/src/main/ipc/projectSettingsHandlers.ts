@@ -1,7 +1,7 @@
-import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import { ipcMain } from 'electron'
 import { discoverPythonTools } from '../services/toolHandlers'
+import { prPath } from '../lib/projectPaths'
 
 export interface ProjectSettings {
   disabledTools: string[]
@@ -35,7 +35,7 @@ const CORE_TOOL_META = [
 
 export async function readProjectSettings(rootPath: string): Promise<ProjectSettings> {
   try {
-    const content = await readFile(join(rootPath, 'project-settings.json'), 'utf-8')
+    const content = await readFile(prPath(rootPath, 'project-settings.json'), 'utf-8')
     return { ...DEFAULT_PROJECT_SETTINGS, ...JSON.parse(content) }
   } catch {
     return { ...DEFAULT_PROJECT_SETTINGS }
@@ -50,7 +50,7 @@ export function registerProjectSettingsHandlers(): void {
   ipcMain.handle('project:setSettings', async (_ev, rootPath: string, patch: Partial<ProjectSettings>) => {
     const current = await readProjectSettings(rootPath)
     const updated = { ...current, ...patch }
-    await writeFile(join(rootPath, 'project-settings.json'), JSON.stringify(updated, null, 2))
+    await writeFile(prPath(rootPath, 'project-settings.json'), JSON.stringify(updated, null, 2))
     return updated
   })
 

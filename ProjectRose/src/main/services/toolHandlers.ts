@@ -1,5 +1,6 @@
 import { readFile, writeFile, readdir } from 'fs/promises'
 import { join, relative, basename } from 'path'
+import { prPath } from '../lib/projectPaths'
 import { execSync } from 'child_process'
 import { platform } from 'os'
 import { BrowserWindow } from 'electron'
@@ -172,7 +173,7 @@ export interface PythonToolMeta {
 }
 
 export async function discoverPythonTools(rootPath: string): Promise<PythonToolMeta[]> {
-  const toolsDir = join(rootPath, 'tools')
+  const toolsDir = prPath(rootPath, 'tools')
   let files: string[] = []
   try {
     files = (await readdir(toolsDir)).filter((f) => f.endsWith('.py'))

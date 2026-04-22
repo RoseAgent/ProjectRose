@@ -4,6 +4,7 @@ import { writeFile, mkdir, access } from 'fs/promises'
 import { execSync } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
 import { readSettings, writeSettings } from './settingsHandlers'
+import { prPath } from '../lib/projectPaths'
 
 const AUTONOMY_TEXT: Record<string, string> = {
   high: 'Once you have determined a task requires tool use, proceed without asking for confirmation between steps. Execute completely. Do not ask "shall I proceed?" — just act.',
@@ -31,7 +32,7 @@ ${AUTONOMY_TEXT[autonomy] ?? AUTONOMY_TEXT.high}
 
 ## Context
 
-You have a \`memory/\` folder with notes about people, places, and projects, and a \`heartbeat/notes/\` folder for recording new information. Use them when relevant to an actual task.
+You have a \`.projectrose/memory/\` folder with notes about people, places, and projects, and a \`.projectrose/heartbeat/notes/\` folder for recording new information. Use them when relevant to an actual task.
 `
 }
 
@@ -46,7 +47,7 @@ async function touch(p: string): Promise<void> {
 export function registerRoseSetupHandlers(): void {
   ipcMain.handle(IPC.ROSE_CHECK_MD, async (_event, rootPath: string) => {
     try {
-      await access(join(rootPath, 'ROSE.md'))
+      await access(prPath(rootPath, 'ROSE.md'))
       return true
     } catch {
       return false
@@ -63,17 +64,17 @@ export function registerRoseSetupHandlers(): void {
       await writeSettings({ ...current, userName: userName.trim(), agentName: name.trim() })
 
       // Write ROSE.md
-      await writeFile(join(rootPath, 'ROSE.md'), buildRoseMd(name, identity, autonomy, userName), 'utf-8')
+      await writeFile(prPath(rootPath, 'ROSE.md'), buildRoseMd(name, identity, autonomy, userName), 'utf-8')
 
       // Create scaffold directories
       const dirs = [
-        join(rootPath, 'memory', 'people'),
-        join(rootPath, 'memory', 'places'),
-        join(rootPath, 'memory', 'things'),
-        join(rootPath, 'heartbeat', 'notes'),
-        join(rootPath, 'heartbeat', 'tasks'),
-        join(rootPath, 'heartbeat', 'logs'),
-        join(rootPath, 'tools')
+        prPath(rootPath, 'memory', 'people'),
+        prPath(rootPath, 'memory', 'places'),
+        prPath(rootPath, 'memory', 'things'),
+        prPath(rootPath, 'heartbeat', 'notes'),
+        prPath(rootPath, 'heartbeat', 'tasks'),
+        prPath(rootPath, 'heartbeat', 'logs'),
+        prPath(rootPath, 'tools')
       ]
       for (const dir of dirs) {
         await mkdirSafe(dir)
@@ -82,7 +83,7 @@ export function registerRoseSetupHandlers(): void {
 
       // Bootstrap user.md
       await writeFile(
-        join(rootPath, 'memory', 'people', 'user.md'),
+        prPath(rootPath, 'memory', 'people', 'user.md'),
         `# User\n\n_No information collected yet._\n`,
         { flag: 'wx' }
       ).catch(() => {})
@@ -90,7 +91,7 @@ export function registerRoseSetupHandlers(): void {
       // Init git repo and make the first commit
       try {
         execSync('git init', { cwd: rootPath, stdio: 'ignore' })
-        execSync('git add ROSE.md memory/ heartbeat/ tools/', { cwd: rootPath, stdio: 'ignore' })
+        execSync('git add .projectrose/', { cwd: rootPath, stdio: 'ignore' })
         execSync('git commit -m "Initialize agent home"', { cwd: rootPath, stdio: 'ignore' })
       } catch {
         // git may not be installed or the directory may already be a repo with conflicts
