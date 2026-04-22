@@ -40,7 +40,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ProjectRose
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Create rosespeech placeholder (CI has no rosespeech binary)
         run: mkdir -p rosespeech-dist/rosespeech
