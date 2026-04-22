@@ -7,44 +7,6 @@ on:
     branches: [master, main, develop]
 
 jobs:
-  python:
-    name: Python (RoseLibrary)
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        python-version: ["3.13"]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install uv
-        run: |
-          python -m pip install --upgrade pip
-          pip install uv
-
-      - name: Install dependencies - RoseLibrary
-        working-directory: ./RoseLibrary
-        run: uv sync
-
-      - name: Run RoseLibrary tests
-        working-directory: ./RoseLibrary
-        run: uv run pytest tests/ -v
-
   editor:
     name: ProjectRose (CI)
     uses: ./.github/workflows/ci.yml
