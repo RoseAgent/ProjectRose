@@ -1,4 +1,4 @@
-import { readFile, writeFile, readdir, stat, mkdir } from 'fs/promises'
+import { readFile, writeFile, readdir, stat, mkdir, unlink, rm, rename } from 'fs/promises'
 import { createHash } from 'crypto'
 import { join, basename, extname } from 'path'
 import type { FileNode } from '../../shared/types'
@@ -55,6 +55,22 @@ export async function writeFileContent(
 
 export async function createFile(filePath: string): Promise<void> {
   await writeFile(filePath, '', 'utf-8')
+}
+
+export async function deleteFile(filePath: string): Promise<void> {
+  await unlink(filePath)
+}
+
+export async function deleteDirectory(dirPath: string): Promise<void> {
+  await rm(dirPath, { recursive: true, force: true })
+}
+
+export async function renameEntry(oldPath: string, newPath: string): Promise<void> {
+  await rename(oldPath, newPath)
+}
+
+export async function createDirectory(dirPath: string): Promise<void> {
+  await mkdir(dirPath, { recursive: true })
 }
 
 export async function readDirectoryTree(

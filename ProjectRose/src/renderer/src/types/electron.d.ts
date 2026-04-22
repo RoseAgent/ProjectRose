@@ -180,6 +180,11 @@ export interface ElectronAPI {
 
   readFile: (filePath: string) => Promise<string>
   writeFile: (filePath: string, content: string) => Promise<void>
+  createFile: (filePath: string) => Promise<void>
+  deleteFile: (filePath: string) => Promise<void>
+  deleteDirectory: (dirPath: string) => Promise<void>
+  renameFile: (oldPath: string, newPath: string) => Promise<void>
+  createDirectory: (dirPath: string) => Promise<void>
   readDirectoryTree: (dirPath: string) => Promise<FileNode>
   openFolderDialog: () => Promise<string | null>
   openFileDialog: () => Promise<string | null>

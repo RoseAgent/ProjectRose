@@ -2,6 +2,10 @@ export const IPC = {
   FILE_READ: 'file:read',
   FILE_WRITE: 'file:write',
   FILE_CREATE: 'file:create',
+  FILE_DELETE: 'file:delete',
+  FILE_DELETE_DIR: 'file:deleteDir',
+  FILE_RENAME: 'file:rename',
+  FILE_CREATE_DIR: 'file:createDir',
   FILE_READ_DIR_TREE: 'file:readDirTree',
 
   DIALOG_OPEN_FOLDER: 'dialog:openFolder',

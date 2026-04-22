@@ -73,11 +73,13 @@ export interface OpenFile {
 interface FileState {
   openFiles: OpenFile[]
   activeFilePath: string | null
+  previousActiveFilePath: string | null
   getActiveFile: () => OpenFile | null
   isDirty: (filePath: string) => boolean
   openFile: (filePath: string) => Promise<void>
   closeFile: (filePath: string) => void
   setActiveFile: (filePath: string) => void
+  switchToPreviousFile: () => void
   updateContent: (filePath: string, content: string) => void
   saveFile: (filePath: string) => Promise<void>
   saveActiveFile: () => Promise<void>
@@ -89,6 +91,7 @@ let untitledCounter = 0
 export const useFileStore = create<FileState>()((set, get) => ({
   openFiles: [],
   activeFilePath: null,
+  previousActiveFilePath: null,
 
   getActiveFile: () => {
     const { openFiles, activeFilePath } = get()
@@ -101,10 +104,10 @@ export const useFileStore = create<FileState>()((set, get) => ({
   },
 
   openFile: async (filePath: string) => {
-    const { openFiles } = get()
+    const { openFiles, activeFilePath } = get()
     const existing = openFiles.find((f) => f.filePath === filePath)
     if (existing) {
-      set({ activeFilePath: filePath })
+      set({ previousActiveFilePath: activeFilePath, activeFilePath: filePath })
       return
     }
 
@@ -117,6 +120,7 @@ export const useFileStore = create<FileState>()((set, get) => ({
         ...state.openFiles,
         { filePath, fileName, content, savedContent: content, language }
       ],
+      previousActiveFilePath: state.activeFilePath,
       activeFilePath: filePath
     }))
   },
@@ -144,7 +148,18 @@ export const useFileStore = create<FileState>()((set, get) => ({
   },
 
   setActiveFile: (filePath: string) => {
-    set({ activeFilePath: filePath })
+    set((state) => ({ previousActiveFilePath: state.activeFilePath, activeFilePath: filePath }))
+  },
+
+  switchToPreviousFile: () => {
+    const { previousActiveFilePath, openFiles, activeFilePath } = get()
+    if (!previousActiveFilePath || previousActiveFilePath === activeFilePath) return
+    const exists = openFiles.find((f) => f.filePath === previousActiveFilePath)
+    if (!exists) return
+    set((state) => ({
+      previousActiveFilePath: state.activeFilePath,
+      activeFilePath: previousActiveFilePath
+    }))
   },
 
   updateContent: (filePath: string, content: string) => {

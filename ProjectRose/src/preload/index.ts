@@ -35,6 +35,21 @@ const api = {
   writeFile: (filePath: string, content: string): Promise<void> =>
     ipcRenderer.invoke(IPC.FILE_WRITE, { filePath, content }),
 
+  createFile: (filePath: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.FILE_CREATE, filePath),
+
+  deleteFile: (filePath: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.FILE_DELETE, filePath),
+
+  deleteDirectory: (dirPath: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.FILE_DELETE_DIR, dirPath),
+
+  renameFile: (oldPath: string, newPath: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.FILE_RENAME, { oldPath, newPath }),
+
+  createDirectory: (dirPath: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.FILE_CREATE_DIR, dirPath),
+
   readDirectoryTree: (dirPath: string): Promise<unknown> =>
     ipcRenderer.invoke(IPC.FILE_READ_DIR_TREE, dirPath),
 
