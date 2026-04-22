@@ -28,6 +28,7 @@ export const IPC = {
 
   ROSE_CHECK_MD: 'rose:checkMd',
   ROSE_INIT_PROJECT: 'rose:initProject',
+  ROSE_ENSURE_SCAFFOLD: 'rose:ensureScaffold',
 
   HEARTBEAT_RUN: 'heartbeat:run',
   HEARTBEAT_GET_LOGS: 'heartbeat:getLogs',

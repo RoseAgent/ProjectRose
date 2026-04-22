@@ -109,6 +109,9 @@ const api = {
   checkRoseMd: (rootPath: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.ROSE_CHECK_MD, rootPath),
 
+  ensureScaffold: (rootPath: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.ROSE_ENSURE_SCAFFOLD, rootPath),
+
   initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string }): Promise<void> =>
     ipcRenderer.invoke(IPC.ROSE_INIT_PROJECT, payload),
 

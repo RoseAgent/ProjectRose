@@ -98,4 +98,20 @@ export function registerRoseSetupHandlers(): void {
       }
     }
   )
+
+  ipcMain.handle(IPC.ROSE_ENSURE_SCAFFOLD, async (_event, rootPath: string) => {
+    const dirs = [
+      prPath(rootPath, 'memory', 'people'),
+      prPath(rootPath, 'memory', 'places'),
+      prPath(rootPath, 'memory', 'things'),
+      prPath(rootPath, 'heartbeat', 'notes'),
+      prPath(rootPath, 'heartbeat', 'tasks'),
+      prPath(rootPath, 'heartbeat', 'logs'),
+      prPath(rootPath, 'tools')
+    ]
+    for (const dir of dirs) {
+      await mkdirSafe(dir)
+      await touch(join(dir, '.gitkeep'))
+    }
+  })
 }

@@ -75,12 +75,16 @@ function App(): JSX.Element {
   }, [])
 
   // Check for ROSE.md when a project is opened; trigger wizard if missing.
+  // If already initialized, ensure scaffold directories exist (recreates any that were deleted).
   useEffect(() => {
     if (!rootPath) {
       setNeedsSetup(false)
       return
     }
-    window.api.checkRoseMd(rootPath).then((hasMd) => setNeedsSetup(!hasMd))
+    window.api.checkRoseMd(rootPath).then((hasMd) => {
+      setNeedsSetup(!hasMd)
+      if (hasMd) window.api.ensureScaffold(rootPath).catch(() => {})
+    })
   }, [rootPath])
 
   // Run heartbeat on project open and then on the configured interval.

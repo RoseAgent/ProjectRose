@@ -203,6 +203,7 @@ export interface ElectronAPI {
 
   // Project setup
   checkRoseMd: (rootPath: string) => Promise<boolean>
+  ensureScaffold: (rootPath: string) => Promise<void>
   initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string }) => Promise<void>
 
   // Heartbeat
