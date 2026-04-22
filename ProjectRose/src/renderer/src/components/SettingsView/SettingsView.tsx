@@ -42,7 +42,7 @@ export function SettingsView(): JSX.Element {
     heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId,
     imapHost, imapPort, imapUser, imapPassword, imapTLS,
     discordBotToken,
-    navItems, models, defaultModelId, providerKeys, router, compression, update
+    navItems, models, defaultModelId, providerKeys, router, compression, hostMode, update
   } = useSettingsStore()
 
   const rootPath = useProjectStore((s) => s.rootPath)
@@ -76,7 +76,6 @@ export function SettingsView(): JSX.Element {
 
   const [authStatus, setAuthStatus] = useState<{ loggedIn: boolean; email: string; plan: string }>({ loggedIn: false, email: '', plan: '' })
   const [authLoading, setAuthLoading] = useState(false)
-  const [hostMode, setHostMode] = useState<'projectrose' | 'self'>('projectrose')
 
   const [testState, setTestState] = useState<TestState>('idle')
   const [testError, setTestError] = useState('')
@@ -446,14 +445,14 @@ export function SettingsView(): JSX.Element {
             <button
               type="button"
               className={`${styles.hostToggleBtn} ${hostMode === 'projectrose' ? styles.hostToggleBtnActive : ''}`}
-              onClick={() => setHostMode('projectrose')}
+              onClick={() => update({ hostMode: 'projectrose' })}
             >
               ProjectRose
             </button>
             <button
               type="button"
               className={`${styles.hostToggleBtn} ${hostMode === 'self' ? styles.hostToggleBtnActive : ''}`}
-              onClick={() => setHostMode('self')}
+              onClick={() => update({ hostMode: 'self' })}
             >
               Self
             </button>

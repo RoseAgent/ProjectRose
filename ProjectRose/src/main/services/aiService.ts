@@ -121,7 +121,7 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
   setActiveProjectRoot(rootPath)
   resetModifiedFiles()
 
-  const settings = await readSettings()
+  const settings = await readSettings(rootPath)
   const userMessage = messages.at(-1)?.content ?? ''
   const selectedModel = await selectModel(userMessage, settings)
   const defaultModel = settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
@@ -157,7 +157,7 @@ export async function heartbeatChat(messages: Message[], rootPath: string): Prom
   setActiveProjectRoot(rootPath)
   resetModifiedFiles()
 
-  const settings = await readSettings()
+  const settings = await readSettings(rootPath)
   const userMessage = messages.at(-1)?.content ?? ''
   const selectedModel = await selectModel(userMessage, settings)
 

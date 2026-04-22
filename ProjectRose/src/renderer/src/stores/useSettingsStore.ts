@@ -31,6 +31,7 @@ interface SettingsState {
   providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string }; projectrose: { accessToken: string; refreshToken: string; email: string; plan: string } | null }
   router: RouterConfig
   compression: CompressionConfig
+  hostMode: 'projectrose' | 'self'
   extensions: Record<string, Record<string, unknown>>
   loaded: boolean
   load: () => Promise<void>
@@ -61,6 +62,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' }, projectrose: null },
   router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
   compression: { provider: 'anthropic', modelName: '', baseUrl: '' },
+  hostMode: 'projectrose',
   extensions: {},
   loaded: false,
 
