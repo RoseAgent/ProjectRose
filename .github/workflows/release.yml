@@ -46,6 +46,10 @@ jobs:
         run: mkdir -p rosespeech-dist/rosespeech
         shell: bash
 
+      - name: Install Python setuptools for node-gyp on Python 3.12+
+        run: pip3 install setuptools --break-system-packages
+        shell: bash
+
       - name: Copy node-pty into app node_modules for packaging
         shell: bash
         run: mkdir -p ProjectRose/node_modules && cp -r node_modules/node-pty ProjectRose/node_modules/node-pty
