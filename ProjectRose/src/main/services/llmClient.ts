@@ -129,8 +129,9 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
       execute: wrapExecute('read_file', handleReadFile, projectRoot)
     }),
     write_file: tool({
-      description: 'Write content to a file. Creates the file if it does not exist, overwrites if it does. The code index is updated automatically.',
+      description: 'Write content to a file. Requires a file_token obtained from read_file — call read_file first if you do not have one. Returns a new file_token you can use for subsequent writes to the same file.',
       inputSchema: z.object({
+        file_token: z.string().optional().describe('Token from a recent read_file call. Required — call read_file first to obtain one.'),
         path: z.string().describe('File path relative to the project root'),
         content: z.string().describe('The full file content to write')
       }),

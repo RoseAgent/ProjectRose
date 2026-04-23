@@ -12,6 +12,7 @@ const modifiedFiles: string[] = []
 let _activeProjectRoot: string | null = null
 
 const validMemoryTokens = new Set<string>()
+const validFileTokens = new Map<string, string>() // absolutePath → token
 
 function computeToken(input: string): string {
   return createHash('sha256').update(input).digest('hex').slice(0, 16)
@@ -42,21 +43,47 @@ export async function handleReadFile(input: Record<string, unknown>, projectRoot
   const absolute = filePath.startsWith('/') || filePath.includes(':')
     ? filePath
     : join(projectRoot, filePath)
-  return readFile(absolute, 'utf-8')
+
+  let content: string
+  let tokenBase: string
+  try {
+    content = await readFile(absolute, 'utf-8')
+    tokenBase = content
+  } catch {
+    content = 'File does not exist.'
+    tokenBase = absolute + ':new'
+  }
+
+  const token = computeToken(tokenBase)
+  validFileTokens.set(absolute, token)
+  return `${content}\n[file_token: ${token}]`
 }
 
 export async function handleWriteFile(input: Record<string, unknown>, projectRoot: string): Promise<string> {
+  const providedToken = String(input.file_token || '')
+  if (!providedToken) {
+    return 'Missing file_token. Call read_file on this file first to get a token before writing.'
+  }
+
   const filePath = String(input.path || '')
-  const content = String(input.content || '')
   const absolute = filePath.startsWith('/') || filePath.includes(':')
     ? filePath
     : join(projectRoot, filePath)
 
+  const expectedToken = validFileTokens.get(absolute)
+  if (!expectedToken || expectedToken !== providedToken) {
+    return `Invalid or expired file_token for ${filePath}. Call read_file on this specific file to get a valid token.`
+  }
+
+  const content = String(input.content || '')
   await writeFile(absolute, content, 'utf-8')
   modifiedFiles.push(absolute)
   notifyRenderer(IPC.AI_FILE_MODIFIED, { path: absolute })
 
-  return `File written: ${filePath}`
+  const newToken = computeToken(content + Date.now())
+  validFileTokens.set(absolute, newToken)
+
+  return `File written: ${filePath}\n[file_token: ${newToken}]`
 }
 
 export async function handleListDirectory(input: Record<string, unknown>, projectRoot: string): Promise<string> {
