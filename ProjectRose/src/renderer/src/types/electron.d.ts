@@ -162,6 +162,7 @@ export interface ElectronAPI {
   // AI
   aiChat: (messages: { role: string; content: string }[], rootPath: string) => Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }>
   aiCompress: (messages: { role: string; content: string }[]) => Promise<{ role: string; content: string }[]>
+  aiGetSystemPrompt: (rootPath: string) => Promise<string>
   onAiFileModified: (callback: (data: { path: string }) => void) => () => void
   onAiToolCallStart: (callback: (data: { id: string; name: string; params: Record<string, unknown> }) => void) => () => void
   onAiToolCallEnd: (callback: (data: { id: string; result: string; error: boolean }) => void) => () => void
@@ -205,7 +206,7 @@ export interface ElectronAPI {
   // Project setup
   checkRoseMd: (rootPath: string) => Promise<boolean>
   ensureScaffold: (rootPath: string) => Promise<void>
-  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string }) => Promise<void>
+  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string; commStyle: string; depth: string; proactivity: string }) => Promise<void>
 
   // Heartbeat
   runHeartbeat: (rootPath: string) => Promise<string>

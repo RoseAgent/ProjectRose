@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
-import { chat, compressHistory } from '../services/aiService'
+import { chat, compressHistory, buildAgentMd } from '../services/aiService'
 import type { Message } from '../../shared/roseModelTypes'
 
 export function registerAiHandlers(): void {
@@ -15,6 +15,13 @@ export function registerAiHandlers(): void {
     IPC.AI_COMPRESS,
     async (_event, messages: Message[]) => {
       return compressHistory(messages)
+    }
+  )
+
+  ipcMain.handle(
+    IPC.AI_GET_SYSTEM_PROMPT,
+    async (_event, rootPath: string) => {
+      return buildAgentMd(rootPath)
     }
   )
 }

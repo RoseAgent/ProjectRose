@@ -16,6 +16,7 @@ import {
   handleGetProjectOverview,
   handleRunCommand,
   handleMemoryWrite,
+  handleMemoryRead,
   handleMemorySearch,
   handleMemoryList,
   handleMemoryDelete,
@@ -172,9 +173,19 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
       inputSchema: z.object({}),
       execute: wrapExecute('get_project_overview', () => handleGetProjectOverview(), projectRoot)
     }),
-    memory_write: tool({
-      description: 'Create or update a memory drawer in the memory palace. Wing and room organize the palace (e.g. wing="people" room="general"). Drawer is the filename without extension. Use this proactively to remember useful information.',
+    memory_read: tool({
+      description: 'Read the full contents of a specific memory drawer. Use this after memory_list or memory_search to retrieve the full content of a drawer.',
       inputSchema: z.object({
+        wing: z.string().describe('Wing name without prefix, e.g. "people", "code", "project"'),
+        room: z.string().describe('Room name without prefix, e.g. "general", "architecture", "decisions"'),
+        drawer: z.string().describe('Drawer filename without .md extension')
+      }),
+      execute: wrapExecute('memory_read', handleMemoryRead, projectRoot)
+    }),
+    memory_write: tool({
+      description: 'Create or update a memory drawer. Requires a memory_token obtained from a recent memory_search call — call memory_search first if you do not have one. Returns a new memory_token you can use for subsequent writes in the same session.',
+      inputSchema: z.object({
+        memory_token: z.string().optional().describe('Token from a recent memory_search call. Required — call memory_search first to obtain one.'),
         wing: z.string().describe('Wing name without prefix, e.g. "people", "code", "project"'),
         room: z.string().describe('Room name without prefix, e.g. "general", "architecture", "decisions"'),
         drawer: z.string().describe('Drawer filename without .md extension'),

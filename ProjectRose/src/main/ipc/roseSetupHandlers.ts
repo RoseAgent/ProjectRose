@@ -12,7 +12,33 @@ const AUTONOMY_TEXT: Record<string, string> = {
   low: 'Ask the user before executing any tool call.'
 }
 
-function buildRoseMd(name: string, identity: string, autonomy: string, userName: string): string {
+const COMM_STYLE_TEXT: Record<string, string> = {
+  direct: 'Be direct and concise. Get to the point. Never pad responses with filler phrases. Be honest when something is a bad idea — do not hedge.',
+  collaborative: 'Think out loud. Share your reasoning as you work. Ask clarifying questions when intent is unclear. Treat the user as a partner.',
+  adaptive: 'Match your communication style to the user and the task. Read context and adjust accordingly.'
+}
+
+const DEPTH_TEXT: Record<string, string> = {
+  brief: 'Skip explanations unless asked. Give the answer, not the lecture.',
+  detailed: 'Explain your reasoning. Include alternatives, trade-offs, and relevant context.',
+  adaptive: 'Calibrate explanation depth to the complexity of the task. Simple questions get direct answers; complex problems get full context.'
+}
+
+const PROACTIVITY_TEXT: Record<string, string> = {
+  reactive: 'Only address what is explicitly asked. Do not offer unsolicited feedback or suggestions.',
+  balanced: 'Focus on the task, but flag obvious issues or risks you spot along the way.',
+  proactive: 'Actively surface improvements, potential issues, and suggestions beyond the immediate request.'
+}
+
+function buildRoseMd(
+  name: string,
+  identity: string,
+  autonomy: string,
+  userName: string,
+  commStyle: string,
+  depth: string,
+  proactivity: string
+): string {
   return `# ${name}
 
 ## Identity
@@ -24,6 +50,14 @@ ${identity}
 User: ${userName}
 Agent: ${name}
 
+## Personality
+
+${COMM_STYLE_TEXT[commStyle] ?? COMM_STYLE_TEXT.direct}
+
+${DEPTH_TEXT[depth] ?? DEPTH_TEXT.adaptive}
+
+${PROACTIVITY_TEXT[proactivity] ?? PROACTIVITY_TEXT.balanced}
+
 ## How to respond
 
 Reply in plain text. Only use tools when the user explicitly asks you to do something — read a file, run a command, search the code, etc. Never call tools for greetings, questions, or conversational messages.
@@ -32,13 +66,20 @@ ${AUTONOMY_TEXT[autonomy] ?? AUTONOMY_TEXT.high}
 
 ## Memory Palace
 
-You have a memory palace at \`.projectrose/memory/\` organized as wings → rooms → drawers.
-- \`memory_list\` — see all stored memories
-- \`memory_search\` — find relevant context by keyword
-- \`memory_write\` — save new information (wing, room, drawer, content)
-- \`memory_delete\` — remove outdated memories
+A memory palace is your long-term memory — a structured collection of notes that persists across conversations. It is organized as wings → rooms → drawers. Wings group broad domains (people, code, project), rooms hold related sub-topics within a wing, and drawers are individual markdown documents. Everything lives under \`.projectrose/memory/\`. Always use your memory tools to navigate and update it — never use read_file or list_directory on the memory directory directly.
 
-Be proactive: search memory at the start of relevant tasks, and write memories when you learn something worth keeping about the user, project, or codebase.
+At the start of every conversation:
+1. List your palace to see what you already know.
+2. Search for context if the user's message references a topic, person, or technology you may have encountered before.
+3. Read any relevant drawers to load their full content.
+
+During conversation, write to memory immediately when:
+- The user mentions a preference, constraint, or decision
+- You learn something new about the codebase, project, or architecture
+- A new person or team is introduced
+- The user corrects you or changes direction
+
+Delete drawers when information becomes stale or outdated.
 `
 }
 
@@ -62,15 +103,15 @@ export function registerRoseSetupHandlers(): void {
 
   ipcMain.handle(
     IPC.ROSE_INIT_PROJECT,
-    async (_event, payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string }) => {
-      const { rootPath, name, identity, autonomy, userName } = payload
+    async (_event, payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string; commStyle: string; depth: string; proactivity: string }) => {
+      const { rootPath, name, identity, autonomy, userName, commStyle = 'direct', depth = 'adaptive', proactivity = 'balanced' } = payload
 
       // Persist userName and agentName to settings
       const current = await readSettings()
       await writeSettings({ ...current, userName: userName.trim(), agentName: name.trim() })
 
       // Write ROSE.md
-      await writeFile(prPath(rootPath, 'ROSE.md'), buildRoseMd(name, identity, autonomy, userName), 'utf-8')
+      await writeFile(prPath(rootPath, 'ROSE.md'), buildRoseMd(name, identity, autonomy, userName, commStyle, depth, proactivity), 'utf-8')
 
       // Create scaffold directories
       const dirs = [

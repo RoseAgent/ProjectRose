@@ -12,7 +12,7 @@ const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [] }
 export const CORE_TOOL_NAMES = new Set([
   'read_file', 'write_file', 'list_directory', 'search_code',
   'find_references', 'run_command', 'get_project_overview',
-  'memory_write', 'memory_search', 'memory_list', 'memory_delete',
+  'memory_read', 'memory_write', 'memory_search', 'memory_list', 'memory_delete',
   'list_emails', 'read_email', 'move_email_to_folder', 'delete_email',
   'list_discord_channels', 'read_discord_messages', 'send_discord_message'
 ])
@@ -25,6 +25,7 @@ const CORE_TOOL_META = [
   { name: 'find_references', displayName: 'Find References', description: 'Find symbol references across the project', type: 'core' as const },
   { name: 'run_command', displayName: 'Run Command', description: 'Execute shell commands in the project', type: 'core' as const },
   { name: 'get_project_overview', displayName: 'Project Overview', description: 'Get a structured map of project dependencies', type: 'core' as const },
+  { name: 'memory_read', displayName: 'Memory Read', description: 'Read the full contents of a memory palace drawer', type: 'core' as const },
   { name: 'memory_write', displayName: 'Memory Write', description: 'Create or update a memory palace drawer', type: 'core' as const },
   { name: 'memory_search', displayName: 'Memory Search', description: 'Keyword search across all memory drawers', type: 'core' as const },
   { name: 'memory_list', displayName: 'Memory List', description: 'List the memory palace wing/room/drawer hierarchy', type: 'core' as const },

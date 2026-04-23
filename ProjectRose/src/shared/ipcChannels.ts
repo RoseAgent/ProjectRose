@@ -46,6 +46,7 @@ export const IPC = {
 
   AI_CHAT: 'ai:chat',
   AI_COMPRESS: 'ai:compress',
+  AI_GET_SYSTEM_PROMPT: 'ai:getSystemPrompt',
   AI_MODEL_SELECTED: 'ai:modelSelected',
   AI_STREAM_RESET: 'ai:streamReset',
   AI_FILE_MODIFIED: 'ai:fileModified',

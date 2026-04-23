@@ -1,0 +1,12 @@
+.cell {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-chat-border);
+  background: transparent;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.label {
+  opacity: 0.5;
+}

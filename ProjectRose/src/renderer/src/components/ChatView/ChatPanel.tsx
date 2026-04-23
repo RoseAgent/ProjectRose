@@ -4,6 +4,7 @@ import type { ChatMessage, ToolMessage } from '../../stores/useChatStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { ChatCell } from './ChatCell'
 import { ToolCallGroupCell } from './ToolCallGroupCell'
+import { SystemPromptCell } from './SystemPromptCell'
 import { ChatInput } from './ChatInput'
 import styles from './ChatPanel.module.css'
 
@@ -50,21 +51,24 @@ export function ChatPanel(): JSX.Element {
 
   return (
     <div className={styles.chatPanel}>
-      {messages.length === 0 ? (
-        <div className={styles.empty}>Start a conversation with the AI assistant</div>
-      ) : (
-        <div className={styles.messages}>
-          {items.map((item) =>
-            item.type === 'tool-group'
-              ? <ToolCallGroupCell key={item.key} messages={item.messages} />
-              : <ChatCell key={item.message.id} message={item.message} />
-          )}
-          {isLoading && (
-            <div className={styles.loading}>Generating response...</div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      )}
+      <div className={styles.messages}>
+        {rootPath && <SystemPromptCell rootPath={rootPath} />}
+        {messages.length === 0 ? (
+          <div className={styles.empty}>Start a conversation with the AI assistant</div>
+        ) : (
+          <>
+            {items.map((item) =>
+              item.type === 'tool-group'
+                ? <ToolCallGroupCell key={item.key} messages={item.messages} />
+                : <ChatCell key={item.message.id} message={item.message} />
+            )}
+            {isLoading && (
+              <div className={styles.loading}>Generating response...</div>
+            )}
+          </>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
       <ChatInput />
     </div>
   )

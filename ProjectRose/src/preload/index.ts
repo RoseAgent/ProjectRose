@@ -112,7 +112,7 @@ const api = {
   ensureScaffold: (rootPath: string): Promise<void> =>
     ipcRenderer.invoke(IPC.ROSE_ENSURE_SCAFFOLD, rootPath),
 
-  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string }): Promise<void> =>
+  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string; commStyle: string; depth: string; proactivity: string }): Promise<void> =>
     ipcRenderer.invoke(IPC.ROSE_INIT_PROJECT, payload),
 
   runHeartbeat: (rootPath: string): Promise<string> =>
@@ -174,6 +174,9 @@ const api = {
 
   aiCompress: (messages: { role: string; content: string }[]): Promise<{ role: string; content: string }[]> =>
     ipcRenderer.invoke(IPC.AI_COMPRESS, messages),
+
+  aiGetSystemPrompt: (rootPath: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.AI_GET_SYSTEM_PROMPT, rootPath),
 
   onAiFileModified: (callback: (data: { path: string }) => void): (() => void) => {
     const handler = (_event: unknown, data: { path: string }): void => callback(data)
