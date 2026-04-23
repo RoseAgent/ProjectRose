@@ -86,6 +86,45 @@ export async function handleWriteFile(input: Record<string, unknown>, projectRoo
   return `File written: ${filePath}\n[file_token: ${newToken}]`
 }
 
+export async function handleEditFile(input: Record<string, unknown>, projectRoot: string): Promise<string> {
+  const providedToken = String(input.file_token || '')
+  if (!providedToken) {
+    return 'Missing file_token. Call read_file on this file first to get a token before editing.'
+  }
+
+  const filePath = String(input.path || '')
+  const absolute = filePath.startsWith('/') || filePath.includes(':')
+    ? filePath
+    : join(projectRoot, filePath)
+
+  const expectedToken = validFileTokens.get(absolute)
+  if (!expectedToken || expectedToken !== providedToken) {
+    return `Invalid or expired file_token for ${filePath}. Call read_file on this specific file to get a valid token.`
+  }
+
+  const oldString = String(input.old_string ?? '')
+  const newString = String(input.new_string ?? '')
+
+  const content = await readFile(absolute, 'utf-8')
+  const occurrences = content.split(oldString).length - 1
+  if (occurrences === 0) {
+    return `old_string not found in ${filePath}. Read the file again to get current content before editing.`
+  }
+  if (occurrences > 1) {
+    return `old_string matches ${occurrences} locations in ${filePath}. Provide more surrounding context to make it unique.`
+  }
+
+  const updated = content.replace(oldString, newString)
+  await writeFile(absolute, updated, 'utf-8')
+  modifiedFiles.push(absolute)
+  notifyRenderer(IPC.AI_FILE_MODIFIED, { path: absolute })
+
+  const newToken = computeToken(updated + Date.now())
+  validFileTokens.set(absolute, newToken)
+
+  return `File edited: ${filePath}\n[file_token: ${newToken}]`
+}
+
 export async function handleListDirectory(input: Record<string, unknown>, projectRoot: string): Promise<string> {
   const dirPath = String(input.path || '.')
   const absolute = dirPath.startsWith('/') || dirPath.includes(':')

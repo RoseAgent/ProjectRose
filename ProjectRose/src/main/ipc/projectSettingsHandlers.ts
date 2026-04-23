@@ -11,13 +11,14 @@ export interface ProjectSettings {
 const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [] }
 
 export const CORE_TOOL_NAMES = new Set([
-  'read_file', 'write_file', 'list_directory', 'grep', 'run_command', 'get_project_overview',
+  'read_file', 'write_file', 'edit_file', 'list_directory', 'grep', 'run_command', 'get_project_overview',
   'memory_read', 'memory_write', 'memory_search', 'memory_list', 'memory_delete',
 ])
 
 const CORE_TOOL_META = [
   { name: 'read_file', displayName: 'Read File', description: 'Read the contents of any file in the project', type: 'core' as const },
   { name: 'write_file', displayName: 'Write File', description: 'Write or overwrite file contents', type: 'core' as const },
+  { name: 'edit_file', displayName: 'Edit File', description: 'Replace a unique string in a file (requires prior read_file)', type: 'core' as const },
   { name: 'list_directory', displayName: 'List Directory', description: 'List files and subdirectories', type: 'core' as const },
   { name: 'grep', displayName: 'Grep', description: 'Search file contents by regex pattern', type: 'core' as const },
   { name: 'run_command', displayName: 'Run Command', description: 'Execute shell commands in the project', type: 'core' as const },

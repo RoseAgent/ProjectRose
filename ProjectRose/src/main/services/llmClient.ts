@@ -10,6 +10,7 @@ import { IPC } from '../../shared/ipcChannels'
 import {
   handleReadFile,
   handleWriteFile,
+  handleEditFile,
   handleListDirectory,
   handleGrep,
   handleGetProjectOverview,
@@ -136,6 +137,16 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
         content: z.string().describe('The full file content to write')
       }),
       execute: wrapExecute('write_file', handleWriteFile, projectRoot)
+    }),
+    edit_file: tool({
+      description: 'Replace a unique string in a file with new content. Requires a file_token from read_file. Fails if old_string is not found or appears more than once — add more surrounding context to disambiguate. Returns a new file_token for subsequent edits.',
+      inputSchema: z.object({
+        file_token: z.string().optional().describe('Token from a recent read_file call. Required — call read_file first to obtain one.'),
+        path: z.string().describe('File path relative to the project root'),
+        old_string: z.string().describe('Exact string to find and replace. Must appear exactly once in the file.'),
+        new_string: z.string().describe('String to replace old_string with')
+      }),
+      execute: wrapExecute('edit_file', handleEditFile, projectRoot)
     }),
     list_directory: tool({
       description: 'List files and subdirectories in a directory.',
