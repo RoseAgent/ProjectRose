@@ -144,7 +144,9 @@ export interface ToolMeta {
   name: string
   displayName: string
   description: string
-  type: 'core' | 'python'
+  type: 'core' | 'python' | 'extension'
+  extensionId?: string
+  extensionName?: string
 }
 
 export interface ProjectSettings {
@@ -443,6 +445,7 @@ export interface ExtensionAPI {
   enable: (rootPath: string, id: string) => Promise<{ ok: boolean }>
   disable: (rootPath: string, id: string) => Promise<{ ok: boolean }>
   fetchRegistry: (registryUrl: string) => Promise<import('@shared/extension-types').ExtensionRegistry>
+  loadRendererCode: (rootPath: string, id: string) => Promise<{ ok: boolean; code: string | null }>
 }
 
 export interface AuthAPI {
@@ -473,5 +476,6 @@ export interface ActiveSpeechAPI {
 declare global {
   interface Window {
     api: ElectronAPI
+    __rose__: Record<string, unknown>
   }
 }

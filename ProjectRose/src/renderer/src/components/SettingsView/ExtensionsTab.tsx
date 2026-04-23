@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { InstalledExtension, RegistryExtension } from '../../../../shared/extension-types'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
+import { loadDynamicExtensions } from '../../extensions/registry'
 import styles from './SettingsView.module.css'
 
 const REGISTRY_URL =
@@ -56,6 +57,7 @@ export function ExtensionsTab(): JSX.Element {
         await updateSettings({ navItems: [...navItems, { viewId: ext.id, label: ext.name, visible: true }] })
       }
       await loadInstalled()
+      await loadDynamicExtensions(rootPath)
     } finally {
       setInstallPending(null)
     }
@@ -79,6 +81,7 @@ export function ExtensionsTab(): JSX.Element {
       if (newNavItems.length > 0) {
         await updateSettings({ navItems: [...navItems, ...newNavItems] })
       }
+      await loadDynamicExtensions(rootPath)
     } finally {
       setDiskInstalling(false)
     }
@@ -89,6 +92,7 @@ export function ExtensionsTab(): JSX.Element {
     await window.api.extension.uninstall(rootPath, ext.manifest.id)
     await updateSettings({ navItems: navItems.filter((n) => n.viewId !== ext.manifest.id) })
     await loadInstalled()
+    await loadDynamicExtensions(rootPath)
   }, [loadInstalled, navItems, updateSettings, rootPath])
 
   const handleToggle = useCallback(async (id: string, currentlyEnabled: boolean) => {
@@ -99,6 +103,7 @@ export function ExtensionsTab(): JSX.Element {
       await window.api.extension.enable(rootPath, id)
     }
     await loadInstalled()
+    await loadDynamicExtensions(rootPath)
   }, [loadInstalled, rootPath])
 
   const isInstalled = (id: string): boolean => installed.some((e) => e.manifest.id === id)

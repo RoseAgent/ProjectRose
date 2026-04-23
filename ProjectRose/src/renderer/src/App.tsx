@@ -10,7 +10,7 @@ import { SettingsView } from './components/SettingsView/SettingsView'
 import { AccountView } from './components/AccountView/AccountView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
-import { getExtensionByViewId } from './extensions/registry'
+import { getExtensionByViewId, loadDynamicExtensions, subscribeToExtensionsChange } from './extensions/registry'
 import { useThemeStore } from './stores/useThemeStore'
 import { useViewStore } from './stores/useViewStore'
 import { useFileStore } from './stores/useFileStore'
@@ -36,11 +36,20 @@ function App(): JSX.Element {
   const { connect: discordConnect, initEnabledChannels, loadChannels: discordLoadChannels } = useDiscordStore()
   const setServiceStatus = useServiceStore((s) => s.setStatus)
   const [needsSetup, setNeedsSetup] = useState(false)
+  const [, setExtVersion] = useState(0)
 
   // Speech is now in-process — always available
   useEffect(() => {
     setServiceStatus(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-render when dynamic extensions finish loading
+  useEffect(() => subscribeToExtensionsChange(() => setExtVersion((v) => v + 1)), [])
+
+  // Load dynamic (third-party) extensions whenever the project changes
+  useEffect(() => {
+    loadDynamicExtensions(rootPath ?? '').catch(console.error)
+  }, [rootPath])
 
   // Load persisted settings on mount
   useEffect(() => { loadSettings() }, [loadSettings])

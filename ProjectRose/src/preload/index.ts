@@ -387,7 +387,9 @@ const api = {
     disable: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
       ipcRenderer.invoke(IPC.EXTENSION_DISABLE, rootPath, id),
     fetchRegistry: (registryUrl: string): Promise<import('../shared/extension-types').ExtensionRegistry> =>
-      ipcRenderer.invoke(IPC.EXTENSION_FETCH_REGISTRY, registryUrl)
+      ipcRenderer.invoke(IPC.EXTENSION_FETCH_REGISTRY, registryUrl),
+    loadRendererCode: (rootPath: string, id: string): Promise<{ ok: boolean; code: string | null }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_LOAD_RENDERER, rootPath, id)
   },
 
   // Account auth

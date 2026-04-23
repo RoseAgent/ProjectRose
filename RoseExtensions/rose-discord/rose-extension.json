@@ -5,5 +5,26 @@
   "description": "Discord channel integration and messaging",
   "author": "ProjectRose",
   "navItem": { "label": "Discord", "iconName": "discord" },
-  "provides": { "pageView": true, "globalSettings": true, "agentTools": true }
+  "provides": {
+    "pageView": true,
+    "globalSettings": true,
+    "agentTools": true,
+    "tools": [
+      {
+        "name": "list_discord_channels",
+        "displayName": "List Discord Channels",
+        "description": "List all Discord channels the bot has access to, grouped by server"
+      },
+      {
+        "name": "read_discord_messages",
+        "displayName": "Read Discord Messages",
+        "description": "Read recent messages from a Discord channel"
+      },
+      {
+        "name": "send_discord_message",
+        "displayName": "Send Discord Message",
+        "description": "Send a message to a Discord channel"
+      }
+    ]
+  }
 }

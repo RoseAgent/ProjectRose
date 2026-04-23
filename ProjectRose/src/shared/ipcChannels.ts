@@ -145,6 +145,7 @@ export const IPC = {
   EXTENSION_ENABLE: 'extension:enable',
   EXTENSION_DISABLE: 'extension:disable',
   EXTENSION_FETCH_REGISTRY: 'extension:fetchRegistry',
+  EXTENSION_LOAD_RENDERER: 'extension:loadRenderer',
 
   // Account auth
   AUTH_LOGIN: 'auth:login',

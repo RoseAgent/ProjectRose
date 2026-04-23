@@ -4,6 +4,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useEmailStore } from '../../stores/useEmailStore'
 import { useDiscordStore } from '../../stores/useDiscordStore'
+import { subscribeToExtensionsChange } from '../../extensions/registry'
 import { NavItem } from '../../../../shared/types'
 import type { ModelConfig, ToolMeta } from '../../types/electron'
 import styles from './SettingsView.module.css'
@@ -80,7 +81,7 @@ export function SettingsView(): JSX.Element {
     })
   }, [])
 
-  useEffect(() => {
+  const reloadTools = useCallback(() => {
     if (!rootPath) return
     Promise.all([
       window.api.tools.list(rootPath),
@@ -90,6 +91,10 @@ export function SettingsView(): JSX.Element {
       setDisabledTools(settings.disabledTools)
     }).catch(() => {})
   }, [rootPath])
+
+  useEffect(() => { reloadTools() }, [reloadTools])
+
+  useEffect(() => subscribeToExtensionsChange(reloadTools), [reloadTools])
 
   const toggleTool = useCallback(async (name: string) => {
     if (!rootPath) return
@@ -699,6 +704,40 @@ export function SettingsView(): JSX.Element {
               })}
             </>
           )}
+          {(() => {
+            const extTools = availableTools.filter((t) => t.type === 'extension')
+            if (extTools.length === 0) return null
+            const groups = extTools.reduce<Record<string, typeof extTools>>((acc, t) => {
+              const key = t.extensionName ?? t.extensionId ?? 'Extension'
+              ;(acc[key] ??= []).push(t)
+              return acc
+            }, {})
+            return Object.entries(groups).map(([groupName, tools]) => (
+              <div key={groupName}>
+                <div className={styles.settingLabel} style={{ marginTop: 12 }}>{groupName} Tools</div>
+                {tools.map((tool) => {
+                  const enabled = !disabledTools.includes(tool.name)
+                  return (
+                    <div key={tool.name} className={styles.settingRow}>
+                      <div className={styles.settingInfo}>
+                        <div className={styles.settingLabel}>{tool.displayName}</div>
+                        <div className={styles.settingDesc}>{tool.description}</div>
+                      </div>
+                      <button
+                        type="button"
+                        className={`${styles.toggle} ${enabled ? styles.toggleOn : styles.toggleOff}`}
+                        onClick={() => toggleTool(tool.name)}
+                        role="switch"
+                        aria-checked={enabled}
+                      >
+                        <span className={styles.toggleThumb} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            ))
+          })()}
         </section>
 
       </>

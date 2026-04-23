@@ -187,4 +187,14 @@ export function registerExtensionHandlers(): void {
   ipcMain.handle(IPC.EXTENSION_FETCH_REGISTRY, async (_event, registryUrl: string) => {
     return fetchRegistry(registryUrl)
   })
+
+  ipcMain.handle(IPC.EXTENSION_LOAD_RENDERER, async (_event, rootPath: string, id: string) => {
+    const rendererPath = join(getExtensionsDir(rootPath), id, 'renderer.js')
+    try {
+      const code = await readFile(rendererPath, 'utf-8')
+      return { ok: true, code }
+    } catch {
+      return { ok: false, code: null }
+    }
+  })
 }

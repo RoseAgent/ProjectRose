@@ -5,5 +5,31 @@
   "description": "IMAP email management",
   "author": "ProjectRose",
   "navItem": { "label": "Email", "iconName": "email" },
-  "provides": { "pageView": true, "globalSettings": true, "agentTools": true }
+  "provides": {
+    "pageView": true,
+    "globalSettings": true,
+    "agentTools": true,
+    "tools": [
+      {
+        "name": "list_emails",
+        "displayName": "List Emails",
+        "description": "List emails from the configured inbox with folder classification"
+      },
+      {
+        "name": "read_email",
+        "displayName": "Read Email",
+        "description": "Read the full sanitized body of an email by UID"
+      },
+      {
+        "name": "move_email_to_folder",
+        "displayName": "Move Email to Folder",
+        "description": "Move an email to inbox, spam, or quarantine"
+      },
+      {
+        "name": "delete_email",
+        "displayName": "Delete Email",
+        "description": "Permanently delete an email by UID"
+      }
+    ]
+  }
 }

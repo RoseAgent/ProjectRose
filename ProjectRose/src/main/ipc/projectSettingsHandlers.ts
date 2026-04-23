@@ -69,6 +69,7 @@ export function registerProjectSettingsHandlers(): void {
           description: t.description,
           type: 'extension' as const,
           extensionId: ext.manifest.id,
+          extensionName: ext.manifest.name,
         }))
       )
 
