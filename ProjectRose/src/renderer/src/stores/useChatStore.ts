@@ -56,6 +56,7 @@ interface ChatState {
   searchQuery: string
   assistantPlaceholderId: string | null
   thinkingPlaceholderId: string | null
+  pendingModelDisplay: string | null
 
   setInputValue: (value: string) => void
   setSearchQuery: (q: string) => void
@@ -111,25 +112,41 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   searchQuery: '',
   assistantPlaceholderId: null,
   thinkingPlaceholderId: null,
+  pendingModelDisplay: null,
 
   setInputValue: (value) => set({ inputValue: value }),
   setSearchQuery: (q) => set({ searchQuery: q }),
 
   appendToken: (data) => {
     set((s) => {
-      if (!s.assistantPlaceholderId) return s
+      if (s.assistantPlaceholderId) {
+        return {
+          messages: s.messages.map((m) =>
+            m.id === s.assistantPlaceholderId && m.role === 'assistant'
+              ? { ...m, content: m.content + data.token }
+              : m
+          )
+        }
+      }
+      // No active assistant segment — start a new one after whatever is currently last
+      const id = `msg-${++msgCounter}`
+      const msg: AssistantMessage = {
+        id,
+        role: 'assistant',
+        content: data.token,
+        timestamp: Date.now(),
+        streaming: true,
+        modelDisplay: s.pendingModelDisplay ?? undefined
+      }
       return {
-        messages: s.messages.map((m) =>
-          m.id === s.assistantPlaceholderId && m.role === 'assistant'
-            ? { ...m, content: m.content + data.token }
-            : m
-        )
+        messages: [...s.messages, msg],
+        assistantPlaceholderId: id
       }
     })
   },
 
   appendToolStart: (data) => {
-    const msg: ToolMessage = {
+    const toolMsg: ToolMessage = {
       id: `msg-${++msgCounter}`,
       role: 'tool',
       timestamp: Date.now(),
@@ -140,11 +157,19 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       error: false,
       pending: true
     }
-    set((s) => ({
-      messages: s.assistantPlaceholderId
-        ? insertBefore(s.messages, s.assistantPlaceholderId, msg)
-        : [...s.messages, msg]
-    }))
+    set((s) => {
+      // Seal any in-progress thinking and assistant segments so they stand alone
+      const messages = s.messages.map((m) => {
+        if (m.id === s.thinkingPlaceholderId && m.role === 'thinking') return { ...m, streaming: false }
+        if (m.id === s.assistantPlaceholderId && m.role === 'assistant') return { ...m, streaming: false }
+        return m
+      })
+      return {
+        messages: [...messages, toolMsg],
+        thinkingPlaceholderId: null,
+        assistantPlaceholderId: null
+      }
+    })
   },
 
   resolveToolEnd: (data) => {
@@ -207,14 +232,6 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       timestamp: Date.now()
     }
 
-    const assistantMsg: AssistantMessage = {
-      id: `msg-${++msgCounter}`,
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-      streaming: true
-    }
-
     // Create session on first message
     let sessionId = get().currentSessionId
     let sessionCreatedAt = Date.now()
@@ -233,12 +250,14 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const createdAt = session?.createdAt ?? sessionCreatedAt
     const title = session?.title ?? sessionTitle
 
+    // No upfront assistant placeholder — segments are created dynamically as tokens arrive
     set((s) => ({
-      messages: [...s.messages, userMsg, assistantMsg],
+      messages: [...s.messages, userMsg],
       inputValue: '',
       isLoading: true,
-      assistantPlaceholderId: assistantMsg.id,
-      thinkingPlaceholderId: null
+      assistantPlaceholderId: null,
+      thinkingPlaceholderId: null,
+      pendingModelDisplay: null
     }))
 
     persistSession(rootPath, sessionId!, title, createdAt, get().messages)
@@ -249,12 +268,16 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const cleanupThinking = window.api.onAiThinking((d) => get().appendThinking(d))
     const cleanupModelSelected = window.api.onAiModelSelected((d) => {
       const pid = get().assistantPlaceholderId
-      if (!pid) return
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === pid && m.role === 'assistant' ? { ...m, modelDisplay: d.modelDisplay } : m
-        )
-      }))
+      if (pid) {
+        set((s) => ({
+          messages: s.messages.map((m) =>
+            m.id === pid && m.role === 'assistant' ? { ...m, modelDisplay: d.modelDisplay } : m
+          )
+        }))
+      } else {
+        // No segment yet — store for the first token to pick up
+        set({ pendingModelDisplay: d.modelDisplay })
+      }
     })
 
     const cleanupStreamReset = window.api.onAiStreamReset((d) => {
@@ -296,7 +319,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         }),
         isLoading: false,
         assistantPlaceholderId: null,
-        thinkingPlaceholderId: null
+        thinkingPlaceholderId: null,
+        pendingModelDisplay: null
       }))
 
       persistSession(rootPath, sessionId!, title, createdAt, get().messages)
@@ -313,20 +337,48 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       cleanup()
 
       const placeholderId = get().assistantPlaceholderId
-      set((s) => ({
-        messages: s.messages.map((m) => {
-          if (m.id === placeholderId && m.role === 'assistant') {
-            return { ...m, content: `Error: ${err instanceof Error ? err.message : 'Failed to get response'}`, streaming: false, isError: true }
+      const errorContent = `Error: ${err instanceof Error ? err.message : 'Failed to get response'}`
+
+      set((s) => {
+        if (placeholderId) {
+          return {
+            messages: s.messages.map((m) => {
+              if (m.id === placeholderId && m.role === 'assistant') {
+                return { ...m, content: errorContent, streaming: false, isError: true }
+              }
+              if (m.role === 'thinking' && (m as ThinkingMessage).streaming) {
+                return { ...m, streaming: false }
+              }
+              return m
+            }),
+            isLoading: false,
+            assistantPlaceholderId: null,
+            thinkingPlaceholderId: null,
+            pendingModelDisplay: null
           }
-          if (m.role === 'thinking' && (m as ThinkingMessage).streaming) {
-            return { ...m, streaming: false }
-          }
-          return m
-        }),
-        isLoading: false,
-        assistantPlaceholderId: null,
-        thinkingPlaceholderId: null
-      }))
+        }
+        // No assistant segment yet — append a new error message
+        const errorMsg: AssistantMessage = {
+          id: `msg-${++msgCounter}`,
+          role: 'assistant',
+          content: errorContent,
+          timestamp: Date.now(),
+          streaming: false,
+          isError: true
+        }
+        return {
+          messages: [
+            ...s.messages.map((m) =>
+              m.role === 'thinking' && (m as ThinkingMessage).streaming ? { ...m, streaming: false } : m
+            ),
+            errorMsg
+          ],
+          isLoading: false,
+          assistantPlaceholderId: null,
+          thinkingPlaceholderId: null,
+          pendingModelDisplay: null
+        }
+      })
 
       persistSession(rootPath, sessionId!, title, createdAt, get().messages)
     }
@@ -358,12 +410,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         messages: sanitizeLoadedMessages((loaded.messages as ChatMessage[]) ?? []),
         isLoading: false,
         assistantPlaceholderId: null,
-        thinkingPlaceholderId: null
+        thinkingPlaceholderId: null,
+        pendingModelDisplay: null
       })
     }
   },
 
-  newSession: () => set({ currentSessionId: null, messages: [], isLoading: false, assistantPlaceholderId: null, thinkingPlaceholderId: null }),
+  newSession: () => set({ currentSessionId: null, messages: [], isLoading: false, assistantPlaceholderId: null, thinkingPlaceholderId: null, pendingModelDisplay: null }),
 
   renameSession: async (rootPath, sessionId, title) => {
     const loaded = await window.api.session.load(rootPath, sessionId)

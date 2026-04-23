@@ -34,7 +34,7 @@ function notifyRenderer(channel: string, payload: unknown): void {
   }
 }
 
-type ProviderKeys = {
+export type ProviderKeys = {
   anthropic: string
   openai: string
   bedrock?: { region: string; accessKeyId: string; secretAccessKey: string }
@@ -180,8 +180,8 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
     memory_read: tool({
       description: 'Read the full contents of a specific memory drawer. Use this after memory_list or memory_search to retrieve the full content of a drawer.',
       inputSchema: z.object({
-        wing: z.string().describe('Wing name without prefix, e.g. "people", "code", "project"'),
-        room: z.string().describe('Room name without prefix, e.g. "general", "architecture", "decisions"'),
+        wing: z.string().describe('Wing name without prefix — use the actual project name for project work, e.g. "people", "projectrose", "mywebapp" — never the generic "project"'),
+        room: z.string().describe('Room name without prefix — use a specific topic, e.g. "auth_redesign", "payment_api", "onboarding_flow" — never generic labels like "architecture" or "code"'),
         drawer: z.string().describe('Drawer filename without .md extension')
       }),
       execute: wrapExecute('memory_read', handleMemoryRead, projectRoot)
@@ -190,8 +190,8 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
       description: 'Create or update a memory drawer. Requires a memory_token obtained from a recent memory_search call — call memory_search first if you do not have one. Returns a new memory_token you can use for subsequent writes in the same session.',
       inputSchema: z.object({
         memory_token: z.string().optional().describe('Token from a recent memory_search call. Required — call memory_search first to obtain one.'),
-        wing: z.string().describe('Wing name without prefix, e.g. "people", "code", "project"'),
-        room: z.string().describe('Room name without prefix, e.g. "general", "architecture", "decisions"'),
+        wing: z.string().describe('Wing name without prefix — use the actual project name for project work, e.g. "people", "projectrose", "mywebapp" — never the generic "project"'),
+        room: z.string().describe('Room name without prefix — use a specific topic, e.g. "auth_redesign", "payment_api", "onboarding_flow" — never generic labels like "architecture" or "code"'),
         drawer: z.string().describe('Drawer filename without .md extension'),
         content: z.string().describe('Markdown body content to store'),
         tags: z.array(z.string()).optional().describe('Optional tags for categorization')
@@ -279,7 +279,7 @@ export async function streamChat(params: {
   providerKeys: ProviderKeys
   projectRoot: string
   disabledCoreTools?: string[]
-}): Promise<void> {
+}): Promise<string> {
   const { messages, systemPrompt, pythonTools, extensionTools, model: modelConfig, providerKeys, projectRoot, disabledCoreTools } = params
   const model = resolveModel(modelConfig, providerKeys)
   const tools = {
@@ -302,10 +302,14 @@ export async function streamChat(params: {
     stopWhen: stepCountIs(100)
   })
 
+  let accumulatedText = ''
   for await (const chunk of result.fullStream) {
     switch (chunk.type) {
       case 'text-delta':
-        if (chunk.text) notifyRenderer(IPC.AI_TOKEN, { token: chunk.text })
+        if (chunk.text) {
+          accumulatedText += chunk.text
+          notifyRenderer(IPC.AI_TOKEN, { token: chunk.text })
+        }
         break
       case 'reasoning-delta':
         if (chunk.text) notifyRenderer(IPC.AI_THINKING, { content: chunk.text })
@@ -320,6 +324,42 @@ export async function streamChat(params: {
       }
     }
   }
+  return accumulatedText
+}
+
+export async function createChecklist(
+  userMessage: string,
+  modelConfig: ModelConfig,
+  providerKeys: ProviderKeys
+): Promise<string> {
+  const model = resolveModel(modelConfig, providerKeys)
+  const { text } = await generateText({
+    model,
+    system: 'You are a task planning assistant. Create a concise plan and checklist for the given request.',
+    messages: [{
+      role: 'user' as const,
+      content: `Create a plan and checklist for the following request:\n\n${userMessage}\n\nUse this format exactly:\n\nPlan: <brief approach>\n\nChecklist:\n- [ ] task 1\n- [ ] task 2`
+    }]
+  })
+  return text
+}
+
+export async function evaluateChecklist(
+  originalChecklist: string,
+  responseText: string,
+  modelConfig: ModelConfig,
+  providerKeys: ProviderKeys
+): Promise<string> {
+  const model = resolveModel(modelConfig, providerKeys)
+  const { text } = await generateText({
+    model,
+    system: 'You are a task completion evaluator. Determine which checklist items are incomplete based on the agent\'s work.',
+    messages: [{
+      role: 'user' as const,
+      content: `Original checklist:\n${originalChecklist}\n\nAgent's last response:\n${responseText}\n\nBased on the agent's work, which items from the checklist are NOT yet complete? If all items are done, respond exactly: DONE. If some remain, respond with only the incomplete items as a markdown checklist.`
+    }]
+  })
+  return text
 }
 
 export async function compressMessages(

@@ -4,7 +4,7 @@ import { prPath } from '../lib/projectPaths'
 import { BrowserWindow } from 'electron'
 import { setActiveProjectRoot } from './toolHandlers'
 import { discoverPythonTools, getModifiedFiles, resetModifiedFiles } from './toolHandlers'
-import { streamChat, compressMessages, routeRequest } from './llmClient'
+import { streamChat, compressMessages, routeRequest, createChecklist, evaluateChecklist } from './llmClient'
 import { readSettings } from '../ipc/settingsHandlers'
 import type { AppSettings, ModelConfig } from '../ipc/settingsHandlers'
 import { readProjectSettings, CORE_TOOL_NAMES } from '../ipc/projectSettingsHandlers'
@@ -39,6 +39,11 @@ During conversation, write to memory immediately when:
 - You learn something new about the codebase, project, or architecture
 - A new person or team is introduced
 - The user corrects you or changes direction
+
+**Naming — always specific, never generic:**
+- Wing names must be precise. For project-specific work, name the wing after the actual project (e.g. `wing_projectrose`, `wing_mywebapp`) — never `wing_project`.
+- Room names must describe the exact sub-topic (e.g. `room_auth_redesign`, `room_payment_api`, `room_onboarding_flow`) — never broad labels like `room_architecture` or `room_code`.
+- If the name could apply to any project or session, it is too generic and will pollute future conversations. Make it specific enough that it could only refer to this exact topic.
 
 Delete drawers when information becomes stale or outdated.
 `
@@ -142,7 +147,7 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
   const systemPrompt = await buildAgentMd(rootPath)
 
   const projectSettings = await readProjectSettings(rootPath)
-  const { disabledTools } = projectSettings
+  const { disabledTools, maxTaskRetries } = projectSettings
   const filteredPythonTools = pythonTools.filter((t) => !disabledTools.includes(t.name))
   const disabledCoreTools = disabledTools.filter((n) => CORE_TOOL_NAMES.has(n))
 
@@ -151,9 +156,16 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
   const extensionTools = getAllBuiltinExtensionTools(enabledExtIds)
     .filter((t) => !disabledTools.includes(t.name))
 
+  const checklistMemory = await createChecklist(userMessage, selectedModel, settings.providerKeys)
+  const chatMessages: Message[] = [...messages, { role: 'user', content: checklistMemory }]
+  const streamParams = { systemPrompt, pythonTools: filteredPythonTools, extensionTools, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools }
+
+  let responseText: string
+  let activeModel = selectedModel
+  let activeModelDisplay = modelDisplay
+
   try {
-    await streamChat({ messages, systemPrompt, pythonTools: filteredPythonTools, extensionTools, model: selectedModel, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools })
-    return { content: '', modifiedFiles: getModifiedFiles(), modelDisplay }
+    responseText = await streamChat({ messages: chatMessages, model: selectedModel, ...streamParams })
   } catch (err) {
     const isAlreadyDefault = !defaultModel || selectedModel.id === defaultModel.id
     if (isAlreadyDefault) throw err
@@ -163,9 +175,26 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
     notifyRenderer(IPC.AI_STREAM_RESET, { errorMessage, fallbackModel: fallbackDisplay })
     resetModifiedFiles()
 
-    await streamChat({ messages, systemPrompt, pythonTools: filteredPythonTools, extensionTools, model: defaultModel, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools })
-    return { content: '', modifiedFiles: getModifiedFiles(), modelDisplay: fallbackDisplay }
+    responseText = await streamChat({ messages: chatMessages, model: defaultModel, ...streamParams })
+    activeModel = defaultModel
+    activeModelDisplay = fallbackDisplay
   }
+
+  let currentMessages = chatMessages
+  for (let attempt = 0; attempt < maxTaskRetries; attempt++) {
+    const evaluation = await evaluateChecklist(checklistMemory, responseText, activeModel, settings.providerKeys)
+    if (evaluation.trim() === 'DONE') break
+
+    const injectionContent = `*Update Checklist*\nSome tasks are not yet complete:\n${evaluation}`
+    currentMessages = [
+      ...currentMessages,
+      { role: 'assistant', content: responseText },
+      { role: 'user', content: injectionContent }
+    ]
+    responseText = await streamChat({ messages: currentMessages, model: activeModel, ...streamParams })
+  }
+
+  return { content: responseText, modifiedFiles: getModifiedFiles(), modelDisplay: activeModelDisplay }
 }
 
 export async function heartbeatChat(messages: Message[], rootPath: string): Promise<ChatResponse> {
@@ -176,17 +205,38 @@ export async function heartbeatChat(messages: Message[], rootPath: string): Prom
   const userMessage = messages.at(-1)?.content ?? ''
   const selectedModel = await selectModel(userMessage, settings)
 
-  await streamChat({
-    messages,
+  const projectSettings = await readProjectSettings(rootPath)
+  const { maxTaskRetries } = projectSettings
+
+  const heartbeatUserMessage = messages.at(-1)?.content ?? ''
+  const checklistMemory = await createChecklist(heartbeatUserMessage, selectedModel, settings.providerKeys)
+  const chatMessages: Message[] = [...messages, { role: 'user', content: checklistMemory }]
+  const heartbeatStreamParams = {
     systemPrompt: HEARTBEAT_SYSTEM_PROMPT,
-    pythonTools: [],
+    pythonTools: [] as never[],
     model: selectedModel,
     providerKeys: settings.providerKeys,
     projectRoot: rootPath
-  })
+  }
+
+  let responseText = await streamChat({ messages: chatMessages, ...heartbeatStreamParams })
+
+  let currentMessages = chatMessages
+  for (let attempt = 0; attempt < maxTaskRetries; attempt++) {
+    const evaluation = await evaluateChecklist(checklistMemory, responseText, selectedModel, settings.providerKeys)
+    if (evaluation.trim() === 'DONE') break
+
+    const injectionContent = `*Update Checklist*\nSome tasks are not yet complete:\n${evaluation}`
+    currentMessages = [
+      ...currentMessages,
+      { role: 'assistant', content: responseText },
+      { role: 'user', content: injectionContent }
+    ]
+    responseText = await streamChat({ messages: currentMessages, ...heartbeatStreamParams })
+  }
 
   const modelDisplay = selectedModel.displayName || selectedModel.modelName
-  return { content: '', modifiedFiles: getModifiedFiles(), modelDisplay }
+  return { content: responseText, modifiedFiles: getModifiedFiles(), modelDisplay }
 }
 
 export async function compressHistory(messages: Message[]): Promise<Message[]> {

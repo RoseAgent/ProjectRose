@@ -62,7 +62,7 @@ export async function handleReadFile(input: Record<string, unknown>, projectRoot
 export async function handleWriteFile(input: Record<string, unknown>, projectRoot: string): Promise<string> {
   const providedToken = String(input.file_token || '')
   if (!providedToken) {
-    return 'Missing file_token. Call read_file on this file first to get a token before writing.'
+    return 'Missing file_token. Call the read_file tool on this file first to get a token before writing.'
   }
 
   const filePath = String(input.path || '')
@@ -89,7 +89,7 @@ export async function handleWriteFile(input: Record<string, unknown>, projectRoo
 export async function handleEditFile(input: Record<string, unknown>, projectRoot: string): Promise<string> {
   const providedToken = String(input.file_token || '')
   if (!providedToken) {
-    return 'Missing file_token. Call read_file on this file first to get a token before editing.'
+    return 'Missing file_token. Call the read_file tool on this file first to get a token before editing.'
   }
 
   const filePath = String(input.path || '')
