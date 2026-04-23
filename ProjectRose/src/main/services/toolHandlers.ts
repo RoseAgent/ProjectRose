@@ -11,7 +11,7 @@ import { lspRequest } from './lspManager'
 const modifiedFiles: string[] = []
 let _activeProjectRoot: string | null = null
 
-const validMemoryTokens = new Set<string>()
+const validMemoryTokens = new Map<string, string>() // drawerPath|'' → token; '' = new-drawer permission
 const validFileTokens = new Map<string, string>() // absolutePath → token
 
 function computeToken(input: string): string {
@@ -282,13 +282,17 @@ export async function handleMemoryWrite(input: Record<string, unknown>, projectR
   if (!providedToken) {
     return 'Missing memory_token. Call memory_search first to get a token before writing.'
   }
-  if (!validMemoryTokens.has(providedToken)) {
-    return 'Invalid or expired memory_token. Call memory_search again to get a fresh token.'
-  }
 
   const wing = String(input.wing || '').replace(/[^a-z0-9_-]/gi, '_')
   const room = String(input.room || '').replace(/[^a-z0-9_-]/gi, '_')
   const drawer = String(input.drawer || '').replace(/[^a-z0-9_-]/gi, '_')
+  const relPath = `wing_${wing}/room_${room}/${drawer}.md`
+
+  const expectedToken = validMemoryTokens.get(relPath) ?? validMemoryTokens.get('')
+  if (!expectedToken || expectedToken !== providedToken) {
+    return `Invalid or expired memory_token for ${relPath}. Call memory_search again to get a fresh token.`
+  }
+
   const content = String(input.content || '')
   const tags = Array.isArray(input.tags) ? (input.tags as string[]) : []
 
@@ -299,11 +303,10 @@ export async function handleMemoryWrite(input: Record<string, unknown>, projectR
   const tagsLine = tags.length > 0 ? `[${tags.join(', ')}]` : '[]'
   await writeFile(drawerPath, `---\ntags: ${tagsLine}\nupdated: ${updated}\n---\n\n${content}`, 'utf-8')
 
-  validMemoryTokens.delete(providedToken)
   const newToken = computeToken(content + Date.now())
-  validMemoryTokens.add(newToken)
+  validMemoryTokens.set(relPath, newToken)
 
-  return `Memory written: wing_${wing}/room_${room}/${drawer}.md\n[memory_token: ${newToken}]`
+  return `Memory written: ${relPath}\n[memory_token: ${newToken}]`
 }
 
 export async function handleMemorySearch(input: Record<string, unknown>, projectRoot: string): Promise<string> {
@@ -351,10 +354,15 @@ export async function handleMemorySearch(input: Record<string, unknown>, project
     }
   }
 
-  if (results.length === 0) return `No memories found matching: ${query}`
+  if (results.length === 0) {
+    const token = computeToken(query + Date.now())
+    validMemoryTokens.set('', token)
+    return `No memories found matching: ${query}\n\n[memory_token: ${token}]`
+  }
   const resultString = results.map((r) => `${r.relPath}\n  ${r.snippet.replace(/\n/g, '\n  ')}`).join('\n\n')
   const token = computeToken(resultString)
-  validMemoryTokens.add(token)
+  for (const r of results) validMemoryTokens.set(r.relPath, token)
+  validMemoryTokens.set('', token)
   return `${resultString}\n\n[memory_token: ${token}]`
 }
 
