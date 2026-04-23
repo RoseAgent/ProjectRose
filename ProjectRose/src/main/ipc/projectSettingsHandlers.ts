@@ -59,7 +59,7 @@ export function registerProjectSettingsHandlers(): void {
       type: 'python' as const
     }))
 
-    const installed = await listInstalledExtensions()
+    const installed = await listInstalledExtensions(rootPath)
     const extensionMeta = installed
       .filter((ext) => ext.enabled && ext.manifest.provides.tools?.length)
       .flatMap((ext) =>

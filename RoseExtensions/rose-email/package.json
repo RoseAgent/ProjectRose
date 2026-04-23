@@ -1,0 +1,10 @@
+{
+  "name": "@projectrose/rose-email",
+  "version": "1.0.0",
+  "description": "IMAP email management",
+  "private": true,
+  "exports": {
+    "./renderer": "./renderer.ts",
+    "./main": "./main.ts"
+  }
+}

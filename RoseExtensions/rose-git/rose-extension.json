@@ -1,0 +1,9 @@
+{
+  "id": "rose-git",
+  "name": "Git",
+  "version": "1.0.0",
+  "description": "Git repository management",
+  "author": "ProjectRose",
+  "navItem": { "label": "Git", "iconName": "git" },
+  "provides": { "pageView": true }
+}

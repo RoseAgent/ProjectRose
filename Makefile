@@ -1,4 +1,4 @@
-.PHONY: build run dist build-rosespeech setup start clean help
+.PHONY: build run dist build-rosespeech setup start clean package-extensions help
 
 # ── Editor ─────────────────────────────────────────────────────────────
 
@@ -24,8 +24,11 @@ build-rosespeech: ## Bundle RoseSpeech into a self-contained executable via PyIn
 start: setup build ## Install all dependencies then launch in dev mode
 	cd ProjectRose && npm run dev
 
+package-extensions: ## Package RoseExtensions into ZIPs in dist/extensions/
+	node scripts/package-extensions.mjs
+
 clean: ## Remove build artifacts
-	rm -rf ProjectRose/node_modules ProjectRose/out ProjectRose/release rosespeech-dist
+	rm -rf ProjectRose/node_modules ProjectRose/out ProjectRose/release rosespeech-dist dist/extensions
 
 # ── Help ───────────────────────────────────────────────────────────────
 

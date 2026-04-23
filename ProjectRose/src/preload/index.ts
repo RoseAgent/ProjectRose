@@ -374,16 +374,18 @@ const api = {
 
   // Extensions
   extension: {
-    list: (): Promise<{ installed: import('../shared/extension-types').InstalledExtension[] }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_LIST),
-    install: (downloadUrl: string, extensionId?: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL, downloadUrl, extensionId),
-    uninstall: (id: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_UNINSTALL, id),
-    enable: (id: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_ENABLE, id),
-    disable: (id: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_DISABLE, id),
+    list: (rootPath: string): Promise<{ installed: import('../shared/extension-types').InstalledExtension[] }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_LIST, rootPath),
+    install: (rootPath: string, downloadUrl: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_INSTALL, rootPath, downloadUrl),
+    installFromDisk: (rootPath: string): Promise<{ ok: boolean; canceled?: boolean }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_FROM_DISK, rootPath),
+    uninstall: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_UNINSTALL, rootPath, id),
+    enable: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_ENABLE, rootPath, id),
+    disable: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_DISABLE, rootPath, id),
     fetchRegistry: (registryUrl: string): Promise<import('../shared/extension-types').ExtensionRegistry> =>
       ipcRenderer.invoke(IPC.EXTENSION_FETCH_REGISTRY, registryUrl)
   },

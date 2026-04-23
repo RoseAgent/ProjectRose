@@ -1,0 +1,10 @@
+{
+  "name": "@projectrose/rose-discord",
+  "version": "1.0.0",
+  "description": "Discord channel integration and messaging",
+  "private": true,
+  "exports": {
+    "./renderer": "./renderer.ts",
+    "./main": "./main.ts"
+  }
+}

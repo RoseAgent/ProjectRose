@@ -1,5 +1,10 @@
 import type { ComponentType } from 'react'
 import type { ExtensionManifest } from '../../../shared/extension-types'
+import { manifest as discordManifest, DiscordView } from '@ext/rose-discord/renderer'
+import { manifest as dockerManifest, DockerView } from '@ext/rose-docker/renderer'
+import { manifest as emailManifest, EmailView } from '@ext/rose-email/renderer'
+import { manifest as gitManifest, GitView } from '@ext/rose-git/renderer'
+import { manifest as listenManifest, ActiveListeningView } from '@ext/rose-listen/renderer'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface RendererExtension {
@@ -7,8 +12,13 @@ export interface RendererExtension {
   PageView?: ComponentType<any>
 }
 
-// Extensions are installed at runtime — nothing is bundled into the core app.
-const BUILTIN_EXTENSIONS: RendererExtension[] = []
+const BUILTIN_EXTENSIONS: RendererExtension[] = [
+  { manifest: discordManifest as ExtensionManifest, PageView: DiscordView },
+  { manifest: dockerManifest as ExtensionManifest, PageView: DockerView },
+  { manifest: emailManifest as ExtensionManifest, PageView: EmailView },
+  { manifest: gitManifest as ExtensionManifest, PageView: GitView },
+  { manifest: listenManifest as ExtensionManifest, PageView: ActiveListeningView },
+]
 
 const VIEW_ID_MIGRATIONS: Record<string, string> = {
   discord: 'rose-discord',
@@ -23,7 +33,8 @@ export function migrateViewId(viewId: string): string {
 }
 
 export function getExtensionByViewId(viewId: string): RendererExtension | undefined {
-  return BUILTIN_EXTENSIONS.find((e) => e.manifest.id === viewId)
+  const id = VIEW_ID_MIGRATIONS[viewId] ?? viewId
+  return BUILTIN_EXTENSIONS.find((e) => e.manifest.id === id)
 }
 
 export function getAllExtensions(): RendererExtension[] {

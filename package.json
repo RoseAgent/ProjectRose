@@ -1,6 +1,9 @@
 {
   "name": "projectrose-monorepo",
   "private": true,
+  "scripts": {
+    "package-extensions": "node scripts/package-extensions.mjs"
+  },
   "workspaces": [
     "RoseExtensions/rose-discord",
     "RoseExtensions/rose-email",

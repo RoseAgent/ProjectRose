@@ -436,11 +436,12 @@ export interface GitAPI {
 }
 
 export interface ExtensionAPI {
-  list: () => Promise<{ installed: import('@shared/extension-types').InstalledExtension[] }>
-  install: (downloadUrl: string, extensionId?: string) => Promise<{ ok: boolean }>
-  uninstall: (id: string) => Promise<{ ok: boolean }>
-  enable: (id: string) => Promise<{ ok: boolean }>
-  disable: (id: string) => Promise<{ ok: boolean }>
+  list: (rootPath: string) => Promise<{ installed: import('@shared/extension-types').InstalledExtension[] }>
+  install: (rootPath: string, downloadUrl: string) => Promise<{ ok: boolean }>
+  installFromDisk: (rootPath: string) => Promise<{ ok: boolean; canceled?: boolean }>
+  uninstall: (rootPath: string, id: string) => Promise<{ ok: boolean }>
+  enable: (rootPath: string, id: string) => Promise<{ ok: boolean }>
+  disable: (rootPath: string, id: string) => Promise<{ ok: boolean }>
   fetchRegistry: (registryUrl: string) => Promise<import('@shared/extension-types').ExtensionRegistry>
 }
 

@@ -1,0 +1,9 @@
+{
+  "name": "@projectrose/rose-docker",
+  "version": "1.0.0",
+  "description": "Docker container management",
+  "private": true,
+  "exports": {
+    "./renderer": "./renderer.ts"
+  }
+}

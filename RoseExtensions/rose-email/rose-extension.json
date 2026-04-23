@@ -1,0 +1,9 @@
+{
+  "id": "rose-email",
+  "name": "Email",
+  "version": "1.0.0",
+  "description": "IMAP email management",
+  "author": "ProjectRose",
+  "navItem": { "label": "Email", "iconName": "email" },
+  "provides": { "pageView": true, "globalSettings": true, "agentTools": true }
+}

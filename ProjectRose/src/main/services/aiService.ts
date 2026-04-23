@@ -8,6 +8,8 @@ import { streamChat, compressMessages, routeRequest } from './llmClient'
 import { readSettings } from '../ipc/settingsHandlers'
 import type { AppSettings, ModelConfig } from '../ipc/settingsHandlers'
 import { readProjectSettings, CORE_TOOL_NAMES } from '../ipc/projectSettingsHandlers'
+import { listInstalledExtensions } from '../ipc/extensionHandlers'
+import { getAllBuiltinExtensionTools } from '../extensions/builtinTools'
 import { IPC } from '../../shared/ipcChannels'
 import type { Message } from '../../shared/roseModelTypes'
 
@@ -144,8 +146,13 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
   const filteredPythonTools = pythonTools.filter((t) => !disabledTools.includes(t.name))
   const disabledCoreTools = disabledTools.filter((n) => CORE_TOOL_NAMES.has(n))
 
+  const installed = await listInstalledExtensions(rootPath)
+  const enabledExtIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
+  const extensionTools = getAllBuiltinExtensionTools(enabledExtIds)
+    .filter((t) => !disabledTools.includes(t.name))
+
   try {
-    await streamChat({ messages, systemPrompt, pythonTools: filteredPythonTools, model: selectedModel, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools })
+    await streamChat({ messages, systemPrompt, pythonTools: filteredPythonTools, extensionTools, model: selectedModel, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools })
     return { content: '', modifiedFiles: getModifiedFiles(), modelDisplay }
   } catch (err) {
     const isAlreadyDefault = !defaultModel || selectedModel.id === defaultModel.id
@@ -156,7 +163,7 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
     notifyRenderer(IPC.AI_STREAM_RESET, { errorMessage, fallbackModel: fallbackDisplay })
     resetModifiedFiles()
 
-    await streamChat({ messages, systemPrompt, pythonTools: filteredPythonTools, model: defaultModel, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools })
+    await streamChat({ messages, systemPrompt, pythonTools: filteredPythonTools, extensionTools, model: defaultModel, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools })
     return { content: '', modifiedFiles: getModifiedFiles(), modelDisplay: fallbackDisplay }
   }
 }

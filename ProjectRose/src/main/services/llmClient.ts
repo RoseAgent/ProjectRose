@@ -21,7 +21,7 @@ import {
   handleMemoryDelete,
   type PythonToolMeta
 } from './toolHandlers'
-import { getAllBuiltinExtensionTools, type ExtensionToolEntry } from '../extensions/builtinTools'
+import type { ExtensionToolEntry } from '../extensions/builtinTools'
 import type { Message } from '../../shared/roseModelTypes'
 import type { ModelConfig, RouterConfig } from '../ipc/settingsHandlers'
 
@@ -263,16 +263,17 @@ export async function streamChat(params: {
   messages: Message[]
   systemPrompt: string
   pythonTools: PythonToolMeta[]
+  extensionTools?: ExtensionToolEntry[]
   model: ModelConfig
   providerKeys: ProviderKeys
   projectRoot: string
   disabledCoreTools?: string[]
 }): Promise<void> {
-  const { messages, systemPrompt, pythonTools, model: modelConfig, providerKeys, projectRoot, disabledCoreTools } = params
+  const { messages, systemPrompt, pythonTools, extensionTools, model: modelConfig, providerKeys, projectRoot, disabledCoreTools } = params
   const model = resolveModel(modelConfig, providerKeys)
   const tools = {
     ...buildCoreTools(projectRoot),
-    ...buildExtensionTools(getAllBuiltinExtensionTools(), projectRoot),
+    ...buildExtensionTools(extensionTools ?? [], projectRoot),
     ...buildPythonTools(pythonTools, projectRoot)
   }
   for (const name of disabledCoreTools ?? []) delete tools[name]

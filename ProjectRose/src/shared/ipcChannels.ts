@@ -140,6 +140,7 @@ export const IPC = {
   // Extensions
   EXTENSION_LIST: 'extension:list',
   EXTENSION_INSTALL: 'extension:install',
+  EXTENSION_INSTALL_FROM_DISK: 'extension:installFromDisk',
   EXTENSION_UNINSTALL: 'extension:uninstall',
   EXTENSION_ENABLE: 'extension:enable',
   EXTENSION_DISABLE: 'extension:disable',

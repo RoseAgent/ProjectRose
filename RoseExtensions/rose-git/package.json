@@ -1,0 +1,9 @@
+{
+  "name": "@projectrose/rose-git",
+  "version": "1.0.0",
+  "description": "Git repository management",
+  "private": true,
+  "exports": {
+    "./renderer": "./renderer.ts"
+  }
+}

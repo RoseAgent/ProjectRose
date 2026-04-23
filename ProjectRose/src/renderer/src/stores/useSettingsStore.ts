@@ -37,6 +37,18 @@ interface SettingsState {
   update: (patch: Partial<Omit<SettingsState, 'loaded' | 'load' | 'update'>>) => Promise<void>
 }
 
+function mergeNavItems(persisted: NavItem[] | undefined): NavItem[] {
+  const defaults = DEFAULT_NAV_ITEMS.map((def) => {
+    const p = persisted?.find((n) => n.viewId === def.viewId)
+    return p ? { ...p, label: def.label } : def
+  })
+  const defaultIds = new Set(DEFAULT_NAV_ITEMS.map((n) => n.viewId))
+  // Only preserve extension nav items — identified by the "rose-" prefix convention.
+  // Internal views (like "account") that may be stored in persisted settings are excluded.
+  const extensions = persisted?.filter((n) => !defaultIds.has(n.viewId) && n.viewId.startsWith('rose-')) ?? []
+  return [...defaults, ...extensions]
+}
+
 // Prevents a stale rootPath-less load from overwriting a newer rootPath-specific load.
 let loadGeneration = 0
 
@@ -70,10 +82,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     const rootPath = useProjectStore.getState().rootPath ?? undefined
     const s = await window.api.getSettings(rootPath)
     if (gen !== loadGeneration) return
-    const navItems = DEFAULT_NAV_ITEMS.map((def) => {
-      const persisted = (s.navItems as NavItem[] | undefined)?.find((n) => n.viewId === def.viewId)
-      return persisted ? { ...persisted, label: def.label } : def
-    })
+    const navItems = mergeNavItems(s.navItems as NavItem[] | undefined)
     // Only mark loaded:true once we have a project rootPath.
     // A rootPath-less load returns global defaults (heartbeatEnabled:true) which
     // must not unblock the heartbeat before the project-specific settings arrive.
@@ -83,10 +92,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   update: async (patch) => {
     const rootPath = useProjectStore.getState().rootPath ?? undefined
     const s = await window.api.setSettings(patch, rootPath)
-    const navItems = DEFAULT_NAV_ITEMS.map((def) => {
-      const persisted = (s.navItems as NavItem[] | undefined)?.find((n) => n.viewId === def.viewId)
-      return persisted ? { ...persisted, label: def.label } : def
-    })
+    const navItems = mergeNavItems(s.navItems as NavItem[] | undefined)
     set({ ...s, navItems })
   }
 }))

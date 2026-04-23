@@ -1,0 +1,9 @@
+{
+  "id": "rose-discord",
+  "name": "Discord",
+  "version": "1.0.0",
+  "description": "Discord channel integration and messaging",
+  "author": "ProjectRose",
+  "navItem": { "label": "Discord", "iconName": "discord" },
+  "provides": { "pageView": true, "globalSettings": true, "agentTools": true }
+}

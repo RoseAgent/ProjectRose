@@ -1,0 +1,557 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  color: var(--color-text);
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.empty {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  padding: 24px;
+  text-align: center;
+}
+
+.topGrid {
+  display: grid;
+  grid-template-columns: 200px 320px 1fr;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.paneNoBorder {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.leftTabs {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  gap: 2px;
+}
+
+.leftTab {
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 8px 14px;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 13px;
+  border-left: 2px solid transparent;
+}
+
+.leftTab:hover {
+  background: var(--color-toggle-bg);
+}
+
+.leftTabActive {
+  background: var(--color-toggle-bg);
+  border-left-color: var(--color-toggle-active);
+  font-weight: 600;
+}
+
+.branchBadge {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--color-border);
+  font-variant-numeric: tabular-nums;
+}
+
+.commitRow {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.commitRow:hover {
+  background: var(--color-toggle-bg);
+}
+
+.commitRowActive {
+  background: var(--color-toggle-bg);
+  border-left: 2px solid var(--color-toggle-active);
+  padding-left: 10px;
+}
+
+.commitSubject {
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commitMeta {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  display: flex;
+  gap: 8px;
+}
+
+.shortSha {
+  font-family: var(--font-family-mono), monospace;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.loadMore {
+  width: 100%;
+  padding: 10px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.loadMore:hover {
+  background: var(--color-toggle-bg);
+}
+
+.listRow {
+  padding: 6px 12px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+}
+
+.listRow:hover {
+  background: var(--color-toggle-bg);
+}
+
+.listRowCurrent {
+  font-weight: 700;
+  color: var(--color-toggle-active);
+}
+
+.sectionHeading {
+  padding: 6px 12px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  background: var(--color-toggle-bg);
+}
+
+.detailHeader {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.detailTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.detailSubject {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.detailMeta {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.detailBody {
+  font-family: var(--font-family-mono), monospace;
+  font-size: 12px;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  margin-top: 4px;
+  max-height: 140px;
+  overflow-y: auto;
+  background: var(--color-toggle-bg);
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.actionBar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.btn {
+  padding: 4px 10px;
+  background: var(--color-toggle-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.btn:hover {
+  background: var(--color-toggle-active);
+  color: white;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btnPrimary {
+  background: var(--color-toggle-active);
+  color: white;
+  border-color: var(--color-toggle-active);
+}
+
+.btnDanger {
+  color: var(--color-unsaved, #d9534f);
+}
+
+.diffSplit {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.fileList {
+  max-height: 180px;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fileRow {
+  padding: 4px 16px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-family: var(--font-family-mono), monospace;
+}
+
+.fileRow:hover {
+  background: var(--color-toggle-bg);
+}
+
+.fileRowActive {
+  background: var(--color-toggle-bg);
+}
+
+.badge {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.badgeA { background: #2e7d32; color: white; }
+.badgeM { background: #f9a825; color: black; }
+.badgeD { background: #c62828; color: white; }
+.badgeR { background: #1565c0; color: white; }
+.badgeC { background: #6a1b9a; color: white; }
+.badgeT { background: #455a64; color: white; }
+.badgeU { background: #ad1457; color: white; }
+.badgeQ { background: #6d4c41; color: white; }
+
+.diffEditor {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.binary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.staging {
+  border-top: 2px solid var(--color-border);
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  max-height: 300px;
+  flex-shrink: 0;
+}
+
+.stagingCollapsed {
+  max-height: 32px;
+}
+
+.stagingHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: var(--color-toggle-bg);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.stagingBody {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background: var(--color-border);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stagingPane {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stagingPaneHeader {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stagingList {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.stagingRow {
+  padding: 3px 10px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-family: var(--font-family-mono), monospace;
+}
+
+.stagingRow:hover {
+  background: var(--color-toggle-bg);
+}
+
+.stagingRowSelected {
+  background: var(--color-toggle-bg);
+}
+
+.commitBox {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  gap: 6px;
+  min-height: 0;
+}
+
+.commitTextarea {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  background: var(--color-toggle-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.commitActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.commitActions label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.modalBackdrop {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 360px;
+  max-width: 540px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.modalTitle {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.modalBody {
+  font-size: 13px;
+  color: var(--color-text);
+  margin-bottom: 16px;
+  white-space: pre-wrap;
+}
+
+.modalButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.contextMenu {
+  position: fixed;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 4px 0;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 200;
+}
+
+.contextItem {
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.contextItem:hover {
+  background: var(--color-toggle-bg);
+}
+
+.contextItemDanger {
+  color: var(--color-unsaved, #d9534f);
+}
+
+.contextSeparator {
+  height: 1px;
+  background: var(--color-border);
+  margin: 4px 0;
+}
+
+.errorBar {
+  background: var(--color-unsaved, #d9534f);
+  color: white;
+  padding: 6px 12px;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.errorBar button {
+  background: none;
+  border: 1px solid white;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.opsBar {
+  display: flex;
+  gap: 6px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-toggle-bg);
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.tabActions {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-toggle-bg);
+  flex-shrink: 0;
+}

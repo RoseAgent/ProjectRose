@@ -1,4 +1,4 @@
-import { ipcMain, app } from 'electron'
+import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile, mkdir, readdir, rm } from 'fs/promises'
 import { createWriteStream, existsSync } from 'fs'
@@ -6,12 +6,15 @@ import https from 'https'
 import http from 'http'
 import { pipeline } from 'stream/promises'
 import { IPC } from '../../shared/ipcChannels'
+import { prPath } from '../lib/projectPaths'
 import type { InstalledExtension, ExtensionManifest, ExtensionRegistry } from '../../shared/extension-types'
 
-const EXTENSIONS_DIR = join(app.getPath('userData'), 'extensions')
+function getExtensionsDir(rootPath: string): string {
+  return prPath(rootPath, 'extensions')
+}
 
-async function ensureExtensionsDir(): Promise<void> {
-  await mkdir(EXTENSIONS_DIR, { recursive: true })
+async function ensureExtensionsDir(rootPath: string): Promise<void> {
+  await mkdir(getExtensionsDir(rootPath), { recursive: true })
 }
 
 async function readManifest(extensionPath: string): Promise<ExtensionManifest | null> {
@@ -23,9 +26,9 @@ async function readManifest(extensionPath: string): Promise<ExtensionManifest | 
   }
 }
 
-async function readEnabledState(id: string): Promise<boolean> {
+async function readEnabledState(rootPath: string, id: string): Promise<boolean> {
   try {
-    const statePath = join(EXTENSIONS_DIR, id, '.state.json')
+    const statePath = join(getExtensionsDir(rootPath), id, '.state.json')
     const raw = await readFile(statePath, 'utf-8')
     return JSON.parse(raw).enabled !== false
   } catch {
@@ -33,26 +36,37 @@ async function readEnabledState(id: string): Promise<boolean> {
   }
 }
 
-async function writeEnabledState(id: string, enabled: boolean): Promise<void> {
-  const statePath = join(EXTENSIONS_DIR, id, '.state.json')
+async function writeEnabledState(rootPath: string, id: string, enabled: boolean): Promise<void> {
+  const statePath = join(getExtensionsDir(rootPath), id, '.state.json')
   await writeFile(statePath, JSON.stringify({ enabled }), 'utf-8')
 }
 
-export async function listInstalledExtensions(): Promise<InstalledExtension[]> {
-  await ensureExtensionsDir()
+async function extractZip(zipPath: string, destDir: string): Promise<void> {
+  const { execSync } = await import('child_process')
+  if (process.platform === 'win32') {
+    execSync(`tar -xf "${zipPath}" -C "${destDir}"`)
+  } else {
+    execSync(`unzip -o "${zipPath}" -d "${destDir}"`)
+  }
+}
+
+export async function listInstalledExtensions(rootPath: string): Promise<InstalledExtension[]> {
+  if (!rootPath) return []
+  const extensionsDir = getExtensionsDir(rootPath)
+  await mkdir(extensionsDir, { recursive: true })
   let entries: string[]
   try {
-    entries = await readdir(EXTENSIONS_DIR)
+    entries = await readdir(extensionsDir)
   } catch {
     return []
   }
 
   const results: InstalledExtension[] = []
   for (const entry of entries) {
-    const extensionPath = join(EXTENSIONS_DIR, entry)
+    const extensionPath = join(extensionsDir, entry)
     const manifest = await readManifest(extensionPath)
     if (!manifest) continue
-    const enabled = await readEnabledState(manifest.id)
+    const enabled = await readEnabledState(rootPath, manifest.id)
     results.push({ manifest, installPath: extensionPath, enabled })
   }
   return results
@@ -88,52 +102,85 @@ async function fetchRegistry(rawRegistryUrl: string): Promise<ExtensionRegistry>
 }
 
 export function registerExtensionHandlers(): void {
-  ipcMain.handle(IPC.EXTENSION_LIST, async () => {
-    const installed = await listInstalledExtensions()
+  ipcMain.handle(IPC.EXTENSION_LIST, async (_event, rootPath: string) => {
+    if (!rootPath) return { installed: [] }
+    const installed = await listInstalledExtensions(rootPath)
     return { installed }
   })
 
-  ipcMain.handle(IPC.EXTENSION_INSTALL, async (_event, downloadUrl: string) => {
-    await ensureExtensionsDir()
-
-    const tmpZip = join(EXTENSIONS_DIR, `_tmp_${Date.now()}.zip`)
+  ipcMain.handle(IPC.EXTENSION_INSTALL, async (_event, rootPath: string, downloadUrl: string) => {
+    await ensureExtensionsDir(rootPath)
+    const extensionsDir = getExtensionsDir(rootPath)
+    const tmpZip = join(extensionsDir, `_tmp_${Date.now()}.zip`)
+    const tmpDir = join(extensionsDir, `_extract_${Date.now()}`)
     try {
       await downloadFile(downloadUrl, tmpZip)
-      const { execSync } = await import('child_process')
-      const tmpDir = join(EXTENSIONS_DIR, `_extract_${Date.now()}`)
       await mkdir(tmpDir, { recursive: true })
-      execSync(`unzip -o "${tmpZip}" -d "${tmpDir}"`)
+      await extractZip(tmpZip, tmpDir)
 
       const manifest = await readManifest(tmpDir)
       if (!manifest) throw new Error('Invalid extension: missing rose-extension.json')
 
-      const destDir = join(EXTENSIONS_DIR, manifest.id)
+      const destDir = join(extensionsDir, manifest.id)
       if (existsSync(destDir)) await rm(destDir, { recursive: true, force: true })
       const { renameSync } = await import('fs')
       renameSync(tmpDir, destDir)
     } finally {
       try { await rm(tmpZip, { force: true }) } catch { /* ignore */ }
+      try { await rm(tmpDir, { recursive: true, force: true }) } catch { /* ignore */ }
     }
     return { ok: true }
   })
 
-  ipcMain.handle(IPC.EXTENSION_UNINSTALL, async (_event, id: string) => {
-    const extensionPath = join(EXTENSIONS_DIR, id)
+  ipcMain.handle(IPC.EXTENSION_INSTALL_FROM_DISK, async (event, rootPath: string) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return { ok: false }
+
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openFile'],
+      filters: [{ name: 'Extension Package', extensions: ['zip'] }]
+    })
+    if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true }
+
+    const zipPath = result.filePaths[0]
+    await ensureExtensionsDir(rootPath)
+    const extensionsDir = getExtensionsDir(rootPath)
+    const tmpDir = join(extensionsDir, `_extract_${Date.now()}`)
+    await mkdir(tmpDir, { recursive: true })
+    try {
+      await extractZip(zipPath, tmpDir)
+
+      const manifest = await readManifest(tmpDir)
+      if (!manifest) throw new Error('Invalid extension: missing rose-extension.json')
+
+      const destDir = join(extensionsDir, manifest.id)
+      if (existsSync(destDir)) await rm(destDir, { recursive: true, force: true })
+      const { renameSync } = await import('fs')
+      renameSync(tmpDir, destDir)
+    } catch (err) {
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+      throw err
+    }
+    return { ok: true }
+  })
+
+  ipcMain.handle(IPC.EXTENSION_UNINSTALL, async (_event, rootPath: string, id: string) => {
+    const extensionPath = join(getExtensionsDir(rootPath), id)
     await rm(extensionPath, { recursive: true, force: true })
     return { ok: true }
   })
 
-  ipcMain.handle(IPC.EXTENSION_ENABLE, async (_event, id: string) => {
-    await ensureExtensionsDir()
-    await mkdir(join(EXTENSIONS_DIR, id), { recursive: true })
-    await writeEnabledState(id, true)
+  ipcMain.handle(IPC.EXTENSION_ENABLE, async (_event, rootPath: string, id: string) => {
+    await ensureExtensionsDir(rootPath)
+    await mkdir(join(getExtensionsDir(rootPath), id), { recursive: true })
+    await writeEnabledState(rootPath, id, true)
     return { ok: true }
   })
 
-  ipcMain.handle(IPC.EXTENSION_DISABLE, async (_event, id: string) => {
-    await ensureExtensionsDir()
-    await mkdir(join(EXTENSIONS_DIR, id), { recursive: true })
-    await writeEnabledState(id, false)
+  ipcMain.handle(IPC.EXTENSION_DISABLE, async (_event, rootPath: string, id: string) => {
+    await ensureExtensionsDir(rootPath)
+    await mkdir(join(getExtensionsDir(rootPath), id), { recursive: true })
+    await writeEnabledState(rootPath, id, false)
     return { ok: true }
   })
 

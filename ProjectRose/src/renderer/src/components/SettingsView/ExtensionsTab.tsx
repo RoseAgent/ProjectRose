@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { InstalledExtension, RegistryExtension } from '../../../../shared/extension-types'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useProjectStore } from '../../stores/useProjectStore'
 import styles from './SettingsView.module.css'
 
 const REGISTRY_URL =
@@ -15,14 +16,17 @@ export function ExtensionsTab(): JSX.Element {
   const [registryLoading, setRegistryLoading] = useState(false)
   const [registryError, setRegistryError] = useState('')
   const [installPending, setInstallPending] = useState<string | null>(null)
+  const [diskInstalling, setDiskInstalling] = useState(false)
 
+  const rootPath = useProjectStore((s) => s.rootPath)
   const navItems = useSettingsStore((s) => s.navItems)
   const updateSettings = useSettingsStore((s) => s.update)
 
   const loadInstalled = useCallback(async () => {
-    const result = await window.api.extension.list()
+    if (!rootPath) { setInstalled([]); return }
+    const result = await window.api.extension.list(rootPath)
     setInstalled(result.installed)
-  }, [])
+  }, [rootPath])
 
   useEffect(() => { loadInstalled() }, [loadInstalled])
 
@@ -44,10 +48,10 @@ export function ExtensionsTab(): JSX.Element {
   }, [subTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleInstall = useCallback(async (ext: RegistryExtension) => {
+    if (!rootPath) return
     setInstallPending(ext.id)
     try {
-      await window.api.extension.install(ext.downloadUrl, ext.id)
-      // Add nav item immediately — no restart needed for first-party extensions
+      await window.api.extension.install(rootPath, ext.downloadUrl)
       if (!navItems.some((n) => n.viewId === ext.id)) {
         await updateSettings({ navItems: [...navItems, { viewId: ext.id, label: ext.name, visible: true }] })
       }
@@ -55,22 +59,47 @@ export function ExtensionsTab(): JSX.Element {
     } finally {
       setInstallPending(null)
     }
-  }, [loadInstalled, navItems, updateSettings])
+  }, [loadInstalled, navItems, updateSettings, rootPath])
+
+  const handleInstallFromDisk = useCallback(async () => {
+    if (!rootPath) return
+    setDiskInstalling(true)
+    try {
+      const result = await window.api.extension.installFromDisk(rootPath)
+      if (!result.ok || result.canceled) return
+
+      const { installed: newInstalled } = await window.api.extension.list(rootPath)
+      setInstalled(newInstalled)
+
+      const prevIds = new Set(installed.map((e) => e.manifest.id))
+      const added = newInstalled.filter((e) => !prevIds.has(e.manifest.id) && e.manifest.navItem)
+      const newNavItems = added
+        .filter((e) => !navItems.some((n) => n.viewId === e.manifest.id))
+        .map((e) => ({ viewId: e.manifest.id, label: e.manifest.navItem!.label, visible: true }))
+      if (newNavItems.length > 0) {
+        await updateSettings({ navItems: [...navItems, ...newNavItems] })
+      }
+    } finally {
+      setDiskInstalling(false)
+    }
+  }, [installed, navItems, updateSettings, rootPath])
 
   const handleUninstall = useCallback(async (ext: InstalledExtension) => {
-    await window.api.extension.uninstall(ext.manifest.id)
+    if (!rootPath) return
+    await window.api.extension.uninstall(rootPath, ext.manifest.id)
     await updateSettings({ navItems: navItems.filter((n) => n.viewId !== ext.manifest.id) })
     await loadInstalled()
-  }, [loadInstalled, navItems, updateSettings])
+  }, [loadInstalled, navItems, updateSettings, rootPath])
 
   const handleToggle = useCallback(async (id: string, currentlyEnabled: boolean) => {
+    if (!rootPath) return
     if (currentlyEnabled) {
-      await window.api.extension.disable(id)
+      await window.api.extension.disable(rootPath, id)
     } else {
-      await window.api.extension.enable(id)
+      await window.api.extension.enable(rootPath, id)
     }
     await loadInstalled()
-  }, [loadInstalled])
+  }, [loadInstalled, rootPath])
 
   const isInstalled = (id: string): boolean => installed.some((e) => e.manifest.id === id)
 
@@ -108,7 +137,10 @@ export function ExtensionsTab(): JSX.Element {
       {/* ── Installed tab ── */}
       {subTab === 'installed' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {installed.map((ext) => (
+          {!rootPath && (
+            <div className={styles.emptyState}>Open a project to manage extensions.</div>
+          )}
+          {rootPath && installed.map((ext) => (
             <ExtensionRow
               key={ext.manifest.id}
               name={ext.manifest.name}
@@ -120,8 +152,20 @@ export function ExtensionsTab(): JSX.Element {
               onUninstall={() => handleUninstall(ext)}
             />
           ))}
-          {installed.length === 0 && (
-            <div className={styles.emptyState}>No extensions installed. Browse to find extensions.</div>
+          {rootPath && installed.length === 0 && (
+            <div className={styles.emptyState}>No extensions installed. Browse or install from disk.</div>
+          )}
+          {rootPath && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                className={styles.refreshBtn}
+                disabled={diskInstalling}
+                onClick={handleInstallFromDisk}
+              >
+                {diskInstalling ? 'Installing...' : 'Install from disk'}
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -158,7 +202,7 @@ export function ExtensionsTab(): JSX.Element {
                   <button
                     type="button"
                     className={styles.refreshBtn}
-                    disabled={installPending === ext.id}
+                    disabled={installPending === ext.id || !rootPath}
                     onClick={() => handleInstall(ext)}
                   >
                     {installPending === ext.id ? 'Installing...' : 'Install'}
