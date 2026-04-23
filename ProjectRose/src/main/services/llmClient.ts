@@ -145,9 +145,9 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
       execute: wrapExecute('list_directory', handleListDirectory, projectRoot)
     }),
     search_code: tool({
-      description: 'Search the codebase using a natural language query. Returns matching functions, classes, and methods with their source code, ranked by relevance.',
+      description: 'Search for functions, classes, and methods by name across the codebase. Uses symbol lookup — query should be a name or partial name, not a natural language description.',
       inputSchema: z.object({
-        query: z.string().describe('Natural language description of what you are looking for'),
+        query: z.string().describe('Symbol name or partial name to search for (e.g. "handleAuth", "UserService")'),
         limit: z.number().optional().describe('Max results to return (default 10)')
       }),
       execute: wrapExecute('search_code', (input) => handleSearchCode(input), projectRoot)

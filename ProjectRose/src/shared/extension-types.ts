@@ -14,6 +14,7 @@ export interface ExtensionManifest {
     projectSettings?: boolean
     globalSettings?: boolean
     agentTools?: boolean
+    tools?: Array<{ name: string; displayName: string; description: string }>
   }
 }
 

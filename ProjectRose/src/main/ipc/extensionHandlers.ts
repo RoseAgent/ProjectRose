@@ -38,7 +38,7 @@ async function writeEnabledState(id: string, enabled: boolean): Promise<void> {
   await writeFile(statePath, JSON.stringify({ enabled }), 'utf-8')
 }
 
-async function listInstalledExtensions(): Promise<InstalledExtension[]> {
+export async function listInstalledExtensions(): Promise<InstalledExtension[]> {
   await ensureExtensionsDir()
   let entries: string[]
   try {
