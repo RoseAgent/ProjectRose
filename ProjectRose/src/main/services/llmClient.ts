@@ -23,7 +23,7 @@ import {
 } from './toolHandlers'
 import { getAllBuiltinExtensionTools, type ExtensionToolEntry } from '../extensions/builtinTools'
 import type { Message } from '../../shared/roseModelTypes'
-import type { ModelConfig, RouterConfig, CompressionConfig } from '../ipc/settingsHandlers'
+import type { ModelConfig, RouterConfig } from '../ipc/settingsHandlers'
 
 function notifyRenderer(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -312,7 +312,7 @@ export async function streamChat(params: {
 
 export async function compressMessages(
   messages: Message[],
-  compression: CompressionConfig,
+  modelConfig: ModelConfig,
   providerKeys: ProviderKeys
 ): Promise<Message[]> {
   if (messages.length <= 40) return messages
@@ -321,16 +321,7 @@ export async function compressMessages(
   const firstHalf = messages.slice(0, half)
   const secondHalf = messages.slice(half)
 
-  const compressModelConfig: ModelConfig = {
-    id: '',
-    displayName: '',
-    provider: compression.provider,
-    modelName: compression.modelName,
-    baseUrl: compression.baseUrl,
-    tags: []
-  }
-
-  const model = resolveModel(compressModelConfig, providerKeys)
+  const model = resolveModel(modelConfig, providerKeys)
   const conversationText = firstHalf
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
     .join('\n\n')

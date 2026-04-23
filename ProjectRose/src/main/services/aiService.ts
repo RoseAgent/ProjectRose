@@ -184,5 +184,7 @@ export async function heartbeatChat(messages: Message[], rootPath: string): Prom
 
 export async function compressHistory(messages: Message[]): Promise<Message[]> {
   const settings = await readSettings()
-  return compressMessages(messages, settings.compression, settings.providerKeys)
+  const defaultModel = settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
+  if (!defaultModel) return messages
+  return compressMessages(messages, defaultModel, settings.providerKeys)
 }

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { NavItem } from '../../../shared/types'
-import type { ModelConfig, RouterConfig, CompressionConfig } from '../types/electron'
+import type { ModelConfig, RouterConfig } from '../types/electron'
 import { useProjectStore } from './useProjectStore'
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
@@ -30,7 +30,6 @@ interface SettingsState {
   defaultModelId: string
   providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string }; projectrose: { accessToken: string; refreshToken: string; email: string; plan: string } | null }
   router: RouterConfig
-  compression: CompressionConfig
   hostMode: 'projectrose' | 'self'
   extensions: Record<string, Record<string, unknown>>
   loaded: boolean
@@ -61,7 +60,6 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   defaultModelId: '',
   providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' }, projectrose: null },
   router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
-  compression: { provider: 'anthropic', modelName: '', baseUrl: '' },
   hostMode: 'projectrose',
   extensions: {},
   loaded: false,

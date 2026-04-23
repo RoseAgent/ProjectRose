@@ -20,12 +20,6 @@ export interface RouterConfig {
   baseUrl: string
 }
 
-export interface CompressionConfig {
-  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' | 'bedrock' | 'projectrose'
-  modelName: string
-  baseUrl: string
-}
-
 export interface AppSettings {
   heartbeatEnabled: boolean
   heartbeatIntervalMinutes: number
@@ -46,7 +40,6 @@ export interface AppSettings {
   defaultModelId: string
   providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string }; projectrose: { accessToken: string; refreshToken: string; email: string; plan: string } | null }
   router: RouterConfig
-  compression: CompressionConfig
   hostMode: 'projectrose' | 'self'
   // Namespaced extension settings: { 'rose-discord': { global: {...}, project: {...} } }
   extensions: Record<string, Record<string, unknown>>
@@ -89,7 +82,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultModelId: '',
   providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' }, projectrose: null },
   router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
-  compression: { provider: 'anthropic', modelName: '', baseUrl: '' },
   hostMode: 'projectrose',
   extensions: {}
 }

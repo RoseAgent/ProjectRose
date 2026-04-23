@@ -5,7 +5,7 @@ import { useProjectStore } from '../../stores/useProjectStore'
 import { useEmailStore } from '../../stores/useEmailStore'
 import { useDiscordStore } from '../../stores/useDiscordStore'
 import { NavItem } from '../../../../shared/types'
-import type { ModelConfig, CompressionConfig, ToolMeta } from '../../types/electron'
+import type { ModelConfig, ToolMeta } from '../../types/electron'
 import styles from './SettingsView.module.css'
 
 type TestState = 'idle' | 'testing' | 'ok' | 'fail'
@@ -35,7 +35,7 @@ export function SettingsView(): JSX.Element {
     heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId,
     imapHost, imapPort, imapUser, imapPassword, imapTLS,
     discordBotToken,
-    navItems, models, defaultModelId, providerKeys, router, compression, hostMode, update
+    navItems, models, defaultModelId, providerKeys, router, hostMode, update
   } = useSettingsStore()
 
   const rootPath = useProjectStore((s) => s.rootPath)
@@ -230,9 +230,6 @@ export function SettingsView(): JSX.Element {
     }
     if (router.enabled && router.modelName && !('__router__' in ollamaModels)) {
       fetchOllamaModels('__router__', router.baseUrl)
-    }
-    if (compression.provider === 'ollama' && compression.baseUrl && !('__compression__' in ollamaModels)) {
-      fetchOllamaModels('__compression__', compression.baseUrl)
     }
     if (providerKeys.anthropic && anthropicModels.length === 0) {
       fetchAnthropicModels(providerKeys.anthropic)
@@ -652,43 +649,6 @@ export function SettingsView(): JSX.Element {
           </button>
         </section>
 
-        <section className={styles.section}>
-          <div className={styles.sectionTitle}>Compression Model</div>
-          <div className={styles.settingCard}>
-            <div className={styles.settingLabel}>Provider</div>
-            <select
-              className={styles.select}
-              value={compression.provider}
-              onChange={(e) => update({ compression: { ...compression, provider: e.target.value as CompressionConfig['provider'], modelName: '' } })}
-            >
-              <option value="anthropic">Anthropic (Claude)</option>
-              <option value="openai">OpenAI</option>
-              <option value="ollama">Ollama (local)</option>
-              <option value="openai-compatible">OpenAI-compatible</option>
-              <option value="bedrock">AWS Bedrock</option>
-            </select>
-            {(compression.provider === 'ollama' || compression.provider === 'openai-compatible') && (
-              <>
-                <div className={styles.settingLabel}>Base URL</div>
-                <input
-                  className={styles.input}
-                  type="text"
-                  placeholder={compression.provider === 'ollama' ? 'http://localhost:11434' : 'https://api.example.com/v1'}
-                  value={compression.baseUrl}
-                  onChange={(e) => update({ compression: { ...compression, baseUrl: e.target.value } })}
-                  onBlur={(e) => compression.provider === 'ollama' && fetchOllamaModels('__compression__', e.target.value)}
-                />
-              </>
-            )}
-            <div className={styles.settingLabel}>Model</div>
-            {renderModelSelect(
-              '__compression__',
-              compression.provider,
-              compression.modelName,
-              (v) => update({ compression: { ...compression, modelName: v } })
-            )}
-          </div>
-        </section>
           </>
         )}
 

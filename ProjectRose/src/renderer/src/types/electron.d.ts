@@ -42,12 +42,6 @@ export interface RouterConfig {
   baseUrl: string
 }
 
-export interface CompressionConfig {
-  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' | 'bedrock'
-  modelName: string
-  baseUrl: string
-}
-
 export interface DiscordChannel {
   id: string
   name: string
@@ -125,7 +119,6 @@ export interface AppSettingsData {
   defaultModelId: string
   providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string }; projectrose: { accessToken: string; refreshToken: string; email: string; plan: string } | null }
   router: RouterConfig
-  compression: CompressionConfig
   navItems: import('../../../shared/types').NavItem[]
 }
 export interface IndexingProgress {
