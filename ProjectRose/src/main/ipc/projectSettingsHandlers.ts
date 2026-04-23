@@ -11,8 +11,7 @@ export interface ProjectSettings {
 const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [] }
 
 export const CORE_TOOL_NAMES = new Set([
-  'read_file', 'write_file', 'list_directory', 'search_code',
-  'find_references', 'run_command', 'get_project_overview',
+  'read_file', 'write_file', 'list_directory', 'grep', 'run_command', 'get_project_overview',
   'memory_read', 'memory_write', 'memory_search', 'memory_list', 'memory_delete',
 ])
 
@@ -20,8 +19,7 @@ const CORE_TOOL_META = [
   { name: 'read_file', displayName: 'Read File', description: 'Read the contents of any file in the project', type: 'core' as const },
   { name: 'write_file', displayName: 'Write File', description: 'Write or overwrite file contents', type: 'core' as const },
   { name: 'list_directory', displayName: 'List Directory', description: 'List files and subdirectories', type: 'core' as const },
-  { name: 'search_code', displayName: 'Search Code', description: 'Search for functions, classes, and methods by name across the codebase', type: 'core' as const },
-  { name: 'find_references', displayName: 'Find References', description: 'Find symbol references across the project', type: 'core' as const },
+  { name: 'grep', displayName: 'Grep', description: 'Search file contents by regex pattern', type: 'core' as const },
   { name: 'run_command', displayName: 'Run Command', description: 'Execute shell commands in the project', type: 'core' as const },
   { name: 'get_project_overview', displayName: 'Project Overview', description: 'Get a structured map of project dependencies', type: 'core' as const },
   { name: 'memory_read', displayName: 'Memory Read', description: 'Read the full contents of a memory palace drawer', type: 'core' as const },

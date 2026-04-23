@@ -11,8 +11,7 @@ import {
   handleReadFile,
   handleWriteFile,
   handleListDirectory,
-  handleSearchCode,
-  handleFindReferences,
+  handleGrep,
   handleGetProjectOverview,
   handleRunCommand,
   handleMemoryWrite,
@@ -144,22 +143,15 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
       }),
       execute: wrapExecute('list_directory', handleListDirectory, projectRoot)
     }),
-    search_code: tool({
-      description: 'Search for functions, classes, and methods by name across the codebase. Uses symbol lookup — query should be a name or partial name, not a natural language description.',
+    grep: tool({
+      description: 'Search file contents for a regex pattern. Returns matching lines as file:line: text. Searches the entire project by default; narrow with path or include.',
       inputSchema: z.object({
-        query: z.string().describe('Symbol name or partial name to search for (e.g. "handleAuth", "UserService")'),
-        limit: z.number().optional().describe('Max results to return (default 10)')
+        pattern: z.string().describe('Regex pattern to search for'),
+        path: z.string().optional().describe('Directory to search in, relative to project root (default: entire project)'),
+        include: z.string().optional().describe('Comma-separated file extensions to include, e.g. ".ts,.tsx" or "*.py"'),
+        case_sensitive: z.boolean().optional().describe('Case-sensitive match (default: false)')
       }),
-      execute: wrapExecute('search_code', (input) => handleSearchCode(input), projectRoot)
-    }),
-    find_references: tool({
-      description: 'Find all references to or from a symbol. Use direction "inbound" to find callers, "outbound" to find dependencies, or "both" for all references.',
-      inputSchema: z.object({
-        symbol_name: z.string().describe('Name of the function, class, or method'),
-        file_path: z.string().optional().describe('File where the symbol is defined (required if the name is ambiguous)'),
-        direction: z.enum(['inbound', 'outbound', 'both']).optional().describe('"inbound", "outbound", or "both" (default "both")')
-      }),
-      execute: wrapExecute('find_references', (input) => handleFindReferences(input), projectRoot)
+      execute: wrapExecute('grep', handleGrep, projectRoot)
     }),
     run_command: tool({
       description: 'Run a shell command in the project directory. Use for installing packages, running tests, linting, etc. Returns stdout/stderr.',

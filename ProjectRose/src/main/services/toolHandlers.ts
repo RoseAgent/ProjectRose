@@ -1,4 +1,4 @@
-import { readFile, writeFile, readdir, mkdir, unlink } from 'fs/promises'
+import { readFile, writeFile, readdir, mkdir, unlink, stat } from 'fs/promises'
 import { join, basename, dirname } from 'path'
 import { createHash } from 'crypto'
 import { prPath } from '../lib/projectPaths'
@@ -177,6 +177,75 @@ export interface PythonToolMeta {
   description: string
   parameters: Record<string, { type: string; description: string }>
   execute: (input: Record<string, unknown>, projectRoot: string) => Promise<string>
+}
+
+// ── Grep handler ──
+
+const GREP_IGNORED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'out', '__pycache__', '.cache'])
+
+async function grepWalk(
+  dir: string,
+  regex: RegExp,
+  includeExts: string[],
+  projectRoot: string,
+  results: Array<{ rel: string; line: number; text: string }>,
+  max: number
+): Promise<void> {
+  if (results.length >= max) return
+  let entries: string[]
+  try { entries = await readdir(dir) } catch { return }
+
+  for (const entry of entries) {
+    if (results.length >= max) break
+    if (GREP_IGNORED.has(entry)) continue
+    const full = join(dir, entry)
+    let s
+    try { s = await stat(full) } catch { continue }
+
+    if (s.isDirectory()) {
+      await grepWalk(full, regex, includeExts, projectRoot, results, max)
+    } else if (s.isFile()) {
+      if (includeExts.length > 0 && !includeExts.some((ext) => entry.endsWith(ext))) continue
+      let content: string
+      try { content = await readFile(full, 'utf-8') } catch { continue }
+      const lines = content.split('\n')
+      for (let i = 0; i < lines.length && results.length < max; i++) {
+        if (regex.test(lines[i])) {
+          const rel = full.startsWith(projectRoot) ? full.slice(projectRoot.length).replace(/^[\\/]/, '') : full
+          results.push({ rel, line: i + 1, text: lines[i].trim() })
+        }
+      }
+    }
+  }
+}
+
+export async function handleGrep(input: Record<string, unknown>, projectRoot: string): Promise<string> {
+  const pattern = String(input.pattern || '')
+  if (!pattern) return 'No pattern provided.'
+
+  let regex: RegExp
+  try {
+    regex = new RegExp(pattern, input.case_sensitive ? '' : 'i')
+  } catch {
+    return `Invalid regex: ${pattern}`
+  }
+
+  const searchPath = String(input.path || '.')
+  const absolute = searchPath.startsWith('/') || searchPath.includes(':')
+    ? searchPath
+    : join(projectRoot, searchPath)
+
+  const includeExts = String(input.include || '')
+    .split(',').map((s) => s.trim().replace(/^\*/, '')).filter(Boolean)
+
+  const results: Array<{ rel: string; line: number; text: string }> = []
+  await grepWalk(absolute, regex, includeExts, projectRoot, results, 200)
+
+  if (results.length === 0) return `No matches for: ${pattern}`
+  const lines = results.map((r) => `${r.rel}:${r.line}: ${r.text}`)
+  return results.length === 200
+    ? lines.join('\n') + '\n[truncated at 200 matches]'
+    : lines.join('\n')
 }
 
 // ── Memory palace handlers ──
