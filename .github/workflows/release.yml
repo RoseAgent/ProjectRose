@@ -77,12 +77,39 @@ jobs:
         working-directory: ProjectRose
         run: npm run dist -- --linux --publish never
 
-      - name: Upload release artifacts
+      - name: Upload release artifacts (Windows)
+        if: matrix.platform == 'win'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
           name: ${{ github.ref_type == 'tag' && github.ref_name || 'Nightly Build' }}
-          files: ProjectRose/release/**/*.{exe,dmg,AppImage}
+          files: ProjectRose/release/*Setup*.exe
+          draft: false
+          generate_release_notes: ${{ github.ref_type == 'tag' }}
+          prerelease: ${{ github.ref_type != 'tag' || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release artifacts (macOS)
+        if: matrix.platform == 'mac'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || 'Nightly Build' }}
+          files: ProjectRose/release/*arm64.dmg
+          draft: false
+          generate_release_notes: ${{ github.ref_type == 'tag' }}
+          prerelease: ${{ github.ref_type != 'tag' || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release artifacts (Linux)
+        if: matrix.platform == 'linux'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || 'Nightly Build' }}
+          files: ProjectRose/release/*.AppImage
           draft: false
           generate_release_notes: ${{ github.ref_type == 'tag' }}
           prerelease: ${{ github.ref_type != 'tag' || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
