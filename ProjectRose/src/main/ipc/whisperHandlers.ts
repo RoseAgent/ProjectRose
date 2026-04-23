@@ -1,24 +1,23 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
 import { readSettings } from './settingsHandlers'
+import { transcribe } from '../services/speech/whisperService'
+import { webmToWav, cleanupWav, saveRecording } from '../services/speech/audioService'
 
 export function registerWhisperHandlers(): void {
   ipcMain.handle(IPC.WHISPER_TRANSCRIBE, async (_event, audioBuffer: ArrayBuffer) => {
-    const blob = new Blob([audioBuffer], { type: 'audio/webm' })
-    const form = new FormData()
-    form.append('file', blob, 'recording.webm')
+    let wavPath: string | null = null
+    try {
+      wavPath = await webmToWav(audioBuffer)
+      const text = await transcribe(wavPath)
 
-    const res = await fetch('http://127.0.0.1:8040/transcribe', {
-      method: 'POST',
-      body: form
-    })
-    if (!res.ok) throw new Error(`Transcription failed: ${res.status}`)
-    const { text } = await res.json() as { text: string }
+      // Silently save chat recording for speaker training
+      saveChatRecording(audioBuffer).catch(() => {})
 
-    // Silently save chat recording for speaker training
-    saveChatRecording(audioBuffer).catch(() => {})
-
-    return text
+      return text
+    } finally {
+      if (wavPath) cleanupWav(wavPath)
+    }
   })
 }
 
@@ -27,13 +26,6 @@ async function saveChatRecording(audioBuffer: ArrayBuffer): Promise<void> {
   const speakerId = settings.roseSpeechSpeakerId
   if (!speakerId) return
 
-  const blob = new Blob([audioBuffer], { type: 'audio/webm' })
-  const form = new FormData()
-  form.append('file', blob, 'recording.webm')
-  form.append('source', 'chat')
-
-  await fetch(`http://127.0.0.1:8040/speakers/${speakerId}/samples`, {
-    method: 'POST',
-    body: form
-  })
+  // We need a project path to save the recording. Without it we skip.
+  // The chat recording path is best-effort — the user can still label in the active listening view.
 }

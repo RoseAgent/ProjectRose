@@ -15,13 +15,6 @@ interface AudioDevice {
   label: string
 }
 
-interface ServiceHealth {
-  name: string
-  url: string
-  status: 'up' | 'down' | 'checking'
-  latency?: number
-}
-
 const INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30, 60]
 
 const ANTHROPIC_FALLBACK = ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']
@@ -79,9 +72,6 @@ export function SettingsView(): JSX.Element {
 
   const [testState, setTestState] = useState<TestState>('idle')
   const [testError, setTestError] = useState('')
-  const [services, setServices] = useState<ServiceHealth[]>([
-    { name: 'RoseSpeech', url: 'http://127.0.0.1:8040', status: 'checking' }
-  ])
 
   useEffect(() => {
     window.api.auth.getStatus().then(setAuthStatus).catch(() => {})
@@ -109,12 +99,6 @@ export function SettingsView(): JSX.Element {
     setDisabledTools(updated)
     await window.api.project.setSettings(rootPath, { disabledTools: updated })
   }, [rootPath, disabledTools])
-
-  const checkHealth = useCallback(async () => {
-    setServices((prev) => prev.map((s) => ({ ...s, status: 'checking' as const })))
-    const results = await window.api.checkServicesHealth()
-    setServices(results.map((r) => ({ ...r, status: r.status as 'up' | 'down' | 'checking' })))
-  }, [])
 
   const loadAudioDevices = useCallback(async () => {
     try {
@@ -230,9 +214,8 @@ export function SettingsView(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    checkHealth()
     loadAudioDevices()
-  }, [checkHealth, loadAudioDevices])
+  }, [loadAudioDevices])
 
   useEffect(() => {
     if (activePage === 'email') loadFilters()
@@ -280,31 +263,6 @@ export function SettingsView(): JSX.Element {
     return (
       <>
         <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <div className={styles.sectionTitle}>Service Health</div>
-            <button type="button" className={styles.refreshBtn} onClick={checkHealth}>Refresh</button>
-          </div>
-          <div className={styles.serviceList}>
-            {services.map((svc) => (
-              <div key={svc.name} className={styles.serviceRow}>
-                <span className={`${styles.dot} ${
-                  svc.status === 'up' ? styles.dotUp :
-                  svc.status === 'down' ? styles.dotDown :
-                  styles.dotChecking
-                }`} />
-                <span className={styles.serviceName}>{svc.name}</span>
-                <span className={styles.serviceUrl}>{svc.url}</span>
-                <span className={styles.serviceStatus}>
-                  {svc.status === 'checking' && 'Checking…'}
-                  {svc.status === 'up' && `Online${svc.latency != null ? ` · ${svc.latency}ms` : ''}`}
-                  {svc.status === 'down' && 'Offline'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className={styles.section}>
           <div className={styles.sectionTitle}>Navigation Bar</div>
           <div className={styles.navList}>
             {navItems
@@ -341,6 +299,28 @@ export function SettingsView(): JSX.Element {
                 <span className={styles.navItemLocked}>always visible</span>
               </div>
             )}
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Voice Input</div>
+          <div className={styles.settingRow}>
+            <div className={styles.settingInfo}>
+              <div className={styles.settingLabel}>Microphone</div>
+              <div className={styles.settingDesc}>
+                Which microphone to use for voice-to-text in the chat input.
+              </div>
+            </div>
+            <select
+              className={styles.select}
+              value={micDeviceId}
+              onChange={(e) => update({ micDeviceId: e.target.value })}
+            >
+              <option value="">System default</option>
+              {audioDevices.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
+              ))}
+            </select>
           </div>
         </section>
       </>
@@ -761,27 +741,6 @@ export function SettingsView(): JSX.Element {
           )}
         </section>
 
-        <section className={styles.section}>
-          <div className={styles.sectionTitle}>Voice Input</div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Microphone</div>
-              <div className={styles.settingDesc}>
-                Which microphone to use for voice-to-text in the chat input.
-              </div>
-            </div>
-            <select
-              className={styles.select}
-              value={micDeviceId}
-              onChange={(e) => update({ micDeviceId: e.target.value })}
-            >
-              <option value="">System default</option>
-              {audioDevices.map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
-              ))}
-            </select>
-          </div>
-        </section>
       </>
     )
   }

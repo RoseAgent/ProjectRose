@@ -162,5 +162,9 @@ export const IPC = {
   ACTIVE_LISTENING_CREATE_SESSION: 'activeSpeech:createSession',
   ACTIVE_LISTENING_END_SESSION: 'activeSpeech:endSession',
   ACTIVE_LISTENING_GET_UTTERANCES: 'activeSpeech:getUtterances',
-  ACTIVE_LISTENING_GET_SESSIONS: 'activeSpeech:getSessions'
+  ACTIVE_LISTENING_GET_SESSIONS: 'activeSpeech:getSessions',
+  ACTIVE_LISTENING_START_STREAM: 'activeSpeech:startStream',
+  ACTIVE_LISTENING_AUDIO_CHUNK: 'activeSpeech:audioChunk',
+  ACTIVE_LISTENING_STOP_STREAM: 'activeSpeech:stopStream',
+  ACTIVE_LISTENING_UTTERANCE: 'activeSpeech:utterance'
 } as const

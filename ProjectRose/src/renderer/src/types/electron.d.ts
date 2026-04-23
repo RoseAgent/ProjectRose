@@ -459,17 +459,21 @@ export interface AuthAPI {
 }
 
 export interface ActiveSpeechAPI {
-  getSpeakers: () => Promise<Array<{ id: number; name: string; created_at: string }>>
-  createSpeaker: (name: string) => Promise<{ id: number; name: string }>
-  addSample: (payload: { speakerId: number; source: string; audioBuffer: ArrayBuffer; projectId?: string }) => Promise<{ id: number }>
-  labelSpeaker: (payload: { utteranceId: number; speakerId?: number; speakerName?: string }) => Promise<{ ok: boolean; speaker_id: number }>
-  train: () => Promise<{ job_id: number }>
-  trainStatus: (jobId: number) => Promise<{ status: string; accuracy: number | null; deployed: boolean; error: string | null }>
-  trainHistory: () => Promise<Array<{ id: number; accuracy: number; is_active: boolean; trained_at: string; sample_count: number; notes: string | null }>>
-  createSession: (projectId?: string) => Promise<{ id: number }>
-  endSession: (sessionId: number) => Promise<{ ok: boolean }>
-  getUtterances: (sessionId: number) => Promise<Array<{ id: number; text: string; speaker_name: string | null; speaker_id: number | null }>>
-  getSessions: () => Promise<Array<{ id: number; project_id: string | null; started_at: string; ended_at: string | null }>>
+  getSpeakers: (projectPath: string) => Promise<Array<{ id: number; name: string; created_at: string }>>
+  createSpeaker: (payload: { name: string; projectPath: string }) => Promise<{ id: number; name: string }>
+  addSample: (payload: { speakerId: number; source: string; audioBuffer: ArrayBuffer; projectId?: string; projectPath: string }) => Promise<{ id: number }>
+  labelSpeaker: (payload: { utteranceId: number; speakerId?: number; speakerName?: string; projectPath: string }) => Promise<{ ok: boolean; speaker_id: number }>
+  train: (projectPath: string) => Promise<{ job_id: number }>
+  trainStatus: (payload: { jobId: number; projectPath: string }) => Promise<{ status: string; accuracy: number | null; deployed: boolean; error: string | null }>
+  trainHistory: (projectPath: string) => Promise<Array<{ id: number; accuracy: number; is_active: boolean; trained_at: string; sample_count: number; notes: string | null }>>
+  createSession: (payload: { projectPath: string; projectId?: string }) => Promise<{ id: number }>
+  endSession: (payload: { sessionId: number; projectPath: string }) => Promise<{ ok: boolean }>
+  getUtterances: (payload: { sessionId: number; projectPath: string }) => Promise<Array<{ id: number; text: string; speaker_name: string | null; speaker_id: number | null }>>
+  getSessions: (projectPath: string) => Promise<Array<{ id: number; project_id: string | null; started_at: string; ended_at: string | null }>>
+  startStream: (payload: { sessionId: number; projectPath: string }) => Promise<void>
+  sendAudioChunk: (payload: { sessionId: number; audioBuffer: ArrayBuffer; projectPath: string }) => void
+  stopStream: (payload: { sessionId: number }) => Promise<void>
+  onUtterance: (callback: (evt: { sessionId: number; utterance_id: number; speaker_name: string | null; text: string }) => void) => () => void
 }
 
 declare global {

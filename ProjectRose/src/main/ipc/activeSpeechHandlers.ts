@@ -1,104 +1,157 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
-
-const BASE = 'http://127.0.0.1:8040'
+import * as speechDB from '../services/speech/speechDB'
+import { saveRecording, webmPathToWav, cleanupWav } from '../services/speech/audioService'
+import { train } from '../services/speech/speakerService'
+import { startSession, stopSession, processChunk } from '../services/speech/liveSession'
 
 export function registerActiveSpeechHandlers(): void {
-  ipcMain.handle(IPC.ACTIVE_LISTENING_GET_SPEAKERS, async () => {
-    const res = await fetch(`${BASE}/speakers`)
-    if (!res.ok) throw new Error(`Failed to fetch speakers: ${res.status}`)
-    return res.json()
-  })
+  ipcMain.handle(
+    IPC.ACTIVE_LISTENING_GET_SPEAKERS,
+    (_event, projectPath: string) => speechDB.getSpeakers(projectPath)
+  )
 
-  ipcMain.handle(IPC.ACTIVE_LISTENING_CREATE_SPEAKER, async (_event, name: string) => {
-    const res = await fetch(`${BASE}/speakers`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
-    })
-    if (!res.ok) throw new Error(`Failed to create speaker: ${res.status}`)
-    return res.json()
-  })
+  ipcMain.handle(
+    IPC.ACTIVE_LISTENING_CREATE_SPEAKER,
+    (_event, payload: { name: string; projectPath: string }) =>
+      speechDB.createSpeaker(payload.projectPath, payload.name)
+  )
 
   ipcMain.handle(
     IPC.ACTIVE_LISTENING_ADD_SAMPLE,
-    async (_event, payload: { speakerId: number; source: string; audioBuffer: ArrayBuffer; projectId?: string }) => {
-      const { speakerId, source, audioBuffer, projectId } = payload
-      const blob = new Blob([audioBuffer], { type: 'audio/webm' })
-      const form = new FormData()
-      form.append('file', blob, 'recording.webm')
-      form.append('source', source)
-      if (projectId) form.append('project_id', projectId)
-
-      const res = await fetch(`${BASE}/speakers/${speakerId}/samples`, {
-        method: 'POST',
-        body: form
-      })
-      if (!res.ok) throw new Error(`Failed to add sample: ${res.status}`)
-      return res.json()
+    async (
+      _event,
+      payload: {
+        speakerId: number
+        source: string
+        audioBuffer: ArrayBuffer
+        projectId?: string
+        projectPath: string
+      }
+    ) => {
+      const { speakerId, source, audioBuffer, projectId, projectPath } = payload
+      const audioPath = saveRecording(projectPath, speakerId, audioBuffer)
+      return speechDB.addRecording(projectPath, speakerId, audioPath, source, projectId ?? null, null)
     }
   )
 
   ipcMain.handle(
     IPC.ACTIVE_LISTENING_LABEL_SPEAKER,
-    async (_event, payload: { utteranceId: number; speakerId?: number; speakerName?: string }) => {
-      const { utteranceId, speakerId, speakerName } = payload
-      const res = await fetch(`${BASE}/sessions/utterances/${utteranceId}/speaker`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ speaker_id: speakerId ?? null, speaker_name: speakerName ?? null })
+    (
+      _event,
+      payload: {
+        utteranceId: number
+        speakerId?: number
+        speakerName?: string
+        projectPath: string
+      }
+    ) =>
+      speechDB.labelSpeaker(
+        payload.projectPath,
+        payload.utteranceId,
+        payload.speakerId ?? null,
+        payload.speakerName ?? null
+      )
+  )
+
+  ipcMain.handle(
+    IPC.ACTIVE_LISTENING_TRAIN,
+    async (_event, projectPath: string) => {
+      const { job_id } = speechDB.createTrainingJob(projectPath)
+      speechDB.updateTrainingJob(projectPath, job_id, { status: 'running' })
+
+      // Run training async so we can return the job_id immediately
+      setImmediate(async () => {
+        try {
+          const recordings = speechDB.getLabeledRecordings(projectPath)
+          const { accuracy, deployed } = await train(projectPath, recordings, webmPathToWav, cleanupWav)
+          speechDB.updateTrainingJob(projectPath, job_id, {
+            status: 'complete',
+            accuracy,
+            deployed
+          })
+          if (deployed) {
+            speechDB.createModelVersion(projectPath, accuracy, recordings.length)
+          }
+        } catch (e) {
+          speechDB.updateTrainingJob(projectPath, job_id, {
+            status: 'failed',
+            error: e instanceof Error ? e.message : String(e)
+          })
+        }
       })
-      if (!res.ok) throw new Error(`Failed to label speaker: ${res.status}`)
-      return res.json()
+
+      return { job_id }
     }
   )
 
-  ipcMain.handle(IPC.ACTIVE_LISTENING_TRAIN, async () => {
-    const res = await fetch(`${BASE}/train`, { method: 'POST' })
-    if (!res.ok) throw new Error(`Failed to start training: ${res.status}`)
-    return res.json()
-  })
+  ipcMain.handle(
+    IPC.ACTIVE_LISTENING_TRAIN_STATUS,
+    (_event, payload: { jobId: number; projectPath: string }) => {
+      const job = speechDB.getTrainingJob(payload.projectPath, payload.jobId) as {
+        status: string
+        accuracy: number | null
+        deployed: number
+        error: string | null
+      } | undefined
+      if (!job) throw new Error(`Training job ${payload.jobId} not found`)
+      return {
+        status: job.status,
+        accuracy: job.accuracy,
+        deployed: !!job.deployed,
+        error: job.error
+      }
+    }
+  )
 
-  ipcMain.handle(IPC.ACTIVE_LISTENING_TRAIN_STATUS, async (_event, jobId: number) => {
-    const res = await fetch(`${BASE}/train/status/${jobId}`)
-    if (!res.ok) throw new Error(`Failed to get training status: ${res.status}`)
-    return res.json()
-  })
+  ipcMain.handle(
+    IPC.ACTIVE_LISTENING_TRAIN_HISTORY,
+    (_event, projectPath: string) => speechDB.getTrainingJobs(projectPath)
+  )
 
-  ipcMain.handle(IPC.ACTIVE_LISTENING_TRAIN_HISTORY, async () => {
-    const res = await fetch(`${BASE}/train/history`)
-    if (!res.ok) throw new Error(`Failed to get training history: ${res.status}`)
-    return res.json()
-  })
+  ipcMain.handle(
+    IPC.ACTIVE_LISTENING_CREATE_SESSION,
+    (_event, payload: { projectPath: string; projectId?: string }) =>
+      speechDB.createSession(payload.projectPath, payload.projectId ?? null)
+  )
 
-  ipcMain.handle(IPC.ACTIVE_LISTENING_CREATE_SESSION, async (_event, projectId?: string) => {
-    const res = await fetch(`${BASE}/sessions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project_id: projectId ?? null })
-    })
-    if (!res.ok) throw new Error(`Failed to create session: ${res.status}`)
-    return res.json()
-  })
+  ipcMain.handle(
+    IPC.ACTIVE_LISTENING_END_SESSION,
+    (_event, payload: { sessionId: number; projectPath: string }) =>
+      speechDB.endSession(payload.projectPath, payload.sessionId)
+  )
 
-  ipcMain.handle(IPC.ACTIVE_LISTENING_END_SESSION, async (_event, sessionId: number) => {
-    const res = await fetch(`${BASE}/sessions/${sessionId}/end`, { method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
-    })
-    if (!res.ok) throw new Error(`Failed to end session: ${res.status}`)
-    return res.json()
-  })
+  ipcMain.handle(
+    IPC.ACTIVE_LISTENING_GET_UTTERANCES,
+    (_event, payload: { sessionId: number; projectPath: string }) =>
+      speechDB.getUtterances(payload.projectPath, payload.sessionId)
+  )
 
-  ipcMain.handle(IPC.ACTIVE_LISTENING_GET_UTTERANCES, async (_event, sessionId: number) => {
-    const res = await fetch(`${BASE}/sessions/${sessionId}/utterances`)
-    if (!res.ok) throw new Error(`Failed to get utterances: ${res.status}`)
-    return res.json()
-  })
+  ipcMain.handle(
+    IPC.ACTIVE_LISTENING_GET_SESSIONS,
+    (_event, projectPath: string) => speechDB.getSessions(projectPath)
+  )
 
-  ipcMain.handle(IPC.ACTIVE_LISTENING_GET_SESSIONS, async () => {
-    const res = await fetch(`${BASE}/sessions`)
-    if (!res.ok) throw new Error(`Failed to get sessions: ${res.status}`)
-    return res.json()
-  })
+  ipcMain.handle(
+    IPC.ACTIVE_LISTENING_START_STREAM,
+    (_event, payload: { sessionId: number; projectPath: string }) => {
+      startSession(payload.sessionId, payload.projectPath)
+    }
+  )
+
+  ipcMain.on(
+    IPC.ACTIVE_LISTENING_AUDIO_CHUNK,
+    (_event, payload: { sessionId: number; audioBuffer: ArrayBuffer; projectPath: string }) => {
+      processChunk(payload.sessionId, payload.audioBuffer, payload.projectPath).catch(
+        (e) => console.error('[Speech] chunk error:', e)
+      )
+    }
+  )
+
+  ipcMain.handle(
+    IPC.ACTIVE_LISTENING_STOP_STREAM,
+    (_event, payload: { sessionId: number }) => {
+      stopSession(payload.sessionId)
+    }
+  )
 }

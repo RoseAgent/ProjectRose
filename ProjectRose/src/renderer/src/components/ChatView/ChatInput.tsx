@@ -90,9 +90,7 @@ export function ChatInput(): JSX.Element {
           onClick={handleMicClick}
           disabled={isLoading || micState === 'transcribing' || roseSpeechOnline === false}
           title={
-            roseSpeechOnline === false
-              ? 'RoseSpeech is offline — speech input unavailable'
-              : micState === 'recording' ? 'Stop recording' : 'Record voice message'
+            micState === 'recording' ? 'Stop recording' : 'Record voice message'
           }
         >
           {micState === 'transcribing' ? '…' : '🎙'}

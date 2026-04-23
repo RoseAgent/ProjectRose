@@ -5,7 +5,6 @@ import { registerAllHandlers } from './ipc'
 import { buildAppMenu } from './menu'
 import { disposeAllTerminals } from './services/terminalService'
 import { stopLsp } from './services/lspManager'
-import { startRoseSpeech, stopRoseSpeech } from './services/roseSpeechService'
 import { handleDeepLink } from './lib/authHandler'
 
 // Ensure single instance and capture deep links on Windows
@@ -38,8 +37,6 @@ app.whenReady().then(async () => {
   buildAppMenu()
   createWindow()
 
-  startRoseSpeech()
-
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -53,6 +50,5 @@ app.on('open-url', (_event, url) => {
 app.on('window-all-closed', () => {
   disposeAllTerminals()
   stopLsp()
-  stopRoseSpeech()
   if (process.platform !== 'darwin') app.quit()
 })

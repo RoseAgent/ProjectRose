@@ -37,15 +37,9 @@ function App(): JSX.Element {
   const setServiceStatus = useServiceStore((s) => s.setStatus)
   const [needsSetup, setNeedsSetup] = useState(false)
 
-  // Check service availability at startup
+  // Speech is now in-process — always available
   useEffect(() => {
-    window.api.checkServicesHealth().then((results) => {
-      const speechOk = results.find((r) => r.name === 'RoseSpeech')?.status === 'up'
-      setServiceStatus(speechOk)
-      if (!speechOk) toast.error('RoseSpeech is offline — voice input is unavailable.')
-    }).catch(() => {
-      setServiceStatus(false)
-    })
+    setServiceStatus(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load persisted settings on mount

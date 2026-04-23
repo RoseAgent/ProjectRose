@@ -1,7 +1,6 @@
 import { ipcMain, app } from 'electron'
 import { join, dirname } from 'path'
 import { readFile, writeFile, mkdir, readdir } from 'fs/promises'
-import { get as httpGet } from 'http'
 import { IPC } from '../../shared/ipcChannels'
 import { NavItem } from '../../shared/types'
 import { serviceStatus } from '../services/serviceStatus'
@@ -198,33 +197,6 @@ export async function writeSettings(settings: AppSettings, rootPath?: string): P
   }
 }
 
-// ── Service health checks ──
-
-interface ServiceHealth {
-  name: string
-  url: string
-  status: 'up' | 'down' | 'checking'
-  latency?: number
-}
-
-function pingService(name: string, url: string): Promise<ServiceHealth> {
-  return new Promise((resolve) => {
-    const start = Date.now()
-    const req = httpGet(url, (res) => {
-      res.destroy()
-      resolve({ name, url, status: 'up', latency: Date.now() - start })
-    })
-    req.setTimeout(3000, () => {
-      req.destroy()
-      resolve({ name, url, status: 'down' })
-    })
-    req.on('error', () => resolve({ name, url, status: 'down' }))
-  })
-}
-
-const SERVICES = [
-  { name: 'RoseSpeech', url: 'http://127.0.0.1:8040/' }
-]
 
 export function registerSettingsHandlers(): void {
   ipcMain.handle(IPC.SETTINGS_GET, (_event, rootPath?: string) => readSettings(rootPath))
@@ -237,8 +209,7 @@ export function registerSettingsHandlers(): void {
   })
 
   ipcMain.handle(IPC.HEALTH_CHECK_ALL, async () => {
-    const results = await Promise.all(SERVICES.map((s) => pingService(s.name, s.url)))
-    serviceStatus.roseSpeech = results.find((r) => r.name === 'RoseSpeech')?.status === 'up'
-    return results
+    serviceStatus.roseSpeech = true
+    return []
   })
 }
