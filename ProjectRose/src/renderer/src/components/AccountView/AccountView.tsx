@@ -7,16 +7,8 @@ interface AuthStatus {
   plan: string
 }
 
-interface UsageData {
-  plan: string
-  month: string
-  tokensUsed: number
-  tokensLimit: number
-}
-
 export function AccountView(): JSX.Element {
   const [status, setStatus] = useState<AuthStatus>({ loggedIn: false, email: '', plan: '' })
-  const [usage, setUsage] = useState<UsageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
 
@@ -24,31 +16,15 @@ export function AccountView(): JSX.Element {
     try {
       const s = await window.api.auth.getStatus()
       setStatus(s)
-      if (s.loggedIn) fetchUsage(s)
     } finally {
       setLoading(false)
     }
   }, [])
 
-  async function fetchUsage(s: AuthStatus) {
-    if (!s.loggedIn) return
-    try {
-      const settings = await window.api.getSettings()
-      const token = (settings as { providerKeys?: { projectrose?: { accessToken?: string } } })
-        ?.providerKeys?.projectrose?.accessToken
-      if (!token) return
-      const res = await fetch('https://projectrose.ai/api/account/usage', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      if (res.ok) setUsage(await res.json())
-    } catch { /* offline */ }
-  }
-
   useEffect(() => {
     fetchStatus()
     const cleanup = window.api.auth.onChanged((data) => {
       setStatus((prev) => ({ ...prev, loggedIn: data.loggedIn, email: data.email }))
-      if (!data.loggedIn) setUsage(null)
     })
     return cleanup
   }, [fetchStatus])
@@ -75,8 +51,6 @@ export function AccountView(): JSX.Element {
     return <div className={styles.container}><p className={styles.muted}>Loading...</p></div>
   }
 
-  const usagePct = usage ? Math.min(100, Math.round((usage.tokensUsed / usage.tokensLimit) * 100)) : 0
-
   return (
     <div className={styles.container}>
       <div className={styles.section}>
@@ -93,21 +67,9 @@ export function AccountView(): JSX.Element {
             </div>
             <div className={styles.row}>
               <span className={styles.field}>Plan</span>
-              <span className={styles.badge}>{(usage?.plan ?? status.plan ?? 'free').toUpperCase()}</span>
+              <span className={styles.badge}>{(status.plan ?? 'free').toUpperCase()}</span>
             </div>
           </div>
-
-          {usage && (
-            <div className={styles.section}>
-              <div className={styles.label}>USAGE — {usage.month}</div>
-              <div className={styles.progressTrack}>
-                <div className={styles.progressBar} style={{ width: `${usagePct}%` }} />
-              </div>
-              <div className={styles.usageText}>
-                {usage.tokensUsed.toLocaleString()} / {usage.tokensLimit.toLocaleString()} tokens ({usagePct}%)
-              </div>
-            </div>
-          )}
 
           <div className={styles.section}>
             <button
@@ -130,7 +92,7 @@ export function AccountView(): JSX.Element {
             onClick={handleLogin}
             disabled={actionLoading}
           >
-            {actionLoading ? 'OPENING BROWSER...' : 'SIGN IN WITH ACCOUNT →'}
+            {actionLoading ? 'SIGNING IN...' : 'SIGN IN →'}
           </button>
         </div>
       )}

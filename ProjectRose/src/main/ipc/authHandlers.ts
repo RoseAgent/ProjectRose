@@ -1,12 +1,10 @@
-import { ipcMain, shell } from 'electron'
+import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
-import { handleLogout, getAuthStatus } from '../lib/authHandler'
-
-const LOGIN_URL = 'https://projectrose.ai/login?redirect=projectrose://auth'
+import { openAuthWindow, handleLogout, getAuthStatus } from '../lib/authHandler'
 
 export function registerAuthHandlers(): void {
   ipcMain.handle(IPC.AUTH_LOGIN, async () => {
-    await shell.openExternal(LOGIN_URL)
+    await openAuthWindow()
   })
 
   ipcMain.handle(IPC.AUTH_LOGOUT, async () => {

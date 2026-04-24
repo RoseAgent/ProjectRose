@@ -7,7 +7,6 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { viewId: 'chat',      label: 'Agent',     visible: true },
   { viewId: 'editor',    label: 'Editor',    visible: true },
   { viewId: 'heartbeat', label: 'Heartbeat', visible: true },
-  { viewId: 'cost',      label: 'Cost',      visible: true },
   { viewId: 'settings',  label: 'Settings',  visible: true },
 ]
 
@@ -73,7 +72,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   defaultModelId: '',
   providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' }, projectrose: null },
   router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
-  hostMode: 'projectrose',
+  hostMode: 'self',
   extensions: {},
   loaded: false,
 

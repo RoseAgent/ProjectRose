@@ -422,68 +422,6 @@ export function SettingsView(): JSX.Element {
     return (
       <>
         <section className={styles.section}>
-          <div className={styles.sectionTitle}>Host</div>
-          <div className={styles.hostToggle}>
-            <button
-              type="button"
-              className={`${styles.hostToggleBtn} ${hostMode === 'projectrose' ? styles.hostToggleBtnActive : ''}`}
-              onClick={() => update({ hostMode: 'projectrose' })}
-            >
-              ProjectRose
-            </button>
-            <button
-              type="button"
-              className={`${styles.hostToggleBtn} ${hostMode === 'self' ? styles.hostToggleBtnActive : ''}`}
-              onClick={() => update({ hostMode: 'self' })}
-            >
-              Self
-            </button>
-          </div>
-        </section>
-
-        {hostMode === 'projectrose' && (
-          <section className={styles.section}>
-            <div className={styles.sectionTitle}>ProjectRose Account</div>
-            {authStatus.loggedIn ? (
-              <div className={styles.settingCard}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                  <div>
-                    <div className={styles.settingLabel}>Signed in as</div>
-                    <div style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{authStatus.email}</div>
-                  </div>
-                  <button
-                    type="button"
-                    className={styles.btnSecondary}
-                    onClick={async () => { setAuthLoading(true); await window.api.auth.logout(); setAuthLoading(false) }}
-                    disabled={authLoading}
-                  >
-                    {authLoading ? 'Signing out...' : 'Sign Out'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className={styles.settingCard}>
-                <div className={styles.settingLabel} style={{ marginBottom: 12 }}>
-                  Sign in to use the managed AI endpoint — no API keys needed.
-                </div>
-                <button
-                  type="button"
-                  className={styles.btnPrimary}
-                  disabled
-                >
-                  Sign In →
-                </button>
-                <div className={styles.settingDesc} style={{ marginTop: 8 }}>
-                  The ProjectRose hosted service is currently being built. Check back soon.
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
-        {hostMode === 'self' && (
-          <>
-          <section className={styles.section}>
           <div className={styles.sectionTitle}>Provider API Keys</div>
           <div className={styles.settingCard}>
             <div className={styles.settingLabel}>Anthropic Key</div>
@@ -653,9 +591,6 @@ export function SettingsView(): JSX.Element {
             + Add Model
           </button>
         </section>
-
-          </>
-        )}
 
         <section className={styles.section}>
           <div className={styles.sectionTitle}>Tools</div>

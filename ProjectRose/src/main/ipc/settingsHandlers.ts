@@ -82,7 +82,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultModelId: '',
   providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' }, projectrose: null },
   router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
-  hostMode: 'projectrose',
+  hostMode: 'self',
   extensions: {}
 }
 

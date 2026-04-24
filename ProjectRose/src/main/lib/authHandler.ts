@@ -1,10 +1,10 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, session } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
 import { readSettings, writeSettings } from '../ipc/settingsHandlers'
-import type { ModelConfig } from '../ipc/settingsHandlers'
 
-const MANAGED_MODEL_ID = 'projectrose-account'
-const API_BASE_URL = 'https://projectrose.ai/api/ai'
+const LOCAL_BASE_URL = 'http://localhost:8000'
+const SESSION_COOKIE = 'projectrose_session'
+const REFRESH_COOKIE = 'projectrose_refresh'
 
 function notifyRenderer(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -12,60 +12,79 @@ function notifyRenderer(channel: string, payload: unknown): void {
   }
 }
 
-export async function handleDeepLink(url: string): Promise<void> {
-  try {
-    const parsed = new URL(url)
-    if (parsed.hostname !== 'auth') return
+export async function openAuthWindow(): Promise<void> {
+  const [parent] = BrowserWindow.getAllWindows()
 
-    const accessToken = parsed.searchParams.get('access_token')
-    const refreshToken = parsed.searchParams.get('refresh_token')
-    const email = parsed.searchParams.get('email') ?? ''
+  const authWin = new BrowserWindow({
+    width: 480,
+    height: 680,
+    parent,
+    modal: true,
+    autoHideMenuBar: true,
+    title: 'Sign In — ProjectRose',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  })
 
-    if (!accessToken || !refreshToken) return
+  authWin.loadURL(`${LOCAL_BASE_URL}/auth`)
 
-    const settings = await readSettings()
+  authWin.webContents.on('did-navigate', async (_event, url) => {
+    if (!url.includes('/dashboard')) return
 
-    const managedModel: ModelConfig = {
-      id: MANAGED_MODEL_ID,
-      displayName: 'ProjectRose Account',
-      provider: 'projectrose',
-      modelName: 'managed',
-      baseUrl: API_BASE_URL,
-      tags: ['account']
+    try {
+      const [sessionCookie] = await session.defaultSession.cookies.get({ url: LOCAL_BASE_URL, name: SESSION_COOKIE })
+      const [refreshCookie] = await session.defaultSession.cookies.get({ url: LOCAL_BASE_URL, name: REFRESH_COOKIE })
+
+      const accessToken = sessionCookie?.value
+      const refreshToken = refreshCookie?.value ?? ''
+      if (!accessToken) return
+
+      const res = await fetch(`${LOCAL_BASE_URL}/api/me`, {
+        headers: { Cookie: `${SESSION_COOKIE}=${accessToken}` },
+      })
+      if (!res.ok) return
+
+      const data = await res.json() as { user: Record<string, string> }
+      const email = data.user.email ?? ''
+      const plan = data.user.plan_key ?? 'free'
+
+      const settings = await readSettings()
+      await writeSettings({
+        ...settings,
+        providerKeys: {
+          ...settings.providerKeys,
+          projectrose: { accessToken, refreshToken, email, plan },
+        },
+      })
+
+      notifyRenderer(IPC.AUTH_CHANGED, { loggedIn: true, email })
+
+      if (parent && !parent.isDestroyed()) { if (parent.isMinimized()) parent.restore(); parent.focus() }
+    } catch { /* ignore network/parse errors */ } finally {
+      if (!authWin.isDestroyed()) authWin.close()
     }
-
-    const models = settings.models.filter((m) => m.id !== MANAGED_MODEL_ID)
-    models.unshift(managedModel)
-
-    await writeSettings({
-      ...settings,
-      models,
-      providerKeys: {
-        ...settings.providerKeys,
-        projectrose: { accessToken, refreshToken, email, plan: 'free' }
-      }
-    })
-
-    notifyRenderer(IPC.AUTH_CHANGED, { loggedIn: true, email })
-
-    const [win] = BrowserWindow.getAllWindows()
-    if (win) { if (win.isMinimized()) win.restore(); win.focus() }
-  } catch { /* ignore malformed deep links */ }
+  })
 }
 
 export async function handleLogout(): Promise<void> {
   const settings = await readSettings()
-  const models = settings.models.filter((m) => m.id !== MANAGED_MODEL_ID)
 
-  const defaultModelId = settings.defaultModelId === MANAGED_MODEL_ID
-    ? (models[0]?.id ?? '')
-    : settings.defaultModelId
+  try {
+    const token = settings.providerKeys.projectrose?.accessToken
+    if (token) {
+      await fetch(`${LOCAL_BASE_URL}/auth/signout`, {
+        headers: { Cookie: `${SESSION_COOKIE}=${token}` },
+      }).catch(() => {})
+    }
+    await session.defaultSession.cookies.remove(LOCAL_BASE_URL, SESSION_COOKIE)
+    await session.defaultSession.cookies.remove(LOCAL_BASE_URL, REFRESH_COOKIE)
+  } catch { /* best effort */ }
 
   await writeSettings({
     ...settings,
-    models,
-    defaultModelId,
-    providerKeys: { ...settings.providerKeys, projectrose: null }
+    providerKeys: { ...settings.providerKeys, projectrose: null },
   })
 
   notifyRenderer(IPC.AUTH_CHANGED, { loggedIn: false, email: '' })

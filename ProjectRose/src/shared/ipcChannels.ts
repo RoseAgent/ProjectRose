@@ -125,10 +125,6 @@ export const IPC = {
   EMAIL_GET_META:       'email:getMeta',
   EMAIL_SET_MSG_FOLDER: 'email:setMessageFolder',
 
-  // Cost tracking
-  COST_GET_LOGS: 'cost:getLogs',
-  COST_USAGE_EVENT: 'cost:usageEvent',
-
   // Chat Sessions
   SESSION_LIST: 'session:list',
   SESSION_LOAD: 'session:load',

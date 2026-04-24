@@ -335,17 +335,6 @@ const api = {
       ipcRenderer.invoke(IPC.EMAIL_SET_MSG_FOLDER, uid, folder)
   },
 
-  // Cost tracking
-  cost: {
-    getLogs: (rootPath: string): Promise<import('../shared/roseModelTypes').CostEntry[]> =>
-      ipcRenderer.invoke(IPC.COST_GET_LOGS, rootPath) as Promise<import('../shared/roseModelTypes').CostEntry[]>,
-    onUsageEvent: (callback: (entry: import('../shared/roseModelTypes').CostEntry) => void): (() => void) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const handler = (_e: unknown, entry: any): void => callback(entry)
-      ipcRenderer.on(IPC.COST_USAGE_EVENT, handler)
-      return () => { ipcRenderer.removeListener(IPC.COST_USAGE_EVENT, handler) }
-    }
-  },
 
   // Chat Sessions
   session: {

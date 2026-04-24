@@ -13,7 +13,6 @@ import { getAllBuiltinExtensionTools } from '../extensions/builtinTools'
 import { buildRoseMd } from '../ipc/roseSetupHandlers'
 import { IPC } from '../../shared/ipcChannels'
 import type { Message } from '../../shared/roseModelTypes'
-import { logCostEntry, calcCostUSD } from './costTracker'
 
 let activeAbortController: AbortController | null = null
 
@@ -101,10 +100,25 @@ function extractErrorMessage(err: unknown): string {
 // ── Model selection ──
 
 async function selectModel(userMessage: string, settings: AppSettings): Promise<ModelConfig> {
-  const { models, defaultModelId, router } = settings
+  const { models, defaultModelId, router, hostMode, providerKeys } = settings
   if (models.length === 0) {
     throw new Error('No models configured. Please add a model in Settings → Chat.')
   }
+
+  if (hostMode === 'projectrose') {
+    if (!providerKeys.projectrose?.accessToken) {
+      throw new Error('Sign in to your ProjectRose account to use the managed AI endpoint.')
+    }
+    return {
+      id: 'projectrose-account',
+      displayName: 'ProjectRose Account',
+      provider: 'projectrose',
+      modelName: 'managed',
+      baseUrl: 'http://localhost:8000/api/openai',
+      tags: ['account'],
+    }
+  }
+
   const defaultModel = models.find((m) => m.id === defaultModelId) ?? models[0]
   if (models.length === 1 || !router.enabled || !router.modelName) return defaultModel
 
@@ -181,17 +195,6 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
       activeModel = defaultModel
     }
 
-    const entry = {
-      timestamp: new Date().toISOString(),
-      model: activeModel.modelName,
-      provider: activeModel.provider,
-      inputTokens: streamResult.inputTokens,
-      outputTokens: streamResult.outputTokens,
-      costUSD: calcCostUSD(activeModel.modelName, streamResult.inputTokens, streamResult.outputTokens)
-    }
-    logCostEntry(rootPath, entry).catch(() => {})
-    notifyRenderer(IPC.COST_USAGE_EVENT, entry)
-
     return { content: streamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay: activeModelDisplay }
   } finally {
     activeAbortController = null
@@ -214,17 +217,6 @@ export async function heartbeatChat(messages: Message[], rootPath: string): Prom
     providerKeys: settings.providerKeys,
     projectRoot: rootPath
   })
-
-  const entry = {
-    timestamp: new Date().toISOString(),
-    model: selectedModel.modelName,
-    provider: selectedModel.provider,
-    inputTokens: streamResult.inputTokens,
-    outputTokens: streamResult.outputTokens,
-    costUSD: calcCostUSD(selectedModel.modelName, streamResult.inputTokens, streamResult.outputTokens)
-  }
-  logCostEntry(rootPath, entry).catch(() => {})
-  notifyRenderer(IPC.COST_USAGE_EVENT, entry)
 
   const modelDisplay = selectedModel.displayName || selectedModel.modelName
   return { content: streamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay }
