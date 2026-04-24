@@ -231,6 +231,18 @@ const api = {
     return () => { ipcRenderer.removeListener(IPC.AI_STREAM_RESET, handler) }
   },
 
+  aiCancelGeneration: (): Promise<void> =>
+    ipcRenderer.invoke(IPC.AI_CANCEL),
+
+  onAiAskUser: (callback: (data: { questionId: string; question: string; options: string[] }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { questionId: string; question: string; options: string[] }): void => callback(data)
+    ipcRenderer.on(IPC.AI_ASK_USER, handler)
+    return () => { ipcRenderer.removeListener(IPC.AI_ASK_USER, handler) }
+  },
+
+  aiAskUserResponse: (questionId: string, answer: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.AI_ASK_USER_RESPONSE, { questionId, answer }),
+
   // Indexing / LSP startup
   indexProject: (rootPath: string): Promise<{ indexed: number; total: number; error?: string }> =>
     ipcRenderer.invoke(IPC.INDEXING_PROJECT, rootPath),
@@ -321,6 +333,18 @@ const api = {
       ipcRenderer.invoke(IPC.EMAIL_GET_META),
     setMessageFolder: (uid: number, folder: string): Promise<void> =>
       ipcRenderer.invoke(IPC.EMAIL_SET_MSG_FOLDER, uid, folder)
+  },
+
+  // Cost tracking
+  cost: {
+    getLogs: (rootPath: string): Promise<import('../shared/roseModelTypes').CostEntry[]> =>
+      ipcRenderer.invoke(IPC.COST_GET_LOGS, rootPath) as Promise<import('../shared/roseModelTypes').CostEntry[]>,
+    onUsageEvent: (callback: (entry: import('../shared/roseModelTypes').CostEntry) => void): (() => void) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = (_e: unknown, entry: any): void => callback(entry)
+      ipcRenderer.on(IPC.COST_USAGE_EVENT, handler)
+      return () => { ipcRenderer.removeListener(IPC.COST_USAGE_EVENT, handler) }
+    }
   },
 
   // Chat Sessions

@@ -44,6 +44,10 @@ export async function handleReadFile(input: Record<string, unknown>, projectRoot
     ? filePath
     : join(projectRoot, filePath)
 
+  if (basename(absolute) === '.env' || basename(absolute).startsWith('.env.')) {
+    return 'Access denied: .env files cannot be read.'
+  }
+
   let content: string
   let tokenBase: string
   try {
@@ -76,6 +80,7 @@ export async function handleWriteFile(input: Record<string, unknown>, projectRoo
   }
 
   const content = String(input.content || '')
+  await mkdir(dirname(absolute), { recursive: true })
   await writeFile(absolute, content, 'utf-8')
   modifiedFiles.push(absolute)
   notifyRenderer(IPC.AI_FILE_MODIFIED, { path: absolute })
@@ -182,9 +187,6 @@ export async function handleFindReferences(input: Record<string, unknown>): Prom
   return JSON.stringify({ message: 'No language server available or symbol not found: ' + symbolName })
 }
 
-export async function handleGetProjectOverview(): Promise<string> {
-  return 'Project overview is not available in this version. Use search_code to find specific symbols.'
-}
 
 export async function handleRunCommand(input: Record<string, unknown>, projectRoot: string): Promise<string> {
   const command = String(input.command || '')

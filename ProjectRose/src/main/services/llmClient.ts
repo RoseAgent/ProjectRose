@@ -13,7 +13,6 @@ import {
   handleEditFile,
   handleListDirectory,
   handleGrep,
-  handleGetProjectOverview,
   handleRunCommand,
   handleMemoryWrite,
   handleMemoryRead,
@@ -32,6 +31,19 @@ function notifyRenderer(channel: string, payload: unknown): void {
       win.webContents.send(channel, payload)
     }
   }
+}
+
+// Ask-user pending promises — keyed by toolCallId
+const pendingAskUser = new Map<string, (answer: string) => void>()
+
+export function resolveAskUserQuestion(questionId: string, answer: string): void {
+  pendingAskUser.get(questionId)?.(answer)
+  pendingAskUser.delete(questionId)
+}
+
+export function cancelAllAskUserQuestions(): void {
+  for (const resolve of pendingAskUser.values()) resolve('[cancelled]')
+  pendingAskUser.clear()
 }
 
 export type ProviderKeys = {
@@ -172,11 +184,6 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
       }),
       execute: wrapExecute('run_command', handleRunCommand, projectRoot)
     }),
-    get_project_overview: tool({
-      description: 'Get a structured map of the entire project: every file with its language, symbols (functions, classes, methods), and dependency relationships.',
-      inputSchema: z.object({}),
-      execute: wrapExecute('get_project_overview', () => handleGetProjectOverview(), projectRoot)
-    }),
     memory_read: tool({
       description: 'Read the full contents of a specific memory drawer. Use this after memory_list or memory_search to retrieve the full content of a drawer.',
       inputSchema: z.object({
@@ -218,6 +225,20 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
         drawer: z.string().describe('Drawer filename without .md extension')
       }),
       execute: wrapExecute('memory_delete', handleMemoryDelete, projectRoot)
+    }),
+    ask_user: tool({
+      description: 'Ask the user a clarifying question and wait for their response before continuing. Use when you need input or a decision from the user. Provide 2–6 multiple-choice options when relevant.',
+      inputSchema: z.object({
+        question: z.string().describe('The question to ask the user'),
+        options: z.array(z.string()).optional().describe('2–6 multiple-choice options for the user to select from')
+      }),
+      execute: async (input, options) => {
+        const id = options.toolCallId
+        return new Promise<string>((resolve) => {
+          pendingAskUser.set(id, resolve)
+          notifyRenderer(IPC.AI_ASK_USER, { questionId: id, question: input.question, options: input.options ?? [] })
+        })
+      }
     }),
   }
 }
@@ -270,6 +291,12 @@ function buildPythonTools(pythonTools: PythonToolMeta[], projectRoot: string): R
   return result
 }
 
+export interface StreamResult {
+  content: string
+  inputTokens: number
+  outputTokens: number
+}
+
 export async function streamChat(params: {
   messages: Message[]
   systemPrompt: string
@@ -279,8 +306,9 @@ export async function streamChat(params: {
   providerKeys: ProviderKeys
   projectRoot: string
   disabledCoreTools?: string[]
-}): Promise<string> {
-  const { messages, systemPrompt, pythonTools, extensionTools, model: modelConfig, providerKeys, projectRoot, disabledCoreTools } = params
+  abortSignal?: AbortSignal
+}): Promise<StreamResult> {
+  const { messages, systemPrompt, pythonTools, extensionTools, model: modelConfig, providerKeys, projectRoot, disabledCoreTools, abortSignal } = params
   const model = resolveModel(modelConfig, providerKeys)
   const tools = {
     ...buildCoreTools(projectRoot),
@@ -299,10 +327,13 @@ export async function streamChat(params: {
     system: systemPrompt,
     messages: coreMessages,
     tools,
-    stopWhen: stepCountIs(100)
+    stopWhen: stepCountIs(100),
+    abortSignal
   })
 
   let accumulatedText = ''
+  let inputTokens = 0
+  let outputTokens = 0
   for await (const chunk of result.fullStream) {
     switch (chunk.type) {
       case 'text-delta':
@@ -314,6 +345,12 @@ export async function streamChat(params: {
       case 'reasoning-delta':
         if (chunk.text) notifyRenderer(IPC.AI_THINKING, { content: chunk.text })
         break
+      case 'finish':
+        if (chunk.usage) {
+          inputTokens = chunk.usage.inputTokens ?? 0
+          outputTokens = chunk.usage.outputTokens ?? 0
+        }
+        break
       case 'error': {
         const e = chunk.error
         if (e instanceof Error) throw e
@@ -324,43 +361,9 @@ export async function streamChat(params: {
       }
     }
   }
-  return accumulatedText
+  return { content: accumulatedText, inputTokens, outputTokens }
 }
 
-export async function createChecklist(
-  userMessage: string,
-  modelConfig: ModelConfig,
-  providerKeys: ProviderKeys
-): Promise<string> {
-  const model = resolveModel(modelConfig, providerKeys)
-  const { text } = await generateText({
-    model,
-    system: 'You are a task planning assistant. Create a concise plan and checklist for the given request.',
-    messages: [{
-      role: 'user' as const,
-      content: `Create a plan and checklist for the following request:\n\n${userMessage}\n\nUse this format exactly:\n\nPlan: <brief approach>\n\nChecklist:\n- [ ] task 1\n- [ ] task 2`
-    }]
-  })
-  return text
-}
-
-export async function evaluateChecklist(
-  originalChecklist: string,
-  responseText: string,
-  modelConfig: ModelConfig,
-  providerKeys: ProviderKeys
-): Promise<string> {
-  const model = resolveModel(modelConfig, providerKeys)
-  const { text } = await generateText({
-    model,
-    system: 'You are a task completion evaluator. Determine which checklist items are incomplete based on the agent\'s work.',
-    messages: [{
-      role: 'user' as const,
-      content: `Original checklist:\n${originalChecklist}\n\nAgent's last response:\n${responseText}\n\nBased on the agent's work, which items from the checklist are NOT yet complete? If all items are done, respond exactly: DONE. If some remain, respond with only the incomplete items as a markdown checklist.`
-    }]
-  })
-  return text
-}
 
 export async function compressMessages(
   messages: Message[],

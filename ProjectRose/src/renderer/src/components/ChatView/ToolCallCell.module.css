@@ -131,3 +131,46 @@
   font-style: italic;
   padding: 4px 0;
 }
+
+.filePath {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.diff {
+  font-family: var(--font-family-mono), monospace;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin: 0;
+  max-height: 40vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--color-toggle-bg);
+}
+
+.diffRemoved {
+  display: block;
+  color: #ef9a9a;
+  background: rgba(239, 83, 80, 0.12);
+  margin: 0 -8px;
+  padding: 0 8px;
+}
+
+.diffAdded {
+  display: block;
+  color: #a5d6a7;
+  background: rgba(102, 187, 106, 0.12);
+  margin: 0 -8px;
+  padding: 0 8px;
+}
+
+.diffSign {
+  display: inline-block;
+  width: 14px;
+  opacity: 0.6;
+  user-select: none;
+}

@@ -17,6 +17,7 @@ import { registerProjectSettingsHandlers } from './projectSettingsHandlers'
 import { registerDiscordHandlers } from './discordHandlers'
 import { registerExtensionHandlers } from './extensionHandlers'
 import { registerAuthHandlers } from './authHandlers'
+import { registerCostHandlers } from './costHandlers'
 
 export function registerAllHandlers(): void {
   registerFileHandlers()
@@ -38,4 +39,5 @@ export function registerAllHandlers(): void {
   registerDiscordHandlers()
   registerExtensionHandlers()
   registerAuthHandlers()
+  registerCostHandlers()
 }

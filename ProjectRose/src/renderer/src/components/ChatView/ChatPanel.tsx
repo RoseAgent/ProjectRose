@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { useChatStore } from '../../stores/useChatStore'
-import type { ChatMessage, ToolMessage } from '../../stores/useChatStore'
+import type { ChatMessage, ToolMessage, AskUserMessage } from '../../stores/useChatStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { ChatCell } from './ChatCell'
 import { ToolCallGroupCell } from './ToolCallGroupCell'
+import { AskUserCell } from './AskUserCell'
 import { SystemPromptCell } from './SystemPromptCell'
 import { ChatInput } from './ChatInput'
 import styles from './ChatPanel.module.css'
@@ -60,6 +61,8 @@ export function ChatPanel(): JSX.Element {
             {items.map((item) =>
               item.type === 'tool-group'
                 ? <ToolCallGroupCell key={item.key} messages={item.messages} />
+                : item.message.role === 'ask_user'
+                ? <AskUserCell key={item.message.id} message={item.message as AskUserMessage} />
                 : <ChatCell key={item.message.id} message={item.message} />
             )}
             {isLoading && (

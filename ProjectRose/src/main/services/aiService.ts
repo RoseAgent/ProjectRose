@@ -4,14 +4,24 @@ import { prPath } from '../lib/projectPaths'
 import { BrowserWindow } from 'electron'
 import { setActiveProjectRoot } from './toolHandlers'
 import { discoverPythonTools, getModifiedFiles, resetModifiedFiles } from './toolHandlers'
-import { streamChat, compressMessages, routeRequest, createChecklist, evaluateChecklist } from './llmClient'
+import { streamChat, compressMessages, routeRequest, cancelAllAskUserQuestions } from './llmClient'
 import { readSettings } from '../ipc/settingsHandlers'
 import type { AppSettings, ModelConfig } from '../ipc/settingsHandlers'
 import { readProjectSettings, CORE_TOOL_NAMES } from '../ipc/projectSettingsHandlers'
 import { listInstalledExtensions } from '../ipc/extensionHandlers'
 import { getAllBuiltinExtensionTools } from '../extensions/builtinTools'
+import { buildRoseMd } from '../ipc/roseSetupHandlers'
 import { IPC } from '../../shared/ipcChannels'
 import type { Message } from '../../shared/roseModelTypes'
+import { logCostEntry, calcCostUSD } from './costTracker'
+
+let activeAbortController: AbortController | null = null
+
+export function cancelActiveChat(): void {
+  activeAbortController?.abort()
+  cancelAllAskUserQuestions()
+  activeAbortController = null
+}
 
 function notifyRenderer(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -21,43 +31,25 @@ function notifyRenderer(channel: string, payload: unknown): void {
 
 // ── System prompt ──
 
-const FALLBACK_AGENT_MD = `You are ProjectRose AI, a coding assistant embedded in the ProjectRose IDE.
-
-Reply in plain text. Only use tools when the user explicitly asks you to do something — read a file, run a command, search the code, etc. Never call tools for greetings, questions, or conversational messages.
-
-## Memory Palace
-
-A memory palace is your long-term memory — a structured collection of notes that persists across conversations. It is organized as wings → rooms → drawers. Wings group broad domains (people, code, project), rooms hold related sub-topics within a wing, and drawers are individual markdown documents. Everything lives under \`.projectrose/memory/\`. Always use your memory tools to navigate and update it — never use read_file or list_directory on the memory directory directly.
-
-At the start of every conversation:
-1. List your palace to see what you already know.
-2. Search for context if the user's message references a topic, person, or technology you may have encountered before.
-3. Read any relevant drawers to load their full content.
-
-During conversation, write to memory immediately when:
-- The user mentions a preference, constraint, or decision
-- You learn something new about the codebase, project, or architecture
-- A new person or team is introduced
-- The user corrects you or changes direction
-
-**Naming — always specific, never generic:**
-- Wing names must be precise. For project-specific work, name the wing after the actual project (e.g. `wing_projectrose`, `wing_mywebapp`) — never `wing_project`.
-- Room names must describe the exact sub-topic (e.g. `room_auth_redesign`, `room_payment_api`, `room_onboarding_flow`) — never broad labels like `room_architecture` or `room_code`.
-- If the name could apply to any project or session, it is too generic and will pollute future conversations. Make it specific enough that it could only refer to this exact topic.
-
-Delete drawers when information becomes stale or outdated.
-`
-
 export async function buildAgentMd(rootPath: string): Promise<string> {
   const os = platform() === 'win32' ? 'Windows' : platform() === 'darwin' ? 'macOS' : 'Linux'
   const shell = platform() === 'win32' ? 'PowerShell' : 'bash'
   const date = new Date().toISOString().split('T')[0]
 
-  let rose = FALLBACK_AGENT_MD
+  let rose: string
   try {
     rose = await readFile(prPath(rootPath, 'ROSE.md'), 'utf-8')
   } catch {
-    // ROSE.md not yet created — use fallback
+    const settings = await readSettings(rootPath).catch(() => ({ userName: '', agentName: '' }))
+    rose = buildRoseMd(
+      settings.agentName || 'Rose',
+      'A coding assistant embedded in the ProjectRose IDE.',
+      'high',
+      settings.userName || 'User',
+      'adaptive',
+      'adaptive',
+      'balanced'
+    )
   }
 
   let identitySection = ''
@@ -78,6 +70,12 @@ export async function buildAgentMd(rootPath: string): Promise<string> {
 - Shell: ${shell} (run_command uses ${shell})
 - Use ${shell} syntax for all commands (e.g. ${platform() === 'win32' ? 'Get-ChildItem, Get-Content, Test-Path' : 'ls, cat, test'})
 - Today's date: ${date}
+
+## CRITICAL — Code output rule
+Never write code or file contents in your response text. Every line of code must be written to disk using write_file or edit_file. If you catch yourself about to open a code block in your response, stop immediately and use the tools instead. This rule has no exceptions.
+
+## CRITICAL — Question rule
+Never ask the user a question in your response text. If you need clarification or a decision before proceeding, you must use the ask_user tool — that is its sole purpose. Asking questions as plain text is broken behaviour: the user cannot respond to them in a structured way and it stalls the task. If you are uncertain, make a reasonable assumption and proceed, or use ask_user. Never do both.
 `
 }
 
@@ -133,68 +131,71 @@ export interface ChatResponse {
 }
 
 export async function chat(messages: Message[], rootPath: string): Promise<ChatResponse> {
-  setActiveProjectRoot(rootPath)
-  resetModifiedFiles()
-
-  const settings = await readSettings(rootPath)
-  const userMessage = messages.at(-1)?.content ?? ''
-  const selectedModel = await selectModel(userMessage, settings)
-  const defaultModel = settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
-  const modelDisplay = selectedModel.displayName || selectedModel.modelName
-  notifyRenderer(IPC.AI_MODEL_SELECTED, { modelDisplay })
-
-  const pythonTools = await discoverPythonTools(rootPath)
-  const systemPrompt = await buildAgentMd(rootPath)
-
-  const projectSettings = await readProjectSettings(rootPath)
-  const { disabledTools, maxTaskRetries } = projectSettings
-  const filteredPythonTools = pythonTools.filter((t) => !disabledTools.includes(t.name))
-  const disabledCoreTools = disabledTools.filter((n) => CORE_TOOL_NAMES.has(n))
-
-  const installed = await listInstalledExtensions(rootPath)
-  const enabledExtIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
-  const extensionTools = getAllBuiltinExtensionTools(enabledExtIds)
-    .filter((t) => !disabledTools.includes(t.name))
-
-  const checklistMemory = await createChecklist(userMessage, selectedModel, settings.providerKeys)
-  const chatMessages: Message[] = [...messages, { role: 'user', content: checklistMemory }]
-  const streamParams = { systemPrompt, pythonTools: filteredPythonTools, extensionTools, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools }
-
-  let responseText: string
-  let activeModel = selectedModel
-  let activeModelDisplay = modelDisplay
+  const abortController = new AbortController()
+  activeAbortController = abortController
 
   try {
-    responseText = await streamChat({ messages: chatMessages, model: selectedModel, ...streamParams })
-  } catch (err) {
-    const isAlreadyDefault = !defaultModel || selectedModel.id === defaultModel.id
-    if (isAlreadyDefault) throw err
-
-    const errorMessage = extractErrorMessage(err)
-    const fallbackDisplay = defaultModel.displayName || defaultModel.modelName
-    notifyRenderer(IPC.AI_STREAM_RESET, { errorMessage, fallbackModel: fallbackDisplay })
+    setActiveProjectRoot(rootPath)
     resetModifiedFiles()
 
-    responseText = await streamChat({ messages: chatMessages, model: defaultModel, ...streamParams })
-    activeModel = defaultModel
-    activeModelDisplay = fallbackDisplay
+    const settings = await readSettings(rootPath)
+    const userMessage = messages.at(-1)?.content ?? ''
+    const selectedModel = await selectModel(userMessage, settings)
+    const defaultModel = settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
+    const modelDisplay = selectedModel.displayName || selectedModel.modelName
+    notifyRenderer(IPC.AI_MODEL_SELECTED, { modelDisplay })
+
+    const pythonTools = await discoverPythonTools(rootPath)
+    const systemPrompt = await buildAgentMd(rootPath)
+
+    const projectSettings = await readProjectSettings(rootPath)
+    const { disabledTools } = projectSettings
+    const filteredPythonTools = pythonTools.filter((t) => !disabledTools.includes(t.name))
+    const disabledCoreTools = disabledTools.filter((n) => CORE_TOOL_NAMES.has(n))
+
+    const installed = await listInstalledExtensions(rootPath)
+    const enabledExtIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
+    const extensionTools = getAllBuiltinExtensionTools(enabledExtIds)
+      .filter((t) => !disabledTools.includes(t.name))
+
+    const streamParams = { systemPrompt, pythonTools: filteredPythonTools, extensionTools, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools, abortSignal: abortController.signal }
+
+    let streamResult: Awaited<ReturnType<typeof streamChat>>
+    let activeModelDisplay = modelDisplay
+    let activeModel = selectedModel
+
+    try {
+      streamResult = await streamChat({ messages, model: selectedModel, ...streamParams })
+    } catch (err) {
+      if (abortController.signal.aborted) throw err
+      const isAlreadyDefault = !defaultModel || selectedModel.id === defaultModel.id
+      if (isAlreadyDefault) throw err
+
+      const errorMessage = extractErrorMessage(err)
+      const fallbackDisplay = defaultModel.displayName || defaultModel.modelName
+      notifyRenderer(IPC.AI_STREAM_RESET, { errorMessage, fallbackModel: fallbackDisplay })
+      resetModifiedFiles()
+
+      streamResult = await streamChat({ messages, model: defaultModel, ...streamParams })
+      activeModelDisplay = fallbackDisplay
+      activeModel = defaultModel
+    }
+
+    const entry = {
+      timestamp: new Date().toISOString(),
+      model: activeModel.modelName,
+      provider: activeModel.provider,
+      inputTokens: streamResult.inputTokens,
+      outputTokens: streamResult.outputTokens,
+      costUSD: calcCostUSD(activeModel.modelName, streamResult.inputTokens, streamResult.outputTokens)
+    }
+    logCostEntry(rootPath, entry).catch(() => {})
+    notifyRenderer(IPC.COST_USAGE_EVENT, entry)
+
+    return { content: streamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay: activeModelDisplay }
+  } finally {
+    activeAbortController = null
   }
-
-  let currentMessages = chatMessages
-  for (let attempt = 0; attempt < maxTaskRetries; attempt++) {
-    const evaluation = await evaluateChecklist(checklistMemory, responseText, activeModel, settings.providerKeys)
-    if (evaluation.trim() === 'DONE') break
-
-    const injectionContent = `*Update Checklist*\nSome tasks are not yet complete:\n${evaluation}`
-    currentMessages = [
-      ...currentMessages,
-      { role: 'assistant', content: responseText },
-      { role: 'user', content: injectionContent }
-    ]
-    responseText = await streamChat({ messages: currentMessages, model: activeModel, ...streamParams })
-  }
-
-  return { content: responseText, modifiedFiles: getModifiedFiles(), modelDisplay: activeModelDisplay }
 }
 
 export async function heartbeatChat(messages: Message[], rootPath: string): Promise<ChatResponse> {
@@ -205,38 +206,28 @@ export async function heartbeatChat(messages: Message[], rootPath: string): Prom
   const userMessage = messages.at(-1)?.content ?? ''
   const selectedModel = await selectModel(userMessage, settings)
 
-  const projectSettings = await readProjectSettings(rootPath)
-  const { maxTaskRetries } = projectSettings
-
-  const heartbeatUserMessage = messages.at(-1)?.content ?? ''
-  const checklistMemory = await createChecklist(heartbeatUserMessage, selectedModel, settings.providerKeys)
-  const chatMessages: Message[] = [...messages, { role: 'user', content: checklistMemory }]
-  const heartbeatStreamParams = {
+  const streamResult = await streamChat({
+    messages,
     systemPrompt: HEARTBEAT_SYSTEM_PROMPT,
-    pythonTools: [] as never[],
+    pythonTools: [],
     model: selectedModel,
     providerKeys: settings.providerKeys,
     projectRoot: rootPath
+  })
+
+  const entry = {
+    timestamp: new Date().toISOString(),
+    model: selectedModel.modelName,
+    provider: selectedModel.provider,
+    inputTokens: streamResult.inputTokens,
+    outputTokens: streamResult.outputTokens,
+    costUSD: calcCostUSD(selectedModel.modelName, streamResult.inputTokens, streamResult.outputTokens)
   }
-
-  let responseText = await streamChat({ messages: chatMessages, ...heartbeatStreamParams })
-
-  let currentMessages = chatMessages
-  for (let attempt = 0; attempt < maxTaskRetries; attempt++) {
-    const evaluation = await evaluateChecklist(checklistMemory, responseText, selectedModel, settings.providerKeys)
-    if (evaluation.trim() === 'DONE') break
-
-    const injectionContent = `*Update Checklist*\nSome tasks are not yet complete:\n${evaluation}`
-    currentMessages = [
-      ...currentMessages,
-      { role: 'assistant', content: responseText },
-      { role: 'user', content: injectionContent }
-    ]
-    responseText = await streamChat({ messages: currentMessages, ...heartbeatStreamParams })
-  }
+  logCostEntry(rootPath, entry).catch(() => {})
+  notifyRenderer(IPC.COST_USAGE_EVENT, entry)
 
   const modelDisplay = selectedModel.displayName || selectedModel.modelName
-  return { content: responseText, modifiedFiles: getModifiedFiles(), modelDisplay }
+  return { content: streamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay }
 }
 
 export async function compressHistory(messages: Message[]): Promise<Message[]> {

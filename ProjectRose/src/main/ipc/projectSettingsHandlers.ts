@@ -6,14 +6,13 @@ import { prPath } from '../lib/projectPaths'
 
 export interface ProjectSettings {
   disabledTools: string[]
-  maxTaskRetries: number
 }
 
-const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [], maxTaskRetries: 3 }
+const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [] }
 
 export const CORE_TOOL_NAMES = new Set([
-  'read_file', 'write_file', 'edit_file', 'list_directory', 'grep', 'run_command', 'get_project_overview',
-  'memory_read', 'memory_write', 'memory_search', 'memory_list', 'memory_delete',
+  'read_file', 'write_file', 'edit_file', 'list_directory', 'grep', 'run_command',
+  'memory_read', 'memory_write', 'memory_search', 'memory_list', 'memory_delete', 'ask_user',
 ])
 
 const CORE_TOOL_META = [
@@ -23,12 +22,12 @@ const CORE_TOOL_META = [
   { name: 'list_directory', displayName: 'List Directory', description: 'List files and subdirectories', type: 'core' as const },
   { name: 'grep', displayName: 'Grep', description: 'Search file contents by regex pattern', type: 'core' as const },
   { name: 'run_command', displayName: 'Run Command', description: 'Execute shell commands in the project', type: 'core' as const },
-  { name: 'get_project_overview', displayName: 'Project Overview', description: 'Get a structured map of project dependencies', type: 'core' as const },
   { name: 'memory_read', displayName: 'Memory Read', description: 'Read the full contents of a memory palace drawer', type: 'core' as const },
   { name: 'memory_write', displayName: 'Memory Write', description: 'Create or update a memory palace drawer', type: 'core' as const },
   { name: 'memory_search', displayName: 'Memory Search', description: 'Keyword search across all memory drawers', type: 'core' as const },
   { name: 'memory_list', displayName: 'Memory List', description: 'List the memory palace wing/room/drawer hierarchy', type: 'core' as const },
   { name: 'memory_delete', displayName: 'Memory Delete', description: 'Delete a memory palace drawer', type: 'core' as const },
+  { name: 'ask_user', displayName: 'Ask User', description: 'Pause generation to ask the user a clarifying question', type: 'core' as const },
 ]
 
 export async function readProjectSettings(rootPath: string): Promise<ProjectSettings> {

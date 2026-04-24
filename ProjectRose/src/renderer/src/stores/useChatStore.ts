@@ -38,7 +38,15 @@ export interface ThinkingMessage extends BaseMessage {
   streaming?: boolean
 }
 
-export type ChatMessage = UserMessage | AssistantMessage | ToolMessage | ThinkingMessage
+export interface AskUserMessage extends BaseMessage {
+  role: 'ask_user'
+  questionId: string
+  question: string
+  options: string[]
+  answer: string | null
+}
+
+export type ChatMessage = UserMessage | AssistantMessage | ToolMessage | ThinkingMessage | AskUserMessage
 
 export interface SessionMeta {
   id: string
@@ -66,6 +74,9 @@ interface ChatState {
   resolveToolEnd: (data: { id: string; result: string; error: boolean }) => void
   appendThinking: (data: { content: string }) => void
   appendToken: (data: { token: string }) => void
+  appendAskUser: (data: { questionId: string; question: string; options: string[] }) => void
+  answerAskUser: (questionId: string, answer: string) => Promise<void>
+  cancelGeneration: () => Promise<void>
 
   loadSessions: (rootPath: string) => Promise<void>
   switchSession: (rootPath: string, sessionId: string) => Promise<void>
@@ -98,6 +109,9 @@ function sanitizeLoadedMessages(messages: ChatMessage[]): ChatMessage[] {
   return messages.map((m) => {
     if ((m.role === 'assistant' || m.role === 'thinking') && (m as AssistantMessage).streaming) {
       return { ...m, streaming: false, content: (m as AssistantMessage).content || '[interrupted]' }
+    }
+    if (m.role === 'ask_user' && (m as AskUserMessage).answer === null) {
+      return { ...m, answer: '[interrupted]' }
     }
     return m
   })
@@ -180,6 +194,45 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           : m
       )
     }))
+  },
+
+  appendAskUser: (data) => {
+    set((s) => {
+      const messages = s.messages.map((m) => {
+        if (m.id === s.thinkingPlaceholderId && m.role === 'thinking') return { ...m, streaming: false }
+        if (m.id === s.assistantPlaceholderId && m.role === 'assistant') return { ...m, streaming: false }
+        return m
+      })
+      const msg: AskUserMessage = {
+        id: `msg-${++msgCounter}`,
+        role: 'ask_user',
+        timestamp: Date.now(),
+        questionId: data.questionId,
+        question: data.question,
+        options: data.options,
+        answer: null
+      }
+      return {
+        messages: [...messages, msg],
+        thinkingPlaceholderId: null,
+        assistantPlaceholderId: null
+      }
+    })
+  },
+
+  answerAskUser: async (questionId, answer) => {
+    set((s) => ({
+      messages: s.messages.map((m) =>
+        m.role === 'ask_user' && (m as AskUserMessage).questionId === questionId
+          ? { ...m, answer }
+          : m
+      )
+    }))
+    await window.api.aiAskUserResponse(questionId, answer)
+  },
+
+  cancelGeneration: async () => {
+    await window.api.aiCancelGeneration()
   },
 
   appendThinking: (data) => {
@@ -266,6 +319,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const cleanupToolStart = window.api.onAiToolCallStart((d) => get().appendToolStart(d))
     const cleanupToolEnd = window.api.onAiToolCallEnd((d) => get().resolveToolEnd(d))
     const cleanupThinking = window.api.onAiThinking((d) => get().appendThinking(d))
+    const cleanupAskUser = window.api.onAiAskUser((d) => get().appendAskUser(d))
     const cleanupModelSelected = window.api.onAiModelSelected((d) => {
       const pid = get().assistantPlaceholderId
       if (pid) {
@@ -297,6 +351,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       cleanupToolStart()
       cleanupToolEnd()
       cleanupThinking()
+      cleanupAskUser()
       cleanupModelSelected()
       cleanupStreamReset()
     }
@@ -335,6 +390,27 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       }
     } catch (err) {
       cleanup()
+
+      const isAbort = err instanceof Error &&
+        (err.name === 'AbortError' || err.message.toLowerCase().includes('abort'))
+
+      if (isAbort) {
+        const placeholderId = get().assistantPlaceholderId
+        set((s) => ({
+          messages: s.messages.map((m) => {
+            if (m.id === placeholderId && m.role === 'assistant') return { ...m, streaming: false }
+            if (m.role === 'thinking' && (m as ThinkingMessage).streaming) return { ...m, streaming: false }
+            if (m.role === 'ask_user' && (m as AskUserMessage).answer === null) return { ...m, answer: '[cancelled]' }
+            return m
+          }),
+          isLoading: false,
+          assistantPlaceholderId: null,
+          thinkingPlaceholderId: null,
+          pendingModelDisplay: null
+        }))
+        persistSession(rootPath, sessionId!, title, createdAt, get().messages)
+        return
+      }
 
       const placeholderId = get().assistantPlaceholderId
       const errorContent = `Error: ${err instanceof Error ? err.message : 'Failed to get response'}`

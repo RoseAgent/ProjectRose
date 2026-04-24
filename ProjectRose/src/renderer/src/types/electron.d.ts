@@ -42,6 +42,15 @@ export interface RouterConfig {
   baseUrl: string
 }
 
+export interface CostEntry {
+  timestamp: string
+  model: string
+  provider: string
+  inputTokens: number
+  outputTokens: number
+  costUSD: number
+}
+
 export interface DiscordChannel {
   id: string
   name: string
@@ -165,6 +174,9 @@ export interface ElectronAPI {
   onAiToken: (callback: (data: { token: string }) => void) => () => void
   onAiModelSelected: (callback: (data: { modelDisplay: string }) => void) => () => void
   onAiStreamReset: (callback: (data: { errorMessage: string; fallbackModel: string }) => void) => () => void
+  aiCancelGeneration: () => Promise<void>
+  onAiAskUser: (callback: (data: { questionId: string; question: string; options: string[] }) => void) => () => void
+  aiAskUserResponse: (questionId: string, answer: string) => Promise<void>
 
   // Theme
   setNativeTheme: (theme: 'dark' | 'light' | 'herbarium') => void
@@ -258,6 +270,9 @@ export interface ElectronAPI {
 
   // Account auth
   auth: AuthAPI
+
+  // Cost tracking
+  cost: CostAPI
 }
 
 export interface ChatSessionMeta {
@@ -471,6 +486,11 @@ export interface ActiveSpeechAPI {
   sendAudioChunk: (payload: { sessionId: number; audioBuffer: ArrayBuffer; projectPath: string }) => void
   stopStream: (payload: { sessionId: number }) => Promise<void>
   onUtterance: (callback: (evt: { sessionId: number; utterance_id: number; speaker_name: string | null; text: string }) => void) => () => void
+}
+
+export interface CostAPI {
+  getLogs: (rootPath: string) => Promise<CostEntry[]>
+  onUsageEvent: (callback: (entry: CostEntry) => void) => () => void
 }
 
 declare global {

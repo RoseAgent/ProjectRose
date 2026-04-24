@@ -11,6 +11,7 @@ export function ChatInput(): JSX.Element {
   const inputValue = useChatStore((s) => s.inputValue)
   const setInputValue = useChatStore((s) => s.setInputValue)
   const sendMessage = useChatStore((s) => s.sendMessage)
+  const cancelGeneration = useChatStore((s) => s.cancelGeneration)
   const isLoading = useChatStore((s) => s.isLoading)
   const micDeviceId = useSettingsStore((s) => s.micDeviceId)
   const roseSpeechOnline = useServiceStore((s) => s.roseSpeech)
@@ -81,6 +82,15 @@ export function ChatInput(): JSX.Element {
         rows={2}
       />
       <div className={styles.btnStack}>
+        {isLoading && (
+          <button
+            className={styles.cancelBtn}
+            onClick={() => cancelGeneration()}
+            title="Cancel generation"
+          >
+            ✕
+          </button>
+        )}
         <button
           className={clsx(styles.micBtn, {
             [styles.micRecording]: micState === 'recording',

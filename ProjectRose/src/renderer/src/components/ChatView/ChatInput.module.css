@@ -56,6 +56,21 @@
   cursor: not-allowed;
 }
 
+.cancelBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: #ef4444;
+  transition: opacity 0.15s;
+}
+
+.cancelBtn:hover {
+  opacity: 0.85;
+}
+
 .micBtn {
   width: 36px;
   height: 36px;

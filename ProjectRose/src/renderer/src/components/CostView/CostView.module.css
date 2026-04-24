@@ -1,0 +1,135 @@
+.container {
+  padding: 40px;
+  max-width: 800px;
+  overflow-y: auto;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.section {
+  margin-bottom: 36px;
+}
+
+.label {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  color: var(--ink-soft);
+  margin-bottom: 12px;
+}
+
+.heading {
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  margin: 0 0 4px;
+}
+
+.subheading {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.card {
+  border: 1px solid var(--line);
+  padding: 20px;
+}
+
+.cardLabel {
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+
+.cardValue {
+  font-size: 22px;
+  letter-spacing: -0.5px;
+  color: var(--ink);
+}
+
+.cardSub {
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: var(--ink-soft);
+  text-align: left;
+  padding: 6px 12px 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-weight: 400;
+}
+
+.table td {
+  font-size: 12px;
+  color: var(--ink);
+  padding: 10px 12px 10px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.table td:last-child,
+.table th:last-child {
+  text-align: right;
+  padding-right: 0;
+}
+
+.modelName {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.provider {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--ink-soft);
+}
+
+.cost {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.unknown {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.bar {
+  height: 3px;
+  background: var(--sepia);
+  margin-top: 6px;
+  transition: width 0.3s ease;
+}
+
+.timestamp {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+}
+
+.muted {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.tokens {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-mid);
+}

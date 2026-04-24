@@ -54,6 +54,9 @@ export const IPC = {
   AI_TOOL_CALL_END: 'ai:toolCallEnd',
   AI_THINKING: 'ai:thinking',
   AI_TOKEN: 'ai:token',
+  AI_CANCEL: 'ai:cancel',
+  AI_ASK_USER: 'ai:askUser',
+  AI_ASK_USER_RESPONSE: 'ai:askUserResponse',
 
   LSP_PY_TO_SERVER: 'lsp:py:toServer',
   LSP_PY_FROM_SERVER: 'lsp:py:fromServer',
@@ -121,6 +124,10 @@ export const IPC = {
   EMAIL_SET_FILTERS:    'email:setFilters',
   EMAIL_GET_META:       'email:getMeta',
   EMAIL_SET_MSG_FOLDER: 'email:setMessageFolder',
+
+  // Cost tracking
+  COST_GET_LOGS: 'cost:getLogs',
+  COST_USAGE_EVENT: 'cost:usageEvent',
 
   // Chat Sessions
   SESSION_LIST: 'session:list',
