@@ -59,6 +59,7 @@ export interface SessionMeta {
 interface ChatState {
   messages: ChatMessage[]
   isLoading: boolean
+  isRecording: boolean
   inputValue: string
   currentSessionId: string | null
   sessions: SessionMeta[]
@@ -68,6 +69,7 @@ interface ChatState {
   pendingModelDisplay: string | null
 
   setInputValue: (value: string) => void
+  setIsRecording: (v: boolean) => void
   setSearchQuery: (q: string) => void
   sendMessage: () => Promise<void>
   clearMessages: () => void
@@ -121,6 +123,7 @@ function sanitizeLoadedMessages(messages: ChatMessage[]): ChatMessage[] {
 export const useChatStore = create<ChatState>()((set, get) => ({
   messages: [],
   isLoading: false,
+  isRecording: false,
   inputValue: '',
   currentSessionId: null,
   sessions: [],
@@ -130,6 +133,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   pendingModelDisplay: null,
 
   setInputValue: (value) => set({ inputValue: value }),
+  setIsRecording: (v) => set({ isRecording: v }),
   setSearchQuery: (q) => set({ searchQuery: q }),
 
   appendToken: (data) => {

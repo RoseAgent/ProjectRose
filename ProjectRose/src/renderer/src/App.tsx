@@ -179,7 +179,7 @@ function App(): JSX.Element {
           />
         </div>
       )}
-      <main className={`${styles.mainContent} ${activeView === 'chat' ? styles.mainContentSessions : ''}`}>
+      <main className={`${styles.mainContent} ${activeView === 'chat' ? styles.mainContentChat : ''}`}>
         <div className={styles.viewArea}>
           {activeView === 'editor' && <EditorView />}
           {activeView === 'chat' && <ChatView />}
@@ -191,7 +191,7 @@ function App(): JSX.Element {
             return ext?.PageView ? <ext.PageView /> : null
           })()}
         </div>
-        <ChatPanel />
+        {activeView !== 'chat' && <ChatPanel />}
       </main>
     </div>
   )

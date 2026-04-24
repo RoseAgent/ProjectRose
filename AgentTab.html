@@ -1,0 +1,709 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ProjectRose · Voice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#f1ebdf; overflow:hidden; }
+  body { font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #2e2418; }
+  #root { width:100%; height:100%; }
+
+  /* breathing ring pulse */
+  @keyframes breath {
+    0%,100% { transform: scale(1);   opacity: 0.55; }
+    50%     { transform: scale(1.08); opacity: 0.9; }
+  }
+  @keyframes breath-slow {
+    0%,100% { transform: scale(1);   opacity: 0.35; }
+    50%     { transform: scale(1.12); opacity: 0.65; }
+  }
+  @keyframes breath-slowest {
+    0%,100% { transform: scale(1);   opacity: 0.18; }
+    50%     { transform: scale(1.18); opacity: 0.42; }
+  }
+  @keyframes rotate-slow {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  /* waveform bar — heights set per bar via --h, phase offset via --d */
+  @keyframes wave {
+    0%,100% { transform: scaleY(var(--min, 0.3)); }
+    50%     { transform: scaleY(var(--h, 1)); }
+  }
+  .bar {
+    width: 3px; background: currentColor;
+    transform-origin: center;
+    animation: wave 1.1s ease-in-out infinite;
+    animation-delay: var(--d, 0s);
+  }
+  .dot { animation: breath 1.4s ease-in-out infinite; }
+  .tick { animation: breath-slow 2.6s ease-in-out infinite; }
+  .halo { animation: breath-slowest 4.2s ease-in-out infinite; }
+
+  /* rotating specimen label ring */
+  .ring-label { animation: rotate-slow 80s linear infinite; }
+
+  /* caret blink for transcript */
+  @keyframes blink { 50% { opacity: 0; } }
+  .caret { animation: blink 1s steps(1) infinite; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+// ═════════════════════════════════════════════════════════════
+// Palette — Herbarium
+// ═════════════════════════════════════════════════════════════
+const H = {
+  paper:      '#f1ebdf',
+  paperLight: '#f7f2e6',
+  paperDark:  '#e8e0d0',
+  paperDeep:  '#e0d6c0',
+  vellum:     '#ebe3d1',
+  line:       '#d6cbaf',
+  lineSoft:   '#e4dac2',
+  lineStrong: '#b8ac94',
+  ink:        '#2e2418',
+  inkMid:     '#6b5c44',
+  inkSoft:    '#9c8c6e',
+  inkWisp:    '#c4b8a0',
+  sepia:      '#7a2a20',
+  sepiaDeep:  '#5a1a14',
+  olive:      '#5a6a30',
+  oliveDeep:  '#4a5a26',
+  ochre:      '#a06a20',
+  ochreSoft:  '#c4956a',
+  stamp:      'rgba(122,42,32,0.12)',
+  mono:       "'IBM Plex Mono', ui-monospace, monospace",
+};
+
+// ═════════════════════════════════════════════════════════════
+// Small rose mark (reused)
+// ═════════════════════════════════════════════════════════════
+function RoseMark({ size = 24, mono = false }) {
+  const red   = mono ? H.ink : H.sepia;
+  const deep  = mono ? H.ink : H.sepiaDeep;
+  const green = mono ? H.ink : H.olive;
+  return (
+    <svg viewBox="0 0 64 64" width={size} height={size} fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M32 36 C 32 42, 33 48, 34 56" stroke={green} strokeWidth="1.3" strokeLinecap="round"/>
+      <path d="M32 46 C 26 44, 22 46, 20 50 C 24 52, 30 50, 32 48" fill={green} opacity={mono ? 0.4 : 0.85}/>
+      <path d="M33 50 C 38 49, 42 51, 43 55 C 39 56, 34 54, 33 52" fill={green} opacity={mono ? 0.4 : 0.7}/>
+      <g>
+        <path d="M32 8 C 40 10, 44 18, 42 26 C 38 22, 34 18, 32 12 Z" fill={red}/>
+        <path d="M50 18 C 52 26, 48 34, 40 36 C 40 30, 42 24, 46 20 Z" fill={red}/>
+        <path d="M46 36 C 42 42, 34 42, 30 38 C 34 34, 40 32, 44 34 Z" fill={red} opacity="0.92"/>
+        <path d="M18 36 C 14 32, 14 24, 20 20 C 22 26, 22 32, 20 36 Z" fill={red} opacity="0.92"/>
+        <path d="M22 10 C 28 8, 34 10, 34 16 C 30 16, 24 16, 22 14 Z" fill={red} opacity="0.9"/>
+      </g>
+      <g>
+        <path d="M32 14 C 38 16, 40 22, 38 28 C 34 26, 30 22, 30 16 Z" fill={deep} opacity="0.85"/>
+        <path d="M26 18 C 22 22, 22 28, 26 32 C 30 28, 30 22, 28 18 Z" fill={deep} opacity="0.75"/>
+        <path d="M38 30 C 36 34, 30 34, 28 30 C 32 28, 36 28, 38 30 Z" fill={deep} opacity="0.9"/>
+      </g>
+      <circle cx="32" cy="25" r="2.4" fill={deep}/>
+      <circle cx="32" cy="25" r="0.9" fill={mono ? '#fff' : H.ochreSoft}/>
+    </svg>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// Titlebar + topbar (same chrome as editor — but VOICE is active)
+// ═════════════════════════════════════════════════════════════
+function TopChrome() {
+  return (
+    <>
+      <div style={{
+        height: 32, display: 'flex', alignItems: 'center',
+        padding: '0 14px', gap: 10, background: H.paperDark,
+        borderBottom: `1px solid ${H.line}`, flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#e76d67', border: `1px solid ${H.line}` }}/>
+          <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#e4b24d', border: `1px solid ${H.line}` }}/>
+          <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#7fb372', border: `1px solid ${H.line}` }}/>
+        </div>
+        <div style={{
+          flex: 1, textAlign: 'center', fontFamily: H.mono, fontSize: 11,
+          color: H.inkMid, letterSpacing: 0.3,
+        }}>
+          <span style={{ color: H.inkSoft }}>№ 06 ·</span>{' '}
+          ProjectRose{' '}
+          <span style={{ color: H.inkSoft }}>—</span>{' '}
+          <span style={{ fontStyle: 'italic' }}>Voice</span>
+        </div>
+        <div style={{ width: 54 }}/>
+      </div>
+
+      <div style={{
+        height: 52, display: 'flex', alignItems: 'center',
+        padding: '0 16px', gap: 14,
+        background: H.paper,
+        borderBottom: `1px solid ${H.line}`,
+        flexShrink: 0, position: 'relative',
+      }}>
+        <div style={{ position: 'absolute', bottom: -3, left: 0, right: 0, height: 1, background: H.lineSoft }}/>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <RoseMark size={24} />
+          <div style={{ lineHeight: 1.1 }}>
+            <div style={{ fontFamily: H.mono, fontSize: 13, fontWeight: 500, color: H.ink, letterSpacing: 0.2 }}>
+              Project<span style={{ color: H.sepia, fontStyle: 'italic' }}>Rose</span>
+            </div>
+            <div style={{ fontFamily: H.mono, fontSize: 9, color: H.inkSoft, letterSpacing: 1.4, marginTop: 2 }}>
+              № 06 · voice
+            </div>
+          </div>
+        </div>
+
+        <div style={{ width: 1, height: 24, background: H.line, marginLeft: 4 }}/>
+
+        <div style={{ flex: 1 }}/>
+
+        <div style={{
+          display: 'flex', border: `1px solid ${H.line}`, background: H.paperDark,
+        }}>
+          {[
+            { l: 'CODE', n: '01' },
+            { l: 'CHAT', n: '02' },
+            { l: 'GIT',  n: '03' },
+            { l: 'DOCK', n: '04' },
+            { l: 'MAIL', n: '05' },
+            { l: 'VOICE', n: '06', active: true },
+          ].map((t, i, arr) => (
+            <div key={t.l} style={{
+              padding: '6px 12px',
+              background: t.active ? H.ink : 'transparent',
+              color: t.active ? H.paperLight : H.inkMid,
+              fontFamily: H.mono, fontSize: 10, fontWeight: 500, letterSpacing: 1,
+              borderRight: i < arr.length - 1 ? `1px solid ${H.line}` : 'none',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <span style={{ fontSize: 8, opacity: 0.6, color: t.active ? H.paperLight : H.inkSoft }}>
+                №{t.n}
+              </span>
+              <span>{t.l}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 14 }}>
+          <div style={{
+            fontFamily: H.mono, fontSize: 10, color: H.inkMid, letterSpacing: 1.2,
+            border: `1px solid ${H.line}`, padding: '4px 8px',
+          }}>☀ PAPER</div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// LEFT COLUMN — specimen card (model details + session history)
+// ═════════════════════════════════════════════════════════════
+function LeftColumn() {
+  return (
+    <div style={{
+      width: 300, minWidth: 300, background: H.vellum,
+      borderRight: `1px solid ${H.line}`,
+      display: 'flex', flexDirection: 'column',
+      flexShrink: 0,
+    }}>
+      {/* specimen card */}
+      <div style={{ padding: '22px 22px 18px', borderBottom: `1px solid ${H.lineSoft}` }}>
+        <div style={{
+          fontFamily: H.mono, fontSize: 9, color: H.inkSoft,
+          letterSpacing: 1.6, marginBottom: 6,
+        }}>SPECIMEN · VOCALIS № 06</div>
+        <div style={{
+          fontFamily: H.mono, fontSize: 20, color: H.ink, fontWeight: 500, lineHeight: 1,
+          marginBottom: 4,
+        }}>Iris</div>
+        <div style={{
+          fontFamily: H.mono, fontSize: 10, color: H.sepia,
+          fontStyle: 'italic', marginBottom: 14,
+        }}>Rosa × vocis · v0.2</div>
+
+        {/* specimen properties */}
+        <div style={{ marginTop: 14, fontFamily: H.mono, fontSize: 10 }}>
+          {[
+            ['VOICE',    'Iris · warm alto'],
+            ['LANGUAGE', 'en · multi'],
+            ['CONTEXT',  '128 exchanges'],
+            ['MODE',     'conversational'],
+          ].map(([k, v]) => (
+            <div key={k} style={{
+              display: 'flex', justifyContent: 'space-between',
+              padding: '5px 0', borderBottom: `1px dotted ${H.lineSoft}`,
+            }}>
+              <span style={{ color: H.inkSoft, letterSpacing: 1 }}>{k}</span>
+              <span style={{ color: H.ink }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* session history */}
+      <div style={{ padding: '18px 22px 10px' }}>
+        <div style={{
+          fontFamily: H.mono, fontSize: 9, color: H.inkSoft,
+          letterSpacing: 1.6, marginBottom: 14,
+        }}>SESSIONS · FIELD LOG</div>
+      </div>
+
+      <div style={{ flex: 1, overflow: 'hidden', padding: '0 16px' }}>
+        {[
+          { n: 14, date: 'today · 10:42', title: 'current session',     active: true, len: '00:03:42' },
+          { n: 13, date: '2026-04-19',    title: 'morning rambles',    len: '00:28:11' },
+          { n: 12, date: '2026-04-18',    title: 'on readable prose',  len: '00:14:07' },
+          { n: 11, date: '2026-04-17',    title: 'travel planning',    len: '00:51:33' },
+          { n: 10, date: '2026-04-15',    title: 'book club debrief',  len: '00:22:49' },
+          { n:  9, date: '2026-04-14',    title: 'kitchen experiment', len: '00:08:20' },
+        ].map((s) => (
+          <div key={s.n} style={{
+            padding: '10px 12px', marginBottom: 2,
+            background: s.active ? H.paperDeep : 'transparent',
+            borderLeft: s.active ? `2px solid ${H.sepia}` : '2px solid transparent',
+            marginLeft: s.active ? -2 : 0,
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2,
+            }}>
+              <span style={{
+                fontFamily: H.mono, fontSize: 9, color: s.active ? H.sepia : H.inkSoft,
+                letterSpacing: 1,
+              }}>№{String(s.n).padStart(2, '0')}</span>
+              <span style={{
+                fontFamily: H.mono, fontSize: 9, color: H.inkSoft, letterSpacing: 0.6,
+              }}>{s.date}</span>
+            </div>
+            <div style={{
+              fontFamily: H.mono, fontSize: 11, color: s.active ? H.ink : H.inkMid,
+              fontStyle: 'italic',
+            }}>{s.title}</div>
+            <div style={{
+              fontFamily: H.mono, fontSize: 9, color: H.inkWisp,
+              letterSpacing: 1, marginTop: 3,
+            }}>{s.len}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* new session */}
+      <div style={{
+        padding: '14px 22px',
+        borderTop: `1px solid ${H.lineSoft}`,
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
+        <div style={{
+          border: `1px dashed ${H.lineStrong}`,
+          padding: '10px 12px',
+          fontFamily: H.mono, fontSize: 10, color: H.inkMid,
+          letterSpacing: 1, display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', cursor: 'pointer',
+        }}>
+          <span>+ NEW SESSION</span>
+          <span style={{ color: H.inkSoft }}>⌘ N</span>
+        </div>
+        <div style={{
+          border: `1px dashed ${H.lineStrong}`,
+          padding: '10px 12px',
+          fontFamily: H.mono, fontSize: 10, color: H.inkMid,
+          letterSpacing: 1, display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', cursor: 'pointer',
+        }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%', background: H.sepia,
+            }}/>
+            + ACTIVE LISTENING
+          </span>
+          <span style={{ color: H.inkSoft }}>⌘ ⇧ N</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// CENTER — the bloom (voice orb)
+// ═════════════════════════════════════════════════════════════
+function Bloom({ size = 320 }) {
+  // Concentric rings: halo (outermost, very slow), tick (labels),
+  // petal (rotating rose silhouette), core.
+  const cx = size / 2, cy = size / 2;
+  return (
+    <div style={{
+      position: 'relative',
+      width: 'min(340px, 100%)',
+      aspectRatio: '1 / 1',
+      maxHeight: '100%',
+      flexShrink: 0,
+    }}>
+      {/* outermost halo — very faint */}
+      <div className="halo" style={{
+        position: 'absolute', inset: 0, borderRadius: '50%',
+        background: `radial-gradient(circle, ${H.sepia}22 0%, ${H.sepia}08 40%, transparent 70%)`,
+      }}/>
+
+      {/* rotating label ring */}
+      <svg className="ring-label" viewBox="0 0 320 320" style={{
+        position: 'absolute', inset: 0, width: '100%', height: '100%',
+      }}>
+        <defs>
+          <path id="ringPath" d="M 160,160 m -145,0 a 145,145 0 1,1 290,0 a 145,145 0 1,1 -290,0" fill="none"/>
+        </defs>
+        <circle cx="160" cy="160" r="145" fill="none" stroke={H.line} strokeWidth="1"/>
+        <text fontFamily={H.mono} fontSize="9" fill={H.inkSoft} letterSpacing="4">
+          <textPath href="#ringPath" startOffset="0">
+            ROSA · VOCIS · № 06 · VOCALIS · SPECIMEN · IRIS · v0.2 · ROSA · VOCIS · № 06 · VOCALIS · SPECIMEN · IRIS · v0.2 ·{' '}
+          </textPath>
+        </text>
+      </svg>
+
+      {/* mid ring with ticks */}
+      <svg className="tick" viewBox="0 0 320 320" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+        <circle cx={cx} cy={cy} r="118" fill="none" stroke={H.line} strokeWidth="1" strokeDasharray="1 6"/>
+      </svg>
+
+      {/* breathing petal ring */}
+      <div className="dot" style={{
+        position: 'absolute', inset: 32, borderRadius: '50%',
+        background: `radial-gradient(circle at 50% 45%, ${H.sepia} 0%, ${H.sepiaDeep} 60%, ${H.ink} 100%)`,
+        boxShadow: `0 8px 40px ${H.sepia}50, inset 0 -20px 40px ${H.ink}80, inset 0 20px 40px ${H.sepia}`,
+      }}/>
+
+      {/* layered petal silhouettes on top of orb */}
+      <svg viewBox="0 0 320 320" style={{
+        position: 'absolute', inset: 0, width: '100%', height: '100%',
+        mixBlendMode: 'multiply', opacity: 0.6,
+      }}>
+        <g transform="translate(160 160)">
+          {[0, 72, 144, 216, 288].map((r) => (
+            <path key={r} transform={`rotate(${r})`}
+              d="M 0 -70 C 28 -60, 40 -30, 30 -6 C 10 -20, -10 -40, 0 -70 Z"
+              fill={H.sepiaDeep} opacity="0.55"/>
+          ))}
+          <circle r="22" fill={H.ink} opacity="0.75"/>
+          <circle r="6" fill={H.ochreSoft}/>
+        </g>
+      </svg>
+
+      {/* inner waveform — radial bars */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: H.paperLight,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 48 }}>
+          {[0.5, 0.9, 0.65, 1.0, 0.8, 0.45, 0.9, 0.7, 1.0, 0.55, 0.85, 0.6].map((h, i) => (
+            <div key={i} className="bar"
+              style={{
+                height: 48,
+                '--h': h,
+                '--min': 0.25,
+                '--d': `${i * 0.08}s`,
+              }}/>
+          ))}
+        </div>
+      </div>
+
+      {/* crosshair marks — cardinals */}
+      {['N','E','S','W'].map((d, i) => {
+        const pos = [
+          { top: -6, left: '50%', transform: 'translateX(-50%)' },
+          { top: '50%', right: -6, transform: 'translateY(-50%)' },
+          { bottom: -6, left: '50%', transform: 'translateX(-50%)' },
+          { top: '50%', left: -6, transform: 'translateY(-50%)' },
+        ][i];
+        return (
+          <div key={d} style={{
+            position: 'absolute', ...pos,
+            fontFamily: H.mono, fontSize: 9, color: H.inkSoft, letterSpacing: 1,
+          }}>{d}</div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// Center stage — bloom, state label, controls
+// ═════════════════════════════════════════════════════════════
+function CenterStage() {
+  return (
+    <div style={{
+      flex: 1, display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      padding: '40px 24px', minWidth: 0, minHeight: 0, overflow: 'hidden',
+      position: 'relative',
+      background: H.paperLight,
+    }}>
+      {/* faint specimen stamp */}
+      <div style={{
+        position: 'absolute', top: 28, right: 36,
+        fontFamily: H.mono, fontSize: 10, color: H.stamp,
+        letterSpacing: 2, transform: 'rotate(-6deg)',
+        border: `1.5px solid ${H.stamp}`, padding: '4px 10px',
+      }}>LIVE · IN SESSION</div>
+
+      {/* top field label */}
+      <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{
+          fontFamily: H.mono, fontSize: 9, color: H.inkSoft,
+          letterSpacing: 2.4, marginBottom: 10,
+        }}>PLATE A · VOCALIS</div>
+        <div style={{
+          fontFamily: H.mono, fontSize: 13, color: H.ink, fontStyle: 'italic',
+          letterSpacing: 0.2,
+        }}>
+          Iris is <span style={{ color: H.sepia, fontWeight: 500, fontStyle: 'normal' }}>listening</span>…
+        </div>
+      </div>
+
+      {/* the bloom */}
+      <Bloom size={320} />
+
+      {/* under-bloom caption */}
+      <div style={{ textAlign: 'center', marginTop: 30 }}>
+        <div style={{
+          fontFamily: H.mono, fontSize: 10, color: H.inkSoft,
+          letterSpacing: 1.4, marginBottom: 6,
+        }}>SESSION № 14 · COLLECTED 2026-04-21</div>
+        <div style={{
+          fontFamily: H.mono, fontSize: 11, color: H.inkMid,
+          fontStyle: 'italic',
+        }}>
+          press and hold <span style={{
+            background: H.paperDeep, color: H.ink, padding: '1px 7px',
+            fontStyle: 'normal', fontWeight: 500,
+          }}>SPACE</span> to speak, or tap the bloom
+        </div>
+      </div>
+
+      {/* controls row */}
+      <div style={{
+        marginTop: 36, display: 'flex', alignItems: 'center', gap: 12,
+        flexWrap: 'wrap', justifyContent: 'center', maxWidth: '100%',
+      }}>
+        <button style={{
+          background: 'none', border: `1px solid ${H.line}`,
+          padding: '10px 14px',
+          fontFamily: H.mono, fontSize: 10, color: H.inkMid,
+          letterSpacing: 1.2, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 13 }}>⏸</span>
+          PAUSE
+        </button>
+        <button style={{
+          background: H.ink, border: 'none',
+          padding: '10px 20px',
+          fontFamily: H.mono, fontSize: 11, color: H.paperLight,
+          letterSpacing: 1.4, fontWeight: 500, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{
+            width: 7, height: 7, borderRadius: '50%', background: H.sepia,
+            boxShadow: `0 0 8px ${H.sepia}`,
+          }} className="dot"/>
+          END SESSION
+        </button>
+        <button style={{
+          background: 'none', border: `1px solid ${H.line}`,
+          padding: '10px 14px',
+          fontFamily: H.mono, fontSize: 10, color: H.inkMid,
+          letterSpacing: 1.2, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 13 }}>✎</span>
+          EDIT VOICE
+        </button>
+      </div>
+
+      {/* waveform strip — bottom edge */}
+      <div style={{
+        marginTop: 32, width: '100%', maxWidth: 620,
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '14px 18px', boxSizing: 'border-box',
+        background: H.paper, border: `1px solid ${H.line}`,
+        color: H.sepia, minWidth: 0,
+      }}>
+        <div style={{
+          fontFamily: H.mono, fontSize: 9, color: H.inkSoft, letterSpacing: 1.4,
+        }}>IN</div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, height: 28 }}>
+          {Array.from({length: 56}).map((_, i) => {
+            const h = 0.25 + 0.75 * Math.abs(Math.sin(i * 0.37) * Math.cos(i * 0.23));
+            return (
+              <div key={i} className="bar" style={{
+                height: 28,
+                '--h': h,
+                '--min': 0.2,
+                '--d': `${(i % 8) * 0.1}s`,
+              }}/>
+            );
+          })}
+        </div>
+        <div style={{
+          fontFamily: H.mono, fontSize: 9, color: H.inkSoft, letterSpacing: 1.4,
+        }}>OUT</div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// RIGHT — live transcript (field notes)
+// ═════════════════════════════════════════════════════════════
+function RightTranscript() {
+  const lines = [
+    { who: 'you',  t: '10:38', text: 'good morning, iris. i want to talk through a problem i\'ve been turning over.' },
+    { who: 'iris', t: '10:38', text: 'morning. i\'m here. take your time — what\'s on your mind?' },
+    { who: 'you',  t: '10:39', text: 'i think i\'ve been writing emails that sound too formal. people aren\'t replying the way i\'d like.' },
+    { who: 'iris', t: '10:39', text: 'that\'s a useful thing to notice. can you read me one you sent recently?' },
+    { who: 'you',  t: '10:40', text: 'sure, hold on…' },
+    { who: 'iris', t: '10:41', text: 'whenever you\'re ready.', partial: false },
+    { who: 'you',  t: '10:42', text: 'okay: "thank you for your thoughtful response. i will circle back once i\'ve reviewed the materials in depth."', fresh: true },
+    { who: 'iris', t: '10:42', text: 'i hear it. that sentence is polite but it\'s also wearing a suit. what did you actually want to say', partial: true },
+  ];
+
+  return (
+    <div style={{
+      width: 380, minWidth: 380, background: H.paper,
+      borderLeft: `1px solid ${H.line}`,
+      display: 'flex', flexDirection: 'column',
+      flexShrink: 0,
+    }}>
+      {/* header */}
+      <div style={{
+        padding: '18px 22px 14px',
+        borderBottom: `1px solid ${H.lineSoft}`,
+      }}>
+        <div style={{
+          fontFamily: H.mono, fontSize: 9, color: H.inkSoft,
+          letterSpacing: 1.6, marginBottom: 4,
+        }}>FIELD NOTES · LIVE TRANSCRIPT</div>
+        <div style={{
+          fontFamily: H.mono, fontSize: 12, color: H.ink, fontWeight: 500,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        }}>
+          <span>Session № 14</span>
+          <span style={{
+            fontSize: 10, color: H.sepia, fontStyle: 'italic', fontWeight: 400,
+          }}>recording</span>
+        </div>
+      </div>
+
+      {/* transcript body */}
+      <div style={{ flex: 1, padding: '18px 22px', overflow: 'hidden', fontFamily: H.mono }}>
+        {lines.map((l, i) => {
+          const iris = l.who === 'iris';
+          return (
+            <div key={i} style={{ marginBottom: 16 }}>
+              <div style={{
+                display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4,
+              }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 600, letterSpacing: 1,
+                  color: iris ? H.sepia : H.ink,
+                }}>{iris ? 'IRIS' : 'YOU'}</span>
+                <span style={{ fontSize: 9, color: H.inkSoft, letterSpacing: 0.6 }}>
+                  {l.t}
+                </span>
+                {l.fresh && (
+                  <span style={{
+                    fontSize: 8, color: H.olive, letterSpacing: 1, fontWeight: 600,
+                  }}>· NEW</span>
+                )}
+              </div>
+              <div style={{
+                fontSize: 12, color: H.inkMid, lineHeight: 1.6,
+                paddingLeft: iris ? 12 : 0,
+                borderLeft: iris ? `2px solid ${H.sepia}` : 'none',
+                fontStyle: iris ? 'italic' : 'normal',
+              }}>
+                {l.text}
+                {l.partial && <span className="caret" style={{ color: H.sepia, marginLeft: 2 }}>▍</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* footer — marginalia */}
+      <div style={{
+        padding: '14px 22px', borderTop: `1px solid ${H.lineSoft}`,
+        fontFamily: H.mono, fontSize: 9, color: H.inkSoft, letterSpacing: 1,
+      }}>
+        <span style={{ color: H.sepia }}>↓ SAVE AS FOLIO</span>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// Status bar (matches editor)
+// ═════════════════════════════════════════════════════════════
+function StatusBar() {
+  return (
+    <div style={{
+      height: 24, display: 'flex', alignItems: 'center', gap: 16,
+      padding: '0 16px', background: H.paperDark,
+      borderTop: `1px solid ${H.line}`,
+      fontFamily: H.mono, fontSize: 10, color: H.inkMid, letterSpacing: 0.5,
+      flexShrink: 0,
+    }}>
+      <span style={{ color: H.sepia, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span className="dot" style={{
+          width: 5, height: 5, borderRadius: '50%', background: H.sepia,
+        }}/>
+        iris · voice
+      </span>
+      <span style={{ color: H.inkSoft }}>│</span>
+      <span>48 kHz · 16-bit</span>
+      <span style={{ color: H.inkSoft }}>│</span>
+      <span>INPUT: macbook mic</span>
+      <span style={{ color: H.inkSoft }}>│</span>
+      <span>OUTPUT: default</span>
+      <span style={{ color: H.inkSoft }}>│</span>
+      <span style={{ color: H.olive }}>LATENCY 282 ms</span>
+      <div style={{ flex: 1 }}/>
+      <span style={{ fontStyle: 'italic', color: H.inkSoft }}>cataloged · Rosa × vocis</span>
+      <span style={{ color: H.inkSoft }}>│</span>
+      <span style={{ letterSpacing: 1.2 }}>ROSE · 0.1.0</span>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// App
+// ═════════════════════════════════════════════════════════════
+function App() {
+  return (
+    <div style={{
+      width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+      background: H.paper, fontFamily: H.mono, color: H.ink,
+    }}>
+      <TopChrome />
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <LeftColumn />
+        <CenterStage />
+        <RightTranscript />
+      </div>
+      <StatusBar />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

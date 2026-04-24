@@ -42,6 +42,7 @@ export function ChatInput(): JSX.Element {
 
         recorder.onstop = async (): Promise<void> => {
           stream.getTracks().forEach((t) => t.stop())
+          useChatStore.getState().setIsRecording(false)
           setMicState('transcribing')
           try {
             const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
@@ -61,6 +62,7 @@ export function ChatInput(): JSX.Element {
         mediaRecorderRef.current = recorder
         recorder.start()
         setMicState('recording')
+        useChatStore.getState().setIsRecording(true)
       } catch {
         // mic permission denied or unavailable
       }
