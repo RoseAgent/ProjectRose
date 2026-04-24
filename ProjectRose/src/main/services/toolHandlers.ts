@@ -1,4 +1,4 @@
-import { readFile, writeFile, readdir, mkdir, unlink, stat } from 'fs/promises'
+import { readFile, writeFile, readdir, mkdir, stat } from 'fs/promises'
 import { join, basename, dirname } from 'path'
 import { createHash } from 'crypto'
 import { prPath } from '../lib/projectPaths'
@@ -11,7 +11,6 @@ import { lspRequest } from './lspManager'
 const modifiedFiles: string[] = []
 let _activeProjectRoot: string | null = null
 
-const validMemoryTokens = new Map<string, string>() // drawerPath|'' → token; '' = new-drawer permission
 const validFileTokens = new Map<string, string>() // absolutePath → token
 
 function computeToken(input: string): string {
@@ -314,160 +313,6 @@ export async function handleGrep(input: Record<string, unknown>, projectRoot: st
   return results.length === 200
     ? lines.join('\n') + '\n[truncated at 200 matches]'
     : lines.join('\n')
-}
-
-// ── Memory palace handlers ──
-
-export async function handleMemoryWrite(input: Record<string, unknown>, projectRoot: string): Promise<string> {
-  const providedToken = String(input.memory_token || '')
-  if (!providedToken) {
-    return 'Missing memory_token. Call memory_search first to get a token before writing.'
-  }
-
-  const wing = String(input.wing || '').replace(/[^a-z0-9_-]/gi, '_')
-  const room = String(input.room || '').replace(/[^a-z0-9_-]/gi, '_')
-  const drawer = String(input.drawer || '').replace(/[^a-z0-9_-]/gi, '_')
-  const relPath = `wing_${wing}/room_${room}/${drawer}.md`
-
-  const expectedToken = validMemoryTokens.get(relPath) ?? validMemoryTokens.get('')
-  if (!expectedToken || expectedToken !== providedToken) {
-    return `Invalid or expired memory_token for ${relPath}. Call memory_search again to get a fresh token.`
-  }
-
-  const content = String(input.content || '')
-  const tags = Array.isArray(input.tags) ? (input.tags as string[]) : []
-
-  const drawerPath = prPath(projectRoot, 'memory', `wing_${wing}`, `room_${room}`, `${drawer}.md`)
-  await mkdir(dirname(drawerPath), { recursive: true })
-
-  const updated = new Date().toISOString().split('T')[0]
-  const tagsLine = tags.length > 0 ? `[${tags.join(', ')}]` : '[]'
-  await writeFile(drawerPath, `---\ntags: ${tagsLine}\nupdated: ${updated}\n---\n\n${content}`, 'utf-8')
-
-  const newToken = computeToken(content + Date.now())
-  validMemoryTokens.set(relPath, newToken)
-
-  return `Memory written: ${relPath}\n[memory_token: ${newToken}]`
-}
-
-export async function handleMemorySearch(input: Record<string, unknown>, projectRoot: string): Promise<string> {
-  const query = String(input.query || '')
-  const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
-  if (terms.length === 0) return 'No search query provided.'
-
-  const memoryRoot = prPath(projectRoot, 'memory')
-  const results: Array<{ relPath: string; snippet: string }> = []
-
-  let wingNames: string[]
-  try {
-    wingNames = (await readdir(memoryRoot)).filter((n) => n.startsWith('wing_'))
-  } catch {
-    return `No memories found matching: ${query}`
-  }
-
-  outer: for (const wingName of wingNames) {
-    let roomNames: string[]
-    try {
-      roomNames = (await readdir(join(memoryRoot, wingName))).filter((n) => n.startsWith('room_'))
-    } catch {
-      continue
-    }
-    for (const roomName of roomNames) {
-      let drawerFiles: string[]
-      try {
-        drawerFiles = (await readdir(join(memoryRoot, wingName, roomName))).filter((n) => n.endsWith('.md') && n !== '.gitkeep')
-      } catch {
-        continue
-      }
-      for (const file of drawerFiles) {
-        if (results.length >= 10) break outer
-        try {
-          const text = await readFile(join(memoryRoot, wingName, roomName, file), 'utf-8')
-          const lower = text.toLowerCase()
-          if (!terms.some((t) => lower.includes(t))) continue
-          const lines = text.split('\n')
-          const matchIdx = lines.findIndex((l) => terms.some((t) => l.toLowerCase().includes(t)))
-          const start = Math.max(0, matchIdx - 2)
-          const snippet = lines.slice(start, Math.min(lines.length, matchIdx + 3)).join('\n').trim()
-          results.push({ relPath: `${wingName}/${roomName}/${file}`, snippet })
-        } catch { /* skip unreadable */ }
-      }
-    }
-  }
-
-  if (results.length === 0) {
-    const token = computeToken(query + Date.now())
-    validMemoryTokens.set('', token)
-    return `No memories found matching: ${query}\n\n[memory_token: ${token}]`
-  }
-  const resultString = results.map((r) => `${r.relPath}\n  ${r.snippet.replace(/\n/g, '\n  ')}`).join('\n\n')
-  const token = computeToken(resultString)
-  for (const r of results) validMemoryTokens.set(r.relPath, token)
-  validMemoryTokens.set('', token)
-  return `${resultString}\n\n[memory_token: ${token}]`
-}
-
-export async function handleMemoryList(_input: Record<string, unknown>, projectRoot: string): Promise<string> {
-  const memoryRoot = prPath(projectRoot, 'memory')
-  const lines: string[] = []
-
-  let wingNames: string[]
-  try {
-    wingNames = (await readdir(memoryRoot)).filter((n) => n.startsWith('wing_'))
-  } catch {
-    return 'No memories stored yet.'
-  }
-
-  if (wingNames.length === 0) return 'No memories stored yet.'
-
-  for (const wingName of wingNames) {
-    lines.push(wingName)
-    let roomNames: string[]
-    try {
-      roomNames = (await readdir(join(memoryRoot, wingName))).filter((n) => n.startsWith('room_'))
-    } catch {
-      continue
-    }
-    for (const roomName of roomNames) {
-      lines.push(`  ${roomName}`)
-      let drawerFiles: string[]
-      try {
-        drawerFiles = (await readdir(join(memoryRoot, wingName, roomName))).filter((n) => n.endsWith('.md') && n !== '.gitkeep')
-      } catch {
-        continue
-      }
-      for (const file of drawerFiles) {
-        lines.push(`    ${file.replace(/\.md$/, '')}`)
-      }
-    }
-  }
-
-  return lines.length > 0 ? lines.join('\n') : 'No memories stored yet.'
-}
-
-export async function handleMemoryRead(input: Record<string, unknown>, projectRoot: string): Promise<string> {
-  const wing = String(input.wing || '')
-  const room = String(input.room || '')
-  const drawer = String(input.drawer || '')
-  const drawerPath = prPath(projectRoot, 'memory', `wing_${wing}`, `room_${room}`, `${drawer}.md`)
-  try {
-    return await readFile(drawerPath, 'utf-8')
-  } catch {
-    return `Memory not found: wing_${wing}/room_${room}/${drawer}.md`
-  }
-}
-
-export async function handleMemoryDelete(input: Record<string, unknown>, projectRoot: string): Promise<string> {
-  const wing = String(input.wing || '')
-  const room = String(input.room || '')
-  const drawer = String(input.drawer || '')
-  const drawerPath = prPath(projectRoot, 'memory', `wing_${wing}`, `room_${room}`, `${drawer}.md`)
-  try {
-    await unlink(drawerPath)
-    return `Memory deleted: wing_${wing}/room_${room}/${drawer}.md`
-  } catch {
-    return `Memory not found: wing_${wing}/room_${room}/${drawer}.md`
-  }
 }
 
 export async function discoverPythonTools(rootPath: string): Promise<PythonToolMeta[]> {

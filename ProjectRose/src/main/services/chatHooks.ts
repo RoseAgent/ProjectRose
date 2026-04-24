@@ -68,7 +68,7 @@ registerHook({
 
     const calls = ctx.completedToolCalls ?? []
 
-    const EXPLORATORY = new Set(['list_directory', 'grep', 'memory_search', 'memory_list', 'memory_read', 'memory_delete'])
+    const EXPLORATORY = new Set(['list_directory', 'grep'])
     const WRITE = new Set(['write_file', 'edit_file'])
 
     const explorationCalls = calls.filter((c) => EXPLORATORY.has(c.name))

@@ -51,18 +51,7 @@ export async function buildAgentMd(rootPath: string): Promise<string> {
     )
   }
 
-  let identitySection = ''
-  try {
-    const raw = await readFile(prPath(rootPath, 'memory', 'wing_people', 'room_general', 'user.md'), 'utf-8')
-    const body = raw.replace(/^---[\s\S]*?---\n/, '').trim()
-    if (body && !body.includes('_No information collected yet._')) {
-      identitySection = `\n\n## Known User Context\n${body}`
-    }
-  } catch {
-    // no identity drawer yet
-  }
-
-  return `${rose}${identitySection}
+  return `${rose}
 
 ## Environment
 - Operating system: ${os}

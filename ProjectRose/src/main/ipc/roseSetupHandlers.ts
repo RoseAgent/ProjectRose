@@ -96,23 +96,6 @@ When asked to implement, fix, or modify code, always write directly to project f
 - Do not call \`edit_file\` without a \`file_token\` from a preceding \`read_file\` on the same file.
 - Do not guess file contents — always read first.
 - Do not rewrite an entire file when only a targeted edit is needed.
-
-## Memory Palace
-
-A memory palace is your long-term memory — a structured collection of notes that persists across conversations. It is organized as wings → rooms → drawers. Wings group broad domains (people, code, project), rooms hold related sub-topics within a wing, and drawers are individual markdown documents. Everything lives under \`.projectrose/memory/\`. Always use your memory tools to navigate and update it — never use read_file or list_directory on the memory directory directly.
-
-At the start of every conversation:
-1. List your palace to see what you already know.
-2. Search for context if the user's message references a topic, person, or technology you may have encountered before.
-3. Read any relevant drawers to load their full content.
-
-During conversation, write to memory immediately when:
-- The user mentions a preference, constraint, or decision
-- You learn something new about the codebase, project, or architecture
-- A new person or team is introduced
-- The user corrects you or changes direction
-
-Delete drawers when information becomes stale or outdated.
 `
 }
 
@@ -148,7 +131,6 @@ export function registerRoseSetupHandlers(): void {
 
       // Create scaffold directories
       const dirs = [
-        prPath(rootPath, 'memory', 'wing_people', 'room_general'),
         prPath(rootPath, 'heartbeat', 'tasks'),
         prPath(rootPath, 'heartbeat', 'logs'),
         prPath(rootPath, 'tools')
@@ -157,14 +139,6 @@ export function registerRoseSetupHandlers(): void {
         await mkdirSafe(dir)
         await touch(join(dir, '.gitkeep'))
       }
-
-      // Bootstrap identity drawer
-      const today = new Date().toISOString().split('T')[0]
-      await writeFile(
-        prPath(rootPath, 'memory', 'wing_people', 'room_general', 'user.md'),
-        `---\ntags: [people, identity]\nupdated: ${today}\n---\n\n# User\n\n_No information collected yet._\n`,
-        { flag: 'wx' }
-      ).catch(() => {})
 
       // Init git repo and make the first commit
       try {
@@ -179,7 +153,6 @@ export function registerRoseSetupHandlers(): void {
 
   ipcMain.handle(IPC.ROSE_ENSURE_SCAFFOLD, async (_event, rootPath: string) => {
     const dirs = [
-      prPath(rootPath, 'memory', 'wing_people', 'room_general'),
       prPath(rootPath, 'heartbeat', 'tasks'),
       prPath(rootPath, 'heartbeat', 'logs'),
       prPath(rootPath, 'tools')

@@ -15,11 +15,6 @@ import {
   handleListDirectory,
   handleGrep,
   handleRunCommand,
-  handleMemoryWrite,
-  handleMemoryRead,
-  handleMemorySearch,
-  handleMemoryList,
-  handleMemoryDelete,
   type PythonToolMeta
 } from './toolHandlers'
 import type { ExtensionToolEntry } from '../extensions/builtinTools'
@@ -184,48 +179,6 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
         command: z.string().describe('The shell command to execute')
       }),
       execute: wrapExecute('run_command', handleRunCommand, projectRoot)
-    }),
-    memory_read: tool({
-      description: 'Read the full contents of a specific memory drawer. Use this after memory_list or memory_search to retrieve the full content of a drawer.',
-      inputSchema: z.object({
-        wing: z.string().describe('Wing name without prefix — use the actual project name for project work, e.g. "people", "projectrose", "mywebapp" — never the generic "project"'),
-        room: z.string().describe('Room name without prefix — use a specific topic, e.g. "auth_redesign", "payment_api", "onboarding_flow" — never generic labels like "architecture" or "code"'),
-        drawer: z.string().describe('Drawer filename without .md extension')
-      }),
-      execute: wrapExecute('memory_read', handleMemoryRead, projectRoot)
-    }),
-    memory_write: tool({
-      description: 'Create or update a memory drawer. Requires a memory_token obtained from a recent memory_search call — call memory_search first if you do not have one. Returns a new memory_token you can use for subsequent writes in the same session.',
-      inputSchema: z.object({
-        memory_token: z.string().optional().describe('Token from a recent memory_search call. Required — call memory_search first to obtain one.'),
-        wing: z.string().describe('Wing name without prefix — use the actual project name for project work, e.g. "people", "projectrose", "mywebapp" — never the generic "project"'),
-        room: z.string().describe('Room name without prefix — use a specific topic, e.g. "auth_redesign", "payment_api", "onboarding_flow" — never generic labels like "architecture" or "code"'),
-        drawer: z.string().describe('Drawer filename without .md extension'),
-        content: z.string().describe('Markdown body content to store'),
-        tags: z.array(z.string()).optional().describe('Optional tags for categorization')
-      }),
-      execute: wrapExecute('memory_write', handleMemoryWrite, projectRoot)
-    }),
-    memory_search: tool({
-      description: 'Keyword search across all memory drawers. Returns matching drawer paths with context snippets. Use this to recall relevant information before starting a task.',
-      inputSchema: z.object({
-        query: z.string().describe('Search terms to look for in memory drawers')
-      }),
-      execute: wrapExecute('memory_search', handleMemorySearch, projectRoot)
-    }),
-    memory_list: tool({
-      description: 'List the full memory palace hierarchy: all wings, their rooms, and drawer names. Use this to get an overview of what is stored.',
-      inputSchema: z.object({}),
-      execute: wrapExecute('memory_list', (input, root) => handleMemoryList(input, root), projectRoot)
-    }),
-    memory_delete: tool({
-      description: 'Delete a specific memory drawer. Use when information is outdated or no longer relevant.',
-      inputSchema: z.object({
-        wing: z.string().describe('Wing name without prefix'),
-        room: z.string().describe('Room name without prefix'),
-        drawer: z.string().describe('Drawer filename without .md extension')
-      }),
-      execute: wrapExecute('memory_delete', handleMemoryDelete, projectRoot)
     }),
     ask_user: tool({
       description: 'Ask the user a clarifying question and wait for their response before continuing. Use when you need input or a decision from the user. Provide 2–6 multiple-choice options when relevant.',

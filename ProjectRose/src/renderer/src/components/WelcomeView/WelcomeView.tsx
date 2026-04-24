@@ -34,29 +34,17 @@ function LearnModal({ onClose }: { onClose: () => void }): JSX.Element {
             </p>
             <ul className={styles.list}>
               <li><code className={styles.code}>ROSE.md</code> — the agent's identity and behavioral guidelines</li>
-              <li><code className={styles.code}>memory/</code> — long-term knowledge about people, places, and things</li>
               <li><code className={styles.code}>heartbeat/</code> — deferred notes, scheduled tasks, and run logs</li>
               <li><code className={styles.code}>tools/</code> — Python scripts the agent can create and reuse</li>
             </ul>
           </section>
 
           <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>Memory</h3>
-            <p className={styles.sectionText}>
-              When you mention a person, place, or thing, the agent reads the relevant
-              memory file to recall context. When it learns something new, it writes a
-              note to <code className={styles.code}>heartbeat/notes/</code> rather than
-              interrupting the conversation — the heartbeat processes those notes later.
-            </p>
-          </section>
-
-          <section className={styles.section}>
             <h3 className={styles.sectionTitle}>The Heartbeat</h3>
             <p className={styles.sectionText}>
-              Every 5 minutes (and on startup), a background heartbeat runs. It processes
-              accumulated notes into memory files, executes any scheduled tasks that are
-              due, and commits all agent file changes to git — so you have a full history
-              of how the agent's understanding evolved over time.
+              Every 5 minutes (and on startup), a background heartbeat runs. It executes
+              any scheduled tasks that are due and commits all agent file changes to git —
+              so you have a full history of how the agent's work evolved over time.
             </p>
           </section>
 
