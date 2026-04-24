@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useChatStore } from '../../stores/useChatStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useServiceStore } from '../../stores/useServiceStore'
+import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import clsx from 'clsx'
 import styles from './ChatInput.module.css'
 
@@ -15,6 +16,8 @@ export function ChatInput(): JSX.Element {
   const isLoading = useChatStore((s) => s.isLoading)
   const micDeviceId = useSettingsStore((s) => s.micDeviceId)
   const roseSpeechOnline = useServiceStore((s) => s.roseSpeech)
+  const isDrafting = useActiveListeningStore((s) => s.isDrafting)
+  const draftSecondsLeft = useActiveListeningStore((s) => s.draftSecondsLeft)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [micState, setMicState] = useState<MicState>('idle')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -72,6 +75,21 @@ export function ChatInput(): JSX.Element {
   }
 
   return (
+    <div className={styles.inputWrap}>
+      {isDrafting && (
+        <div className={styles.draftBanner}>
+          <span className={styles.draftDot} />
+          <span className={styles.draftLabel}>
+            Drafting · auto-send in <strong>{draftSecondsLeft ?? 0}s</strong>
+          </span>
+          <button
+            className={styles.draftCancel}
+            onClick={() => useActiveListeningStore.getState().cancelDraft()}
+          >
+            ✕ Cancel
+          </button>
+        </div>
+      )}
     <div className={styles.inputArea}>
       <textarea
         ref={textareaRef}
@@ -115,6 +133,7 @@ export function ChatInput(): JSX.Element {
           {isLoading ? 'Thinking...' : 'Send'}
         </button>
       </div>
+    </div>
     </div>
   )
 }

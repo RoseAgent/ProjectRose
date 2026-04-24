@@ -7,6 +7,62 @@
   background: var(--color-bg-primary);
 }
 
+/* ── mode toggle ── */
+.panelHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.toggleBtn {
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.toggleBtn:hover {
+  color: var(--color-text-secondary);
+}
+
+.toggleBtnActive {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.liveChip {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  color: var(--color-accent);
+  letter-spacing: 1px;
+}
+
+.liveDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  animation: livePulse 1.2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
 .messages {
   flex: 1;
   min-height: 0;

@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
+import clsx from 'clsx'
 import { useChatStore, SessionMeta } from '../../stores/useChatStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useThemeStore } from '../../stores/useThemeStore'
+import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
+import { VoiceEnrollmentModal } from './VoiceEnrollmentModal'
 import styles from './SessionSidebar.module.css'
 
 function formatDate(ts: number): string {
@@ -24,6 +27,9 @@ export function SessionSidebar(): JSX.Element {
   const models = useSettingsStore((s) => s.models)
   const theme = useThemeStore((s) => s.theme)
 
+  const isActiveListening = useActiveListeningStore((s) => s.isActive)
+  const activeListeningSetupComplete = useSettingsStore((s) => s.activeListeningSetupComplete)
+  const [showEnrollment, setShowEnrollment] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const renameRef = useRef<HTMLInputElement>(null)
@@ -71,6 +77,18 @@ export function SessionSidebar(): JSX.Element {
     e.stopPropagation()
     if (!rootPath) return
     deleteSession(rootPath, sessId)
+  }
+
+  function handleActiveListening(): void {
+    if (isActiveListening) {
+      useActiveListeningStore.getState().setActive(false)
+      return
+    }
+    if (!activeListeningSetupComplete) {
+      setShowEnrollment(true)
+    } else {
+      useActiveListeningStore.getState().setActive(true)
+    }
   }
 
   return (
@@ -157,12 +175,18 @@ export function SessionSidebar(): JSX.Element {
           <span>+ NEW SESSION</span>
           <span className={styles.kbd}>⌘N</span>
         </button>
-        <button className={styles.activeListeningBtn} disabled>
-          <span className={styles.dot} />
-          <span>+ ACTIVE LISTENING</span>
-          <span className={styles.kbd}>⌘⇧N</span>
+        <button
+          className={clsx(styles.activeListeningBtn, isActiveListening && styles.activeListeningBtnOn)}
+          onClick={handleActiveListening}
+        >
+          <span className={clsx(styles.dot, isActiveListening && styles.dotActive)} />
+          <span>{isActiveListening ? '● ACTIVE LISTENING' : '+ ACTIVE LISTENING'}</span>
+          {!isActiveListening && <span className={styles.kbd}>⌘⇧N</span>}
         </button>
       </div>
+      {showEnrollment && (
+        <VoiceEnrollmentModal onClose={() => setShowEnrollment(false)} />
+      )}
     </div>
   )
 }

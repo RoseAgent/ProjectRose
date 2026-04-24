@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react'
+import clsx from 'clsx'
 import { useChatStore } from '../../stores/useChatStore'
 import type { ChatMessage, ToolMessage, AskUserMessage } from '../../stores/useChatStore'
+import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { ChatCell } from './ChatCell'
 import { ToolCallGroupCell } from './ToolCallGroupCell'
 import { AskUserCell } from './AskUserCell'
 import { SystemPromptCell } from './SystemPromptCell'
 import { ChatInput } from './ChatInput'
+import { TranscriptView } from './TranscriptView'
 import styles from './ChatPanel.module.css'
 
 type RenderItem =
@@ -39,6 +42,9 @@ export function ChatPanel(): JSX.Element {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const rootPath = useProjectStore((s) => s.rootPath)
   const loadSessions = useChatStore((s) => s.loadSessions)
+  const mode = useActiveListeningStore((s) => s.mode)
+  const isActive = useActiveListeningStore((s) => s.isActive)
+  const setMode = useActiveListeningStore((s) => s.setMode)
 
   useEffect(() => {
     if (rootPath) loadSessions(rootPath)
@@ -52,26 +58,47 @@ export function ChatPanel(): JSX.Element {
 
   return (
     <div className={styles.chatPanel}>
-      <div className={styles.messages}>
-        {rootPath && <SystemPromptCell rootPath={rootPath} />}
-        {messages.length === 0 ? (
-          <div className={styles.empty}>Start a conversation with the AI assistant</div>
-        ) : (
-          <>
-            {items.map((item) =>
-              item.type === 'tool-group'
-                ? <ToolCallGroupCell key={item.key} messages={item.messages} />
-                : item.message.role === 'ask_user'
-                ? <AskUserCell key={item.message.id} message={item.message as AskUserMessage} />
-                : <ChatCell key={item.message.id} message={item.message} />
-            )}
-            {isLoading && (
-              <div className={styles.loading}>Generating response...</div>
-            )}
-          </>
-        )}
-        <div ref={messagesEndRef} />
+      <div className={styles.panelHeader}>
+        <button
+          className={clsx(styles.toggleBtn, mode === 'chat' && styles.toggleBtnActive)}
+          onClick={() => setMode('chat')}
+        >
+          CHAT
+        </button>
+        <button
+          className={clsx(styles.toggleBtn, mode === 'transcript' && styles.toggleBtnActive)}
+          onClick={() => setMode('transcript')}
+        >
+          TRANSCRIPT
+        </button>
+        {isActive && <span className={styles.liveChip}><span className={styles.liveDot} />LIVE</span>}
       </div>
+
+      {mode === 'chat' ? (
+        <div className={styles.messages}>
+          {rootPath && <SystemPromptCell rootPath={rootPath} />}
+          {messages.length === 0 ? (
+            <div className={styles.empty}>Start a conversation with the AI assistant</div>
+          ) : (
+            <>
+              {items.map((item) =>
+                item.type === 'tool-group'
+                  ? <ToolCallGroupCell key={item.key} messages={item.messages} />
+                  : item.message.role === 'ask_user'
+                  ? <AskUserCell key={item.message.id} message={item.message as AskUserMessage} />
+                  : <ChatCell key={item.message.id} message={item.message} />
+              )}
+              {isLoading && (
+                <div className={styles.loading}>Generating response...</div>
+              )}
+            </>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      ) : (
+        <TranscriptView />
+      )}
+
       <ChatInput />
     </div>
   )

@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useChatStore } from '../../stores/useChatStore'
+import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import styles from './BloomStage.module.css'
 
 const WAVE_HEIGHTS = [0.5, 0.9, 0.65, 1.0, 0.8, 0.45, 0.9, 0.7, 1.0, 0.55, 0.85, 0.6]
@@ -11,6 +12,7 @@ const WAVEFORM_BARS = Array.from({ length: 48 }).map((_, i) => ({
 export function BloomStage(): JSX.Element {
   const isLoading = useChatStore((s) => s.isLoading)
   const isRecording = useChatStore((s) => s.isRecording)
+  const isActiveListening = useActiveListeningStore((s) => s.isActive)
 
   return (
     <div className={styles.stage}>
@@ -20,7 +22,9 @@ export function BloomStage(): JSX.Element {
         <div className={styles.statusText}>
           {isLoading
             ? <>agent is <span className={styles.statusAccent}>responding</span>…</>
-            : <>agent is <span className={styles.statusMuted}>listening</span>…</>
+            : isActiveListening
+            ? <>agent is <span className={styles.statusMuted}>listening</span>…</>
+            : null
           }
         </div>
       </div>

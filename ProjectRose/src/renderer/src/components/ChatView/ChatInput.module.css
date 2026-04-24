@@ -1,3 +1,62 @@
+.inputWrap {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.draftBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 24px;
+  background: var(--color-bg-elevated);
+  border-top: 1px solid var(--color-accent);
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  color: var(--color-accent);
+  letter-spacing: 0.6px;
+}
+
+.draftDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex-shrink: 0;
+  animation: draftPulse 1s ease-in-out infinite;
+}
+
+@keyframes draftPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.draftLabel {
+  flex: 1;
+}
+
+.draftLabel strong {
+  color: var(--color-text-primary);
+}
+
+.draftCancel {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  padding: 2px 8px;
+  cursor: pointer;
+  letter-spacing: 0.6px;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.draftCancel:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
 .inputArea {
   display: flex;
   gap: 8px;

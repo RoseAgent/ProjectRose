@@ -274,11 +274,29 @@
   font-family: var(--font-family-mono);
   font-size: 10px;
   letter-spacing: 1px;
-  cursor: not-allowed;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
-  opacity: 0.45;
+  opacity: 0.55;
+  transition: border-color 0.1s, color 0.1s, opacity 0.1s;
+}
+
+.activeListeningBtn:hover {
+  opacity: 0.85;
+  border-color: var(--color-accent);
+  color: var(--color-text-secondary);
+}
+
+.activeListeningBtnOn {
+  opacity: 1;
+  border-color: var(--color-accent);
+  border-style: solid;
+  color: var(--color-accent);
+}
+
+.activeListeningBtnOn:hover {
+  opacity: 0.85;
 }
 
 .dot {
@@ -287,6 +305,15 @@
   border-radius: 50%;
   background: var(--color-accent);
   flex-shrink: 0;
+}
+
+.dotActive {
+  animation: dotPulse 1s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
 }
 
 .kbd {
