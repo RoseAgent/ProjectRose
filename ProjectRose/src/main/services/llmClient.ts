@@ -1,5 +1,6 @@
 import { streamText, generateText, stepCountIs, tool } from 'ai'
-import type { ToolExecutionOptions } from 'ai'
+import type { CoreMessage, ToolExecutionOptions } from 'ai'
+import { applyHooks } from './chatHooks'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOllama } from 'ai-sdk-ollama'
@@ -297,6 +298,31 @@ export interface StreamResult {
   outputTokens: number
 }
 
+function isHookMessage(content: unknown): boolean {
+  return typeof content === 'string' && content.startsWith('[HOOK]')
+}
+
+function isXmlParseError(message: string): boolean {
+  return message.toLowerCase().includes('xml syntax error')
+}
+
+function extractCompletedToolCalls(msgs: CoreMessage[]): Array<{ name: string; summary: string }> {
+  const calls: Array<{ name: string; summary: string }> = []
+  for (const m of msgs) {
+    if (m.role !== 'assistant' || !Array.isArray(m.content)) continue
+    for (const part of m.content) {
+      if (typeof part !== 'object' || part === null) continue
+      if ((part as { type: string }).type !== 'tool-call') continue
+      const tc = part as { toolName: string; args?: Record<string, unknown> }
+      const args = tc.args ?? {}
+      const keyArg = args.path ?? args.command ?? args.query ?? args.pattern ?? args.wing ?? args.drawer
+      const summary = keyArg ? `${tc.toolName}("${String(keyArg).slice(0, 60)}")` : tc.toolName
+      calls.push({ name: tc.toolName, summary })
+    }
+  }
+  return calls
+}
+
 export async function streamChat(params: {
   messages: Message[]
   systemPrompt: string
@@ -317,50 +343,108 @@ export async function streamChat(params: {
   }
   for (const name of disabledCoreTools ?? []) delete tools[name]
 
-  const coreMessages = messages.map((m) => ({
+  let coreMessages: CoreMessage[] = messages.map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content
   }))
 
-  const result = streamText({
-    model,
-    system: systemPrompt,
-    messages: coreMessages,
-    tools,
-    stopWhen: stepCountIs(100),
-    abortSignal
-  })
+  const startInjections = await applyHooks('chatStart', { messages })
+  for (const msg of startInjections) {
+    coreMessages.push({ role: msg.role, content: msg.content })
+  }
 
   let accumulatedText = ''
   let inputTokens = 0
   let outputTokens = 0
-  for await (const chunk of result.fullStream) {
-    switch (chunk.type) {
-      case 'text-delta':
-        if (chunk.text) {
-          accumulatedText += chunk.text
-          notifyRenderer(IPC.AI_TOKEN, { token: chunk.text })
+
+  for (let stepNum = 0; stepNum < 100; stepNum++) {
+    let hadTools = false
+    let finishReason: string | undefined
+    let stepToolNames: string[] = []
+
+    // Inner retry loop — retries up to 2 times on XML parse errors from models like QWEN
+    // that use XML-based tool calling and occasionally produce malformed output.
+    for (let xmlRetries = 0; xmlRetries <= 2; xmlRetries++) {
+      const result = streamText({
+        model,
+        system: systemPrompt,
+        messages: coreMessages,
+        tools,
+        stopWhen: stepCountIs(1),
+        abortSignal
+      })
+
+      let shouldRetry = false
+      stream: for await (const chunk of result.fullStream) {
+        switch (chunk.type) {
+          case 'text-delta':
+            if (chunk.text) {
+              accumulatedText += chunk.text
+              notifyRenderer(IPC.AI_TOKEN, { token: chunk.text })
+            }
+            break
+          case 'reasoning-delta':
+            if (chunk.text) notifyRenderer(IPC.AI_THINKING, { content: chunk.text })
+            break
+          case 'finish':
+            if (chunk.usage) {
+              inputTokens += chunk.usage.inputTokens ?? 0
+              outputTokens += chunk.usage.outputTokens ?? 0
+            }
+            break
+          case 'error': {
+            const e = chunk.error
+            const errMsg = e instanceof Error ? e.message : (
+              typeof e === 'object' && e !== null && 'message' in e
+                ? String((e as { message: unknown }).message)
+                : JSON.stringify(e)
+            )
+            if (isXmlParseError(errMsg) && xmlRetries < 2) {
+              shouldRetry = true
+              break stream  // exit the for-await cleanly; retry the step
+            }
+            if (e instanceof Error) throw e
+            throw new Error(errMsg)
+          }
         }
-        break
-      case 'reasoning-delta':
-        if (chunk.text) notifyRenderer(IPC.AI_THINKING, { content: chunk.text })
-        break
-      case 'finish':
-        if (chunk.usage) {
-          inputTokens = chunk.usage.inputTokens ?? 0
-          outputTokens = chunk.usage.outputTokens ?? 0
-        }
-        break
-      case 'error': {
-        const e = chunk.error
-        if (e instanceof Error) throw e
-        const msg = (typeof e === 'object' && e !== null && 'message' in e)
-          ? String((e as { message: unknown }).message)
-          : JSON.stringify(e)
-        throw new Error(msg)
+      }
+
+      if (shouldRetry) continue  // next xmlRetries iteration
+
+      const steps = await result.steps
+      const resp = await result.response
+      const lastStep = steps.at(-1)
+      hadTools = (lastStep?.toolCalls?.length ?? 0) > 0
+      finishReason = lastStep?.finishReason
+      stepToolNames = (lastStep?.toolCalls ?? []).map(
+        (tc) => (tc as { toolName: string }).toolName
+      )
+      coreMessages = [...coreMessages, ...resp.messages]
+      break  // step succeeded — exit retry loop
+    }
+
+    if (!hadTools || finishReason === 'length' || finishReason === 'content-filter') break
+
+    // Skip the postToolCall hook when the step was exclusively file-write operations.
+    // Write steps are unambiguous forward progress; loops and task drift happen during
+    // exploratory steps (reads, lists, greps, commands). We still need to fire on any
+    // mixed step so the completed-calls list stays accurate for the next injection.
+    const WRITE_ONLY_TOOLS = new Set(['write_file', 'edit_file'])
+    const isWriteOnlyStep = stepToolNames.length > 0 && stepToolNames.every((n) => WRITE_ONLY_TOOLS.has(n))
+
+    if (!isWriteOnlyStep) {
+      // postToolCall: remove any previous hook injections and re-inject at the current (most recent) position
+      coreMessages = coreMessages.filter((m) => !isHookMessage(m.content))
+      const completedToolCalls = extractCompletedToolCalls(coreMessages)
+      const postInjections = await applyHooks('postToolCall', { messages, completedToolCalls })
+      for (const msg of postInjections) {
+        coreMessages.push({ role: msg.role, content: msg.content })
       }
     }
   }
+
+  await applyHooks('chatEnd', { messages })
+
   return { content: accumulatedText, inputTokens, outputTokens }
 }
 

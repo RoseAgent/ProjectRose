@@ -36,7 +36,7 @@ export function SettingsView(): JSX.Element {
     heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId,
     imapHost, imapPort, imapUser, imapPassword, imapTLS,
     discordBotToken,
-    navItems, models, defaultModelId, providerKeys, router, hostMode, update
+    navItems, models, defaultModelId, providerKeys, router, hostMode, includeThinkingInContext, update
   } = useSettingsStore()
 
   const rootPath = useProjectStore((s) => s.rootPath)
@@ -508,6 +508,27 @@ export function SettingsView(): JSX.Element {
               )}
             </div>
           )}
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Context</div>
+          <div className={styles.settingRow}>
+            <div className={styles.settingInfo}>
+              <div className={styles.settingLabel}>Include thinking in context</div>
+              <div className={styles.settingDesc}>
+                Injects the model&apos;s reasoning into the conversation history so it remembers its own thinking across messages.
+              </div>
+            </div>
+            <button
+              type="button"
+              className={`${styles.toggle} ${includeThinkingInContext ? styles.toggleOn : styles.toggleOff}`}
+              onClick={() => update({ includeThinkingInContext: !includeThinkingInContext })}
+              role="switch"
+              aria-checked={includeThinkingInContext}
+            >
+              <span className={styles.toggleThumb} />
+            </button>
+          </div>
         </section>
 
         <section className={styles.section}>

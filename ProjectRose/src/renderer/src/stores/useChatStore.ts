@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { useProjectStore } from './useProjectStore'
+import { useSettingsStore } from './useSettingsStore'
 
 let msgCounter = 0
 
@@ -272,11 +273,31 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     if (!rootPath) return
 
     // Snapshot API messages before adding new messages to state
-    const apiMessages = get().messages
-      .filter((m): m is UserMessage | AssistantMessage =>
-        (m.role === 'user' || m.role === 'assistant') && !(m as AssistantMessage).streaming
-      )
-      .map((m) => ({ role: m.role, content: m.content }))
+    const includeThinking = useSettingsStore.getState().includeThinkingInContext
+    const settled = get().messages.filter((m) => !(m as AssistantMessage).streaming && !(m as ThinkingMessage).streaming)
+    let apiMessages: Array<{ role: 'user' | 'assistant'; content: string }>
+    if (includeThinking) {
+      apiMessages = []
+      let pendingThinking = ''
+      for (const m of settled) {
+        if (m.role === 'thinking') {
+          pendingThinking += (pendingThinking ? '\n\n' : '') + m.content
+        } else if (m.role === 'user') {
+          pendingThinking = ''
+          apiMessages.push({ role: 'user', content: m.content })
+        } else if (m.role === 'assistant') {
+          const content = pendingThinking
+            ? `<thinking>\n${pendingThinking}\n</thinking>\n\n${m.content}`
+            : m.content
+          pendingThinking = ''
+          apiMessages.push({ role: 'assistant', content })
+        }
+      }
+    } else {
+      apiMessages = settled
+        .filter((m): m is UserMessage | AssistantMessage => m.role === 'user' || m.role === 'assistant')
+        .map((m) => ({ role: m.role, content: m.content }))
+    }
 
     const userMsg: UserMessage = {
       id: `msg-${++msgCounter}`,
