@@ -274,3 +274,27 @@
   animation-delay: var(--d, 0s);
   opacity: 0.85;
 }
+
+/* ── agent message preview ── */
+.msgBox {
+  margin-top: 8px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 120px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  padding: 7px 16px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.msgText {
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: block;
+  line-height: 1.6;
+}

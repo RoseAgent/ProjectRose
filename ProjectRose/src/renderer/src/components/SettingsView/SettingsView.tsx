@@ -32,6 +32,7 @@ const BEDROCK_FALLBACK = [
 export function SettingsView(): JSX.Element {
   const {
     heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId,
+    userName, agentName,
     imapHost, imapPort, imapUser, imapPassword, imapTLS,
     discordBotToken, discordChannels: discordEnabledIds,
     navItems, models, defaultModelId, providerKeys, router, hostMode, includeThinkingInContext, update
@@ -326,6 +327,36 @@ export function SettingsView(): JSX.Element {
                 <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
               ))}
             </select>
+          </div>
+          <div className={styles.settingRow}>
+            <div className={styles.settingInfo}>
+              <div className={styles.settingLabel}>Your Name</div>
+              <div className={styles.settingDesc}>
+                Used to identify your voice in the live transcript.
+              </div>
+            </div>
+            <input
+              className={styles.input}
+              type="text"
+              value={userName}
+              placeholder="e.g. Andrew"
+              onChange={(e) => update({ userName: e.target.value })}
+            />
+          </div>
+          <div className={styles.settingRow}>
+            <div className={styles.settingInfo}>
+              <div className={styles.settingLabel}>Agent Name</div>
+              <div className={styles.settingDesc}>
+                Wake word — say this name to start drafting a message.
+              </div>
+            </div>
+            <input
+              className={styles.input}
+              type="text"
+              value={agentName}
+              placeholder="e.g. Rose"
+              onChange={(e) => update({ agentName: e.target.value })}
+            />
           </div>
         </section>
       </>

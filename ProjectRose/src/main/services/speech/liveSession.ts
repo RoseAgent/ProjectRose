@@ -60,6 +60,7 @@ export async function processChunk(
       type: 'utterance',
       sessionId,
       utterance_id: utterance.id,
+      speaker_id: speakerId,
       speaker_name: speakerName,
       text
     })

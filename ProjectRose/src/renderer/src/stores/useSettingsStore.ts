@@ -58,7 +58,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   heartbeatIntervalMinutes: 5,
   micDeviceId: '',
   userName: '',
-  agentName: '',
+  agentName: 'Rose',
   roseSpeechSpeakerId: null,
   activeListeningSetupComplete: false,
   imapHost: '',

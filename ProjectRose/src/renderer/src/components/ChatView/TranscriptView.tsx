@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import type { Utterance, Speaker } from '../../stores/useActiveListeningStore'
 import { useProjectStore } from '../../stores/useProjectStore'
+import { useSettingsStore } from '../../stores/useSettingsStore'
 import styles from './TranscriptView.module.css'
 
 function formatTime(ts: number): string {
@@ -19,8 +20,9 @@ function speakerColor(name: string | null): string {
   return `hsl(${hue}, 40%, 32%)`
 }
 
-function SpeakerChip({ utterance, speakers, onLabel }: {
+function SpeakerChip({ utterance, displayName, speakers, onLabel }: {
   utterance: Utterance
+  displayName: string
   speakers: Speaker[]
   onLabel: (utteranceId: number, speakerId: number | null, speakerName: string) => void
 }): JSX.Element {
@@ -38,8 +40,8 @@ function SpeakerChip({ utterance, speakers, onLabel }: {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  const label = utterance.speakerName ?? 'Unknown'
-  const color = speakerColor(utterance.speakerName)
+  const label = displayName
+  const color = speakerColor(utterance.speakerId !== null ? displayName : null)
 
   const handleSelect = (speaker: Speaker): void => {
     onLabel(utterance.utteranceId, speaker.id, speaker.name)
@@ -95,6 +97,28 @@ function SpeakerChip({ utterance, speakers, onLabel }: {
   )
 }
 
+function resolveDisplayName(
+  utterance: Utterance,
+  enrolledSpeakerId: number | null,
+  userName: string
+): string {
+  if (!userName) return utterance.speakerName ?? 'Unknown'
+
+  // Match by enrolled speaker ID (primary — works after enrollment)
+  if (utterance.speakerId !== null && enrolledSpeakerId !== null &&
+      Number(utterance.speakerId) === Number(enrolledSpeakerId)) {
+    return userName
+  }
+
+  // Fallback: "User" is the default name written to the DB during enrollment
+  // when userName wasn't set yet. Substitute the real name if we have it.
+  if (utterance.speakerName?.toLowerCase() === 'user') {
+    return userName
+  }
+
+  return utterance.speakerName ?? 'Unknown'
+}
+
 export function TranscriptView(): JSX.Element {
   const utterances = useActiveListeningStore((s) => s.utterances)
   const speakers = useActiveListeningStore((s) => s.speakers)
@@ -102,6 +126,8 @@ export function TranscriptView(): JSX.Element {
   const isDrafting = useActiveListeningStore((s) => s.isDrafting)
   const draftSecondsLeft = useActiveListeningStore((s) => s.draftSecondsLeft)
   const rootPath = useProjectStore((s) => s.rootPath)
+  const userName = useSettingsStore((s) => s.userName)
+  const roseSpeechSpeakerId = useSettingsStore((s) => s.roseSpeechSpeakerId)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const [retraining, setRetraining] = useState(false)
@@ -137,11 +163,11 @@ export function TranscriptView(): JSX.Element {
       const { job_id } = await window.api.activeSpeech.train(rootPath)
       const poll = setInterval(async () => {
         const status = await window.api.activeSpeech.trainStatus({ jobId: job_id, projectPath: rootPath })
-        if (status.status === 'done' || status.status === 'failed') {
+        if (status.status === 'complete' || status.status === 'failed') {
           clearInterval(poll)
           setRetraining(false)
           setTrainResult(
-            status.status === 'done' && status.accuracy !== null
+            status.status === 'complete' && status.accuracy !== null
               ? `${Math.round(status.accuracy * 100)}% accuracy`
               : 'Training failed'
           )
@@ -180,7 +206,12 @@ export function TranscriptView(): JSX.Element {
         )}
         {utterances.map((u) => (
           <div key={u.utteranceId} className={styles.row}>
-            <SpeakerChip utterance={u} speakers={speakers} onLabel={handleLabel} />
+            <SpeakerChip
+              utterance={u}
+              displayName={resolveDisplayName(u, roseSpeechSpeakerId, userName)}
+              speakers={speakers}
+              onLabel={handleLabel}
+            />
             <span className={styles.text}>{u.text}</span>
             <span className={styles.time}>{formatTime(u.timestamp)}</span>
           </div>

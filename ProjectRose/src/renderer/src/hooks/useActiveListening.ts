@@ -12,17 +12,17 @@ export function useActiveListening(): void {
   const draftText = useActiveListeningStore((s) => s.draftText)
   const rootPath = useProjectStore((s) => s.rootPath)
   const agentName = useSettingsStore((s) => s.agentName)
-  const userName = useSettingsStore((s) => s.userName)
+  const roseSpeechSpeakerId = useSettingsStore((s) => s.roseSpeechSpeakerId)
 
   // Keep mutable refs so utterance handler always has fresh values
   const isDraftingRef = useRef(isDrafting)
   const draftTextRef = useRef(draftText)
   const agentNameRef = useRef(agentName)
-  const userNameRef = useRef(userName)
+  const roseSpeechSpeakerIdRef = useRef(roseSpeechSpeakerId)
   isDraftingRef.current = isDrafting
   draftTextRef.current = draftText
   agentNameRef.current = agentName
-  userNameRef.current = userName
+  roseSpeechSpeakerIdRef.current = roseSpeechSpeakerId
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -79,17 +79,23 @@ export function useActiveListening(): void {
         utteranceCleanup = window.api.activeSpeech.onUtterance((evt) => {
           if (!mounted || evt.sessionId !== id) return
 
+          const enrolledId = roseSpeechSpeakerIdRef.current
+          const evtSpeakerId = (evt as { speaker_id?: number | null }).speaker_id ?? null
+
           store.addUtterance({
             utteranceId: evt.utterance_id,
+            speakerId: evtSpeakerId,
             speakerName: evt.speaker_name,
             text: evt.text,
             timestamp: Date.now()
           })
 
-          const uName = userNameRef.current
-          const isUser = uName
-            ? evt.speaker_name?.toLowerCase() === uName.toLowerCase()
-            : true
+          // isUser: true when speaker is unidentified (could be anyone) or confirmed
+          // to be the enrolled user by ID. Only false when positively identified as
+          // someone else.
+          const isUser = evtSpeakerId === null
+            || enrolledId === null
+            || evtSpeakerId === enrolledId
 
           const aName = agentNameRef.current
           const hasWakeWord = Boolean(aName) && evt.text.toLowerCase().includes(aName.toLowerCase())

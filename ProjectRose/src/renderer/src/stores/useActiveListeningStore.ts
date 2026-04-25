@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 export interface Utterance {
   utteranceId: number
+  speakerId: number | null
   speakerName: string | null
   text: string
   timestamp: number
