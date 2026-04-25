@@ -11,6 +11,8 @@ import { readProjectSettings, CORE_TOOL_NAMES } from '../ipc/projectSettingsHand
 import { listInstalledExtensions } from '../ipc/extensionHandlers'
 import { getAllBuiltinExtensionTools } from '../extensions/builtinTools'
 import { buildRoseMd } from '../ipc/roseSetupHandlers'
+import { buildSubagentTools } from './subagentTools'
+import type { AgentContext, SubagentCounter } from './agentRunner'
 import { IPC } from '../../shared/ipcChannels'
 import type { Message } from '../../shared/roseModelTypes'
 
@@ -137,7 +139,7 @@ export interface ChatResponse {
   modelDisplay: string
 }
 
-export async function chat(messages: Message[], rootPath: string): Promise<ChatResponse> {
+export async function chat(messages: Message[], rootPath: string, sessionId: string): Promise<ChatResponse> {
   const abortController = new AbortController()
   activeAbortController = abortController
 
@@ -165,7 +167,28 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
     const extensionTools = getAllBuiltinExtensionTools(enabledExtIds)
       .filter((t) => !disabledTools.includes(t.name))
 
-    const streamParams = { systemPrompt, pythonTools: filteredPythonTools, extensionTools, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools, abortSignal: abortController.signal }
+    // Build subagent tools for this session
+    const agentCtx: AgentContext = {
+      sessionId,
+      agentIndex: 0,
+      rootPath,
+      notify: notifyRenderer,
+      abortSignal: abortController.signal
+    }
+    const counter: SubagentCounter = { value: 0 }
+    const subagentTools = buildSubagentTools(agentCtx, selectedModel, settings.providerKeys, counter, systemPrompt)
+
+    const streamParams = {
+      systemPrompt,
+      pythonTools: filteredPythonTools,
+      extensionTools,
+      providerKeys: settings.providerKeys,
+      projectRoot: rootPath,
+      disabledCoreTools,
+      abortSignal: abortController.signal,
+      notify: notifyRenderer,
+      extraTools: subagentTools
+    }
 
     let streamResult: Awaited<ReturnType<typeof streamChat>>
     let activeModelDisplay = modelDisplay
@@ -183,11 +206,14 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
       notifyRenderer(IPC.AI_STREAM_RESET, { errorMessage, fallbackModel: fallbackDisplay })
       resetModifiedFiles()
 
-      streamResult = await streamChat({ messages, model: defaultModel, ...streamParams })
+      // Rebuild subagent tools with the fallback model
+      const fallbackSubagentTools = buildSubagentTools(agentCtx, defaultModel, settings.providerKeys, counter, systemPrompt)
+      streamResult = await streamChat({ messages, model: defaultModel, ...streamParams, extraTools: fallbackSubagentTools })
       activeModelDisplay = fallbackDisplay
       activeModel = defaultModel
     }
 
+    void activeModel  // suppress unused-var lint
     return { content: streamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay: activeModelDisplay }
   } finally {
     activeAbortController = null

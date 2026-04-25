@@ -180,8 +180,8 @@ const api = {
     ipcRenderer.invoke(IPC.PROJECTS_REMOVE_RECENT, projectPath),
 
   // AI
-  aiChat: (messages: { role: string; content: string }[], rootPath: string): Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }> =>
-    ipcRenderer.invoke(IPC.AI_CHAT, { messages, rootPath }),
+  aiChat: (messages: { role: string; content: string }[], rootPath: string, sessionId: string): Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }> =>
+    ipcRenderer.invoke(IPC.AI_CHAT, { messages, rootPath, sessionId }),
 
   aiCompress: (messages: { role: string; content: string }[]): Promise<{ role: string; content: string }[]> =>
     ipcRenderer.invoke(IPC.AI_COMPRESS, messages),

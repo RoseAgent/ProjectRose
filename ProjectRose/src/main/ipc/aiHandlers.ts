@@ -7,8 +7,8 @@ import type { Message } from '../../shared/roseModelTypes'
 export function registerAiHandlers(): void {
   ipcMain.handle(
     IPC.AI_CHAT,
-    async (_event, payload: { messages: Message[]; rootPath: string }) => {
-      return chat(payload.messages, payload.rootPath)
+    async (_event, payload: { messages: Message[]; rootPath: string; sessionId: string }) => {
+      return chat(payload.messages, payload.rootPath, payload.sessionId)
     }
   )
 

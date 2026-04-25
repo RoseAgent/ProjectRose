@@ -70,7 +70,7 @@ export interface ProjectSettings {
 
 export interface ElectronAPI {
   // AI
-  aiChat: (messages: { role: string; content: string }[], rootPath: string) => Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }>
+  aiChat: (messages: { role: string; content: string }[], rootPath: string, sessionId: string) => Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }>
   aiCompress: (messages: { role: string; content: string }[]) => Promise<{ role: string; content: string }[]>
   aiGetSystemPrompt: (rootPath: string) => Promise<string>
   onAiFileModified: (callback: (data: { path: string }) => void) => () => void

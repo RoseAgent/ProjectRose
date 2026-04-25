@@ -106,36 +106,38 @@ export async function routeRequest(userMessage: string, router: RouterConfig): P
 }
 
 type ExecuteFn = (input: Record<string, unknown>, projectRoot: string) => Promise<string>
+type EmitFn = (channel: string, payload: unknown) => void
 
 function wrapExecute(
   name: string,
   fn: ExecuteFn,
-  projectRoot: string
+  projectRoot: string,
+  emit: EmitFn
 ): (input: Record<string, unknown>, options: ToolExecutionOptions) => Promise<string> {
   return async (input, options) => {
     const id = options.toolCallId
-    notifyRenderer(IPC.AI_TOOL_CALL_START, { id, name, params: input })
+    emit(IPC.AI_TOOL_CALL_START, { id, name, params: input })
     try {
       const result = await fn(input, projectRoot)
-      notifyRenderer(IPC.AI_TOOL_CALL_END, { id, result, error: false })
+      emit(IPC.AI_TOOL_CALL_END, { id, result, error: false })
       return result
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err)
-      notifyRenderer(IPC.AI_TOOL_CALL_END, { id, result: error, error: true })
+      emit(IPC.AI_TOOL_CALL_END, { id, result: error, error: true })
       return error
     }
   }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildCoreTools(projectRoot: string): Record<string, any> {
+function buildCoreTools(projectRoot: string, emit: EmitFn): Record<string, any> {
   return {
     read_file: tool({
       description: 'Read the contents of a file. Use project-relative paths.',
       inputSchema: z.object({
         path: z.string().describe('File path relative to the project root')
       }),
-      execute: wrapExecute('read_file', handleReadFile, projectRoot)
+      execute: wrapExecute('read_file', handleReadFile, projectRoot, emit)
     }),
     write_file: tool({
       description: 'Write content to a file. Requires a file_token obtained from read_file — call read_file first if you do not have one. Returns a new file_token you can use for subsequent writes to the same file.',
@@ -144,7 +146,7 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
         path: z.string().describe('File path relative to the project root'),
         content: z.string().describe('The full file content to write')
       }),
-      execute: wrapExecute('write_file', handleWriteFile, projectRoot)
+      execute: wrapExecute('write_file', handleWriteFile, projectRoot, emit)
     }),
     edit_file: tool({
       description: 'Replace a unique string in a file with new content. Requires a file_token from read_file. Fails if old_string is not found or appears more than once — add more surrounding context to disambiguate. Returns a new file_token for subsequent edits.',
@@ -154,14 +156,14 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
         old_string: z.string().describe('Exact string to find and replace. Must appear exactly once in the file.'),
         new_string: z.string().describe('String to replace old_string with')
       }),
-      execute: wrapExecute('edit_file', handleEditFile, projectRoot)
+      execute: wrapExecute('edit_file', handleEditFile, projectRoot, emit)
     }),
     list_directory: tool({
       description: 'List files and subdirectories in a directory.',
       inputSchema: z.object({
         path: z.string().describe('Directory path relative to the project root. Use "." for the root.')
       }),
-      execute: wrapExecute('list_directory', handleListDirectory, projectRoot)
+      execute: wrapExecute('list_directory', handleListDirectory, projectRoot, emit)
     }),
     grep: tool({
       description: 'Search file contents for a regex pattern. Returns matching lines as file:line: text. Searches the entire project by default; narrow with path or include.',
@@ -171,14 +173,14 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
         include: z.string().optional().describe('Comma-separated file extensions to include, e.g. ".ts,.tsx" or "*.py"'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive match (default: false)')
       }),
-      execute: wrapExecute('grep', handleGrep, projectRoot)
+      execute: wrapExecute('grep', handleGrep, projectRoot, emit)
     }),
     run_command: tool({
       description: 'Run a shell command in the project directory. Use for installing packages, running tests, linting, etc. Returns stdout/stderr.',
       inputSchema: z.object({
         command: z.string().describe('The shell command to execute')
       }),
-      execute: wrapExecute('run_command', handleRunCommand, projectRoot)
+      execute: wrapExecute('run_command', handleRunCommand, projectRoot, emit)
     }),
     ask_user: tool({
       description: 'Ask the user a clarifying question and wait for their response before continuing. Use when you need input or a decision from the user. Provide 2–6 multiple-choice options when relevant.',
@@ -190,7 +192,7 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
         const id = options.toolCallId
         return new Promise<string>((resolve) => {
           pendingAskUser.set(id, resolve)
-          notifyRenderer(IPC.AI_ASK_USER, { questionId: id, question: input.question, options: input.options ?? [] })
+          emit(IPC.AI_ASK_USER, { questionId: id, question: input.question, options: input.options ?? [] })
         })
       }
     }),
@@ -198,7 +200,7 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string): Record<string, any> {
+function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string, emit: EmitFn): Record<string, any> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {}
   for (const entry of entries) {
@@ -221,14 +223,14 @@ function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string)
     result[entry.name] = tool({
       description: entry.description,
       inputSchema: z.object(shape),
-      execute: wrapExecute(entry.name, entry.execute, projectRoot)
+      execute: wrapExecute(entry.name, entry.execute, projectRoot, emit)
     })
   }
   return result
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildPythonTools(pythonTools: PythonToolMeta[], projectRoot: string): Record<string, any> {
+function buildPythonTools(pythonTools: PythonToolMeta[], projectRoot: string, emit: EmitFn): Record<string, any> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {}
   for (const pt of pythonTools) {
@@ -239,7 +241,7 @@ function buildPythonTools(pythonTools: PythonToolMeta[], projectRoot: string): R
     result[pt.name] = tool({
       description: pt.description,
       inputSchema: z.object(shape),
-      execute: wrapExecute(pt.name, (input, root) => pt.execute(input, root), projectRoot)
+      execute: wrapExecute(pt.name, (input, root) => pt.execute(input, root), projectRoot, emit)
     })
   }
   return result
@@ -286,13 +288,22 @@ export async function streamChat(params: {
   projectRoot: string
   disabledCoreTools?: string[]
   abortSignal?: AbortSignal
+  // Optional notify override — defaults to notifyRenderer (main agent).
+  // Pass `() => {}` for subagents that should not emit IPC events.
+  notify?: EmitFn
+  // Extra tools merged into the tool set after core/extension/python tools are built.
+  // Useful for injecting agent-command tools (create_subagents, explore, etc.).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  extraTools?: Record<string, any>
 }): Promise<StreamResult> {
   const { messages, systemPrompt, pythonTools, extensionTools, model: modelConfig, providerKeys, projectRoot, disabledCoreTools, abortSignal } = params
+  const emit: EmitFn = params.notify ?? notifyRenderer
   const model = resolveModel(modelConfig, providerKeys)
   const tools = {
-    ...buildCoreTools(projectRoot),
-    ...buildExtensionTools(extensionTools ?? [], projectRoot),
-    ...buildPythonTools(pythonTools, projectRoot)
+    ...buildCoreTools(projectRoot, emit),
+    ...buildExtensionTools(extensionTools ?? [], projectRoot, emit),
+    ...buildPythonTools(pythonTools, projectRoot, emit),
+    ...(params.extraTools ?? {})
   }
   for (const name of disabledCoreTools ?? []) delete tools[name]
 
@@ -333,11 +344,11 @@ export async function streamChat(params: {
           case 'text-delta':
             if (chunk.text) {
               accumulatedText += chunk.text
-              notifyRenderer(IPC.AI_TOKEN, { token: chunk.text })
+              emit(IPC.AI_TOKEN, { token: chunk.text })
             }
             break
           case 'reasoning-delta':
-            if (chunk.text) notifyRenderer(IPC.AI_THINKING, { content: chunk.text })
+            if (chunk.text) emit(IPC.AI_THINKING, { content: chunk.text })
             break
           case 'finish':
             if (chunk.usage) {
@@ -379,14 +390,10 @@ export async function streamChat(params: {
     if (!hadTools || finishReason === 'length' || finishReason === 'content-filter') break
 
     // Skip the postToolCall hook when the step was exclusively file-write operations.
-    // Write steps are unambiguous forward progress; loops and task drift happen during
-    // exploratory steps (reads, lists, greps, commands). We still need to fire on any
-    // mixed step so the completed-calls list stays accurate for the next injection.
     const WRITE_ONLY_TOOLS = new Set(['write_file', 'edit_file'])
     const isWriteOnlyStep = stepToolNames.length > 0 && stepToolNames.every((n) => WRITE_ONLY_TOOLS.has(n))
 
     if (!isWriteOnlyStep) {
-      // postToolCall: remove any previous hook injections and re-inject at the current (most recent) position
       coreMessages = coreMessages.filter((m) => !isHookMessage(m.content))
       const completedToolCalls = extractCompletedToolCalls(coreMessages)
       const postInjections = await applyHooks('postToolCall', { messages, completedToolCalls })

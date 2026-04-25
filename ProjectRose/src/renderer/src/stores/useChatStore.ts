@@ -382,7 +382,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
 
     try {
-      const response = await window.api.aiChat([...apiMessages, { role: 'user', content: trimmed }], rootPath)
+      const response = await window.api.aiChat([...apiMessages, { role: 'user', content: trimmed }], rootPath, sessionId!)
 
       cleanup()
 
