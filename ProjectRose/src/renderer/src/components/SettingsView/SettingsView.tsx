@@ -56,7 +56,6 @@ export function SettingsView(): JSX.Element {
   const dragIndexRef = useRef<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([])
-  const { filters, loadFilters, saveFilters } = useEmailStore()
   const [newSpamType, setNewSpamType] = useState<'sender' | 'domain' | 'subject'>('sender')
   const [newSpamValue, setNewSpamValue] = useState('')
   const [newInjectionPattern, setNewInjectionPattern] = useState('')
