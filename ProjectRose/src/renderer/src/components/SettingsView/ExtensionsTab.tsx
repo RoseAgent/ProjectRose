@@ -1,22 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { InstalledExtension, RegistryExtension } from '../../../../shared/extension-types'
+import type { InstalledExtension } from '../../../../shared/extension-types'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { loadDynamicExtensions } from '../../extensions/registry'
 import styles from './SettingsView.module.css'
 
-const REGISTRY_URL =
-  'https://raw.githubusercontent.com/RoseAgent/ProjectRose/master/extensions/registry.json'
-
-type SubTab = 'installed' | 'browse'
-
 export function ExtensionsTab(): JSX.Element {
-  const [subTab, setSubTab] = useState<SubTab>('installed')
   const [installed, setInstalled] = useState<InstalledExtension[]>([])
-  const [registry, setRegistry] = useState<RegistryExtension[]>([])
-  const [registryLoading, setRegistryLoading] = useState(false)
-  const [registryError, setRegistryError] = useState('')
-  const [installPending, setInstallPending] = useState<string | null>(null)
   const [diskInstalling, setDiskInstalling] = useState(false)
 
   const rootPath = useProjectStore((s) => s.rootPath)
@@ -30,38 +20,6 @@ export function ExtensionsTab(): JSX.Element {
   }, [rootPath])
 
   useEffect(() => { loadInstalled() }, [loadInstalled])
-
-  const loadRegistry = useCallback(async () => {
-    setRegistryLoading(true)
-    setRegistryError('')
-    try {
-      const result = await window.api.extension.fetchRegistry(REGISTRY_URL)
-      setRegistry(result.extensions)
-    } catch {
-      setRegistryError('Failed to load extension registry. Check your internet connection.')
-    } finally {
-      setRegistryLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (subTab === 'browse' && registry.length === 0) loadRegistry()
-  }, [subTab]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleInstall = useCallback(async (ext: RegistryExtension) => {
-    if (!rootPath) return
-    setInstallPending(ext.id)
-    try {
-      await window.api.extension.install(rootPath, ext.downloadUrl)
-      if (!navItems.some((n) => n.viewId === ext.id)) {
-        await updateSettings({ navItems: [...navItems, { viewId: ext.id, label: ext.name, visible: true }] })
-      }
-      await loadInstalled()
-      await loadDynamicExtensions(rootPath)
-    } finally {
-      setInstallPending(null)
-    }
-  }, [loadInstalled, navItems, updateSettings, rootPath])
 
   const handleInstallFromDisk = useCallback(async () => {
     if (!rootPath) return
@@ -106,118 +64,77 @@ export function ExtensionsTab(): JSX.Element {
     await loadDynamicExtensions(rootPath)
   }, [loadInstalled, rootPath])
 
-  const isInstalled = (id: string): boolean => installed.some((e) => e.manifest.id === id)
-
   return (
     <section className={styles.section}>
       <div className={styles.sectionTitle}>Extensions</div>
 
-      {/* Sub-tab bar */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 24, borderBottom: '1px solid var(--color-border)' }}>
-        {(['installed', 'browse'] as SubTab[]).map((t) => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {!rootPath && (
+          <div className={styles.emptyState}>Open a project to manage extensions.</div>
+        )}
+        {rootPath && (
           <button
-            key={t}
             type="button"
-            onClick={() => setSubTab(t)}
+            disabled={diskInstalling}
+            onClick={handleInstallFromDisk}
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              width: '100%',
+              padding: '14px 16px',
               background: 'none',
-              border: 'none',
-              borderBottom: subTab === t ? '2px solid var(--color-accent)' : '2px solid transparent',
-              padding: '8px 16px',
-              marginBottom: -1,
-              cursor: 'pointer',
-              fontSize: 12,
-              letterSpacing: '0.5px',
-              color: subTab === t ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-              fontWeight: subTab === t ? 600 : 400,
-              transition: 'color 0.1s, border-color 0.1s',
-              fontFamily: 'inherit',
+              border: '1px dashed var(--color-border-strong, var(--color-border))',
+              borderRadius: 'var(--radius-md, 6px)',
+              color: diskInstalling ? 'var(--color-text-muted)' : 'var(--color-text-secondary)',
+              cursor: diskInstalling ? 'not-allowed' : 'pointer',
+              fontFamily: 'var(--font-family-mono)',
+              fontSize: 11,
+              letterSpacing: '1px',
+              textAlign: 'left',
+              transition: 'border-color 0.1s, color 0.1s, background 0.1s',
+              opacity: diskInstalling ? 0.5 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!diskInstalling) {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--color-accent)'
+                ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-primary)'
+                ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--color-button-hover-bg, rgba(255,255,255,0.03))'
+              }
+            }}
+            onMouseLeave={(e) => {
+              ;(e.currentTarget as HTMLButtonElement).style.borderColor = ''
+              ;(e.currentTarget as HTMLButtonElement).style.color = diskInstalling ? 'var(--color-text-muted)' : 'var(--color-text-secondary)'
+              ;(e.currentTarget as HTMLButtonElement).style.background = 'none'
             }}
           >
-            {t.charAt(0).toUpperCase() + t.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Installed tab ── */}
-      {subTab === 'installed' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {!rootPath && (
-            <div className={styles.emptyState}>Open a project to manage extensions.</div>
-          )}
-          {rootPath && installed.map((ext) => (
-            <ExtensionRow
-              key={ext.manifest.id}
-              name={ext.manifest.name}
-              description={ext.manifest.description}
-              version={ext.manifest.version}
-              author={ext.manifest.author}
-              enabled={ext.enabled}
-              onToggle={() => handleToggle(ext.manifest.id, ext.enabled)}
-              onUninstall={() => handleUninstall(ext)}
-            />
-          ))}
-          {rootPath && installed.length === 0 && (
-            <div className={styles.emptyState}>No extensions installed. Browse or install from disk.</div>
-          )}
-          {rootPath && (
-            <div style={{ marginTop: 8 }}>
-              <button
-                type="button"
-                className={styles.refreshBtn}
-                disabled={diskInstalling}
-                onClick={handleInstallFromDisk}
-              >
-                {diskInstalling ? 'Installing...' : 'Install from disk'}
-              </button>
+            <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>+</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontSize: 11, letterSpacing: '1px' }}>
+                {diskInstalling ? 'INSTALLING...' : 'INSTALL FROM DISK'}
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--color-text-muted)', letterSpacing: '0.3px', fontFamily: 'inherit' }}>
+                Load a local .rose extension bundle
+              </span>
             </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Browse tab ── */}
-      {subTab === 'browse' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {registryLoading && (
-            <div className={styles.emptyState}>Loading extension registry...</div>
-          )}
-          {registryError && (
-            <div className={styles.emptyState}>{registryError}</div>
-          )}
-          {!registryLoading && !registryError && registry.length === 0 && (
-            <div className={styles.emptyState}>No extensions found in registry.</div>
-          )}
-          {registry.map((ext) => (
-            <ExtensionRow
-              key={ext.id}
-              name={ext.name}
-              description={ext.description}
-              version={ext.version}
-              author={ext.author}
-              badge={undefined}
-              enabled={true}
-              onToggle={undefined}
-              onUninstall={undefined}
-              installButton={
-                isInstalled(ext.id) ? (
-                  <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', letterSpacing: '0.5px' }}>
-                    Installed
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    className={styles.refreshBtn}
-                    disabled={installPending === ext.id || !rootPath}
-                    onClick={() => handleInstall(ext)}
-                  >
-                    {installPending === ext.id ? 'Installing...' : 'Install'}
-                  </button>
-                )
-              }
-            />
-          ))}
-        </div>
-      )}
+          </button>
+        )}
+        {rootPath && installed.map((ext) => (
+          <ExtensionRow
+            key={ext.manifest.id}
+            name={ext.manifest.name}
+            description={ext.manifest.description}
+            version={ext.manifest.version}
+            author={ext.manifest.author}
+            enabled={ext.enabled}
+            onToggle={() => handleToggle(ext.manifest.id, ext.enabled)}
+            onUninstall={() => handleUninstall(ext)}
+          />
+        ))}
+        {rootPath && installed.length === 0 && (
+          <div className={styles.emptyState}>No extensions installed. Use "Install from disk" to add one.</div>
+        )}
+      </div>
     </section>
   )
 }
@@ -227,17 +144,12 @@ interface ExtensionRowProps {
   description: string
   version: string
   author: string
-  badge?: string
   enabled: boolean
-  onToggle?: () => void
-  onUninstall?: () => void
-  installButton?: React.ReactNode
+  onToggle: () => void
+  onUninstall: () => void
 }
 
-function ExtensionRow({
-  name, description, version, author, badge,
-  enabled, onToggle, onUninstall, installButton
-}: ExtensionRowProps) {
+function ExtensionRow({ name, description, version, author, enabled, onToggle, onUninstall }: ExtensionRowProps) {
   return (
     <div style={{
       display: 'flex',
@@ -251,24 +163,9 @@ function ExtensionRow({
       background: 'var(--color-bg-secondary)',
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            {name}
-          </span>
-          {badge && (
-            <span style={{
-              fontSize: 9,
-              letterSpacing: '1px',
-              padding: '1px 6px',
-              border: '1px solid var(--color-text-secondary)',
-              color: 'var(--color-text-secondary)',
-              borderRadius: 2,
-              flexShrink: 0,
-            }}>
-              {badge.toUpperCase()}
-            </span>
-          )}
-        </div>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+          {name}
+        </span>
         <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
           {description}
         </span>
@@ -278,17 +175,12 @@ function ExtensionRow({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        {installButton}
-        {onToggle && (
-          <button type="button" className={styles.refreshBtn} onClick={onToggle}>
-            {enabled ? 'Disable' : 'Enable'}
-          </button>
-        )}
-        {onUninstall && (
-          <button type="button" className={styles.refreshBtn} onClick={onUninstall}>
-            Uninstall
-          </button>
-        )}
+        <button type="button" className={styles.refreshBtn} onClick={onToggle}>
+          {enabled ? 'Disable' : 'Enable'}
+        </button>
+        <button type="button" className={styles.refreshBtn} onClick={onUninstall}>
+          Uninstall
+        </button>
       </div>
     </div>
   )
