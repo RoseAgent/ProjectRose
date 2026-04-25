@@ -8,8 +8,7 @@ import { streamChat, compressMessages, routeRequest, cancelAllAskUserQuestions }
 import { readSettings } from '../ipc/settingsHandlers'
 import type { AppSettings, ModelConfig } from '../ipc/settingsHandlers'
 import { readProjectSettings, CORE_TOOL_NAMES } from '../ipc/projectSettingsHandlers'
-import { listInstalledExtensions } from '../ipc/extensionHandlers'
-import { getAllBuiltinExtensionTools } from '../extensions/builtinTools'
+import { listInstalledExtensions, getRegisteredExtensionTools } from '../ipc/extensionHandlers'
 import { buildRoseMd } from '../ipc/roseSetupHandlers'
 import { buildSubagentTools } from './subagentTools'
 import type { AgentContext, SubagentCounter } from './agentRunner'
@@ -164,7 +163,7 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
 
     const installed = await listInstalledExtensions(rootPath)
     const enabledExtIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
-    const extensionTools = getAllBuiltinExtensionTools(enabledExtIds)
+    const extensionTools = getRegisteredExtensionTools(rootPath, enabledExtIds)
       .filter((t) => !disabledTools.includes(t.name))
 
     // Build subagent tools for this session

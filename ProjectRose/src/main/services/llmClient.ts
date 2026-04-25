@@ -17,7 +17,7 @@ import {
   handleRunCommand,
   type PythonToolMeta
 } from './toolHandlers'
-import type { ExtensionToolEntry } from '../extensions/builtinTools'
+import type { ExtensionToolEntry } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
 import type { ModelConfig, RouterConfig } from '../ipc/settingsHandlers'
 

@@ -9,7 +9,7 @@ import {
   fetchEmailBody,
   type EmailSummary
 } from './service'
-import type { ExtensionToolEntry } from '@main/extensions/builtinTools'
+import type { ExtensionToolEntry } from './types'
 
 async function handleListEmails(input: Record<string, unknown>, projectRoot: string): Promise<string> {
   const folder = typeof input.folder === 'string' ? input.folder : undefined

@@ -1,29 +1,10 @@
-import { DISCORD_TOOLS } from '@ext/rose-discord/main'
-import { EMAIL_TOOLS } from '@ext/rose-email/main'
+// Extension tools are now registered at runtime by each extension's main module
+// via ctx.registerTools() — see extensionHandlers.ts.
+// This file exists only to re-export the shared type so existing imports keep compiling.
+export type { ExtensionToolEntry } from '../../shared/extension-types'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ExtensionToolEntry {
-  name: string
-  description: string
-  schema: Record<string, any>
-  execute: (input: Record<string, unknown>, projectRoot: string) => Promise<string>
-}
-
+/** @deprecated Use getRegisteredExtensionTools from extensionHandlers instead */
 export interface MainExtensionEntry {
   id: string
-  tools: ExtensionToolEntry[]
-}
-
-const EXTENSION_TOOLS_MAP: Record<string, ExtensionToolEntry[]> = {
-  'rose-discord': DISCORD_TOOLS,
-  'rose-email': EMAIL_TOOLS,
-}
-
-export function getExtensionToolsById(extensionId: string): ExtensionToolEntry[] {
-  return EXTENSION_TOOLS_MAP[extensionId] ?? []
-}
-
-export function getAllBuiltinExtensionTools(enabledIds?: string[]): ExtensionToolEntry[] {
-  const ids = enabledIds ?? Object.keys(EXTENSION_TOOLS_MAP)
-  return ids.flatMap((id) => EXTENSION_TOOLS_MAP[id] ?? [])
+  tools: import('../../shared/extension-types').ExtensionToolEntry[]
 }

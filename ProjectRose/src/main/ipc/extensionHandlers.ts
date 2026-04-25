@@ -5,8 +5,8 @@ import { existsSync, readFileSync } from 'fs'
 import { createRequire } from 'module'
 import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
-import { readSettings } from './settingsHandlers'
-import type { InstalledExtension, ExtensionManifest } from '../../shared/extension-types'
+import { readSettings, writeSettings } from './settingsHandlers'
+import type { InstalledExtension, ExtensionManifest, ExtensionToolEntry } from '../../shared/extension-types'
 
 function getExtensionsDir(rootPath: string): string {
   return prPath(rootPath, 'extensions')
@@ -52,9 +52,18 @@ async function extractZip(zipPath: string, destDir: string): Promise<void> {
 // Tracks cleanup functions for loaded extension main modules, keyed by "<rootPath>/<id>"
 const loadedMains = new Map<string, () => void>()
 
+// Registered tools per extension, keyed by "<rootPath>/<id>"
+const extensionToolsRegistry = new Map<string, ExtensionToolEntry[]>()
+
+export function getRegisteredExtensionTools(rootPath: string, enabledIds: string[]): ExtensionToolEntry[] {
+  return enabledIds.flatMap((id) => extensionToolsRegistry.get(`${rootPath}/${id}`) ?? [])
+}
+
 interface ExtensionMainContext {
   getSettings: () => Promise<Record<string, unknown>>
+  updateSettings: (patch: Record<string, unknown>) => Promise<void>
   broadcast: (channel: string, data: unknown) => void
+  registerTools: (tools: ExtensionToolEntry[]) => void
 }
 
 function loadExtensionMainModule(rootPath: string, id: string): void {
@@ -74,10 +83,17 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
 
     const ctx: ExtensionMainContext = {
       getSettings: async () => readSettings(rootPath) as unknown as Record<string, unknown>,
+      updateSettings: async (patch: Record<string, unknown>) => {
+        const current = await readSettings(rootPath)
+        await writeSettings({ ...current, ...(patch as object) } as Parameters<typeof writeSettings>[0], rootPath)
+      },
       broadcast: (channel: string, data: unknown) => {
         for (const win of BrowserWindow.getAllWindows()) {
           if (!win.isDestroyed()) win.webContents.send(channel, data)
         }
+      },
+      registerTools: (tools: ExtensionToolEntry[]) => {
+        extensionToolsRegistry.set(key, tools)
       }
     }
 
@@ -96,6 +112,7 @@ function unloadExtensionMainModule(rootPath: string, id: string): void {
     try { cleanup() } catch {}
     loadedMains.delete(key)
   }
+  extensionToolsRegistry.delete(key)
 }
 
 export async function listInstalledExtensions(rootPath: string): Promise<InstalledExtension[]> {

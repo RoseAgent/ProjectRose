@@ -2,12 +2,10 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { ExtensionsTab } from './ExtensionsTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
-import { subscribeToExtensionsChange } from '../../extensions/registry'
+import { getAllExtensions, getExtensionByViewId, subscribeToExtensionsChange } from '../../extensions/registry'
 import { NavItem } from '../../../../shared/types'
 import type { ModelConfig, ToolMeta } from '../../types/electron'
 import styles from './SettingsView.module.css'
-
-type TestState = 'idle' | 'testing' | 'ok' | 'fail'
 
 interface AudioDevice {
   deviceId: string
@@ -33,14 +31,10 @@ export function SettingsView(): JSX.Element {
   const {
     heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId,
     userName, agentName,
-    imapHost, imapPort, imapUser, imapPassword, imapTLS,
-    discordBotToken, discordChannels: discordEnabledIds,
-    navItems, models, defaultModelId, providerKeys, router, hostMode, includeThinkingInContext, update
+    navItems, models, defaultModelId, providerKeys, router, includeThinkingInContext, update
   } = useSettingsStore()
 
   const rootPath = useProjectStore((s) => s.rootPath)
-  const [discordChannelsList, setDiscordChannelsList] = useState<Array<{ id: string; name: string; guildId: string; guildName: string }>>([])
-  const [discordConnected, setDiscordConnected] = useState(false)
 
   const [availableTools, setAvailableTools] = useState<ToolMeta[]>([])
   const [disabledTools, setDisabledTools] = useState<string[]>([])
@@ -56,22 +50,11 @@ export function SettingsView(): JSX.Element {
   const dragIndexRef = useRef<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([])
-  const [newSpamType, setNewSpamType] = useState<'sender' | 'domain' | 'subject'>('sender')
-  const [newSpamValue, setNewSpamValue] = useState('')
-  const [newInjectionPattern, setNewInjectionPattern] = useState('')
-  const [newInjectionIsRegex, setNewInjectionIsRegex] = useState(false)
-
-  const [emailFilters, setEmailFilters] = useState<{
-    spamRules: Array<{ id: string; type: 'sender'|'domain'|'subject'; value: string; enabled: boolean }>
-    injectionPatterns: Array<{ id: string; pattern: string; isRegex: boolean; enabled: boolean; builtin: boolean }>
-    customFolders: Array<{ id: string; name: string }>
-  } | null>(null)
+  const [, setExtVersion] = useState(0)
 
   const [authStatus, setAuthStatus] = useState<{ loggedIn: boolean; email: string; plan: string }>({ loggedIn: false, email: '', plan: '' })
-  const [authLoading, setAuthLoading] = useState(false)
 
-  const [testState, setTestState] = useState<TestState>('idle')
-  const [testError, setTestError] = useState('')
+  useEffect(() => subscribeToExtensionsChange(() => setExtVersion((v) => v + 1)), [])
 
   useEffect(() => {
     window.api.auth.getStatus().then(setAuthStatus).catch(() => {})
@@ -114,18 +97,6 @@ export function SettingsView(): JSX.Element {
         .filter((d) => d.kind === 'audioinput')
         .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Microphone ${i + 1}` }))
     )
-  }, [])
-
-  const testImapConnection = useCallback(async () => {
-    setTestState('testing')
-    setTestError('')
-    const result = await window.api.invoke('rose-email:testConnection') as { ok: boolean; error?: string }
-    if (result.ok) {
-      setTestState('ok')
-    } else {
-      setTestState('fail')
-      setTestError(result.error ?? 'Connection failed')
-    }
   }, [])
 
   const handleNavDragStart = useCallback((index: number) => {
@@ -222,14 +193,6 @@ export function SettingsView(): JSX.Element {
   }, [loadAudioDevices])
 
   useEffect(() => {
-    if (activePage === 'rose-email') {
-      window.api.invoke('rose-email:loadFilters')
-        .then((f) => setEmailFilters(f as typeof emailFilters))
-        .catch(() => {})
-    }
-  }, [activePage])
-
-  useEffect(() => {
     if (activePage !== 'chat') return
     for (const m of models) {
       if (m.provider === 'ollama' && m.baseUrl && !(m.id in ollamaModels)) {
@@ -247,15 +210,17 @@ export function SettingsView(): JSX.Element {
     }
   }, [activePage])
 
-  // Views that have their own settings pages; all others show the placeholder or are skipped
-  const SETTINGS_PAGES = new Set(['chat', 'heartbeat', 'rose-email', 'rose-discord'])
+  // Build sidebar: core pages + any extension that exports a SettingsView component
+  const extensionSettingsItems = getAllExtensions()
+    .filter((e) => e.SettingsView != null)
+    .map((e) => ({ id: e.manifest.id, label: e.manifest.name }))
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard' },
-    ...navItems
-      .filter((n) => n.viewId !== 'settings' && n.visible && SETTINGS_PAGES.has(n.viewId))
-      .map((n) => ({ id: n.viewId, label: n.label })),
-    { id: 'extensions', label: 'Extensions' }
+    { id: 'chat', label: 'Agent' },
+    { id: 'heartbeat', label: 'Heartbeat' },
+    ...extensionSettingsItems,
+    { id: 'extensions', label: 'Extensions' },
   ]
 
   useEffect(() => {
@@ -781,226 +746,6 @@ export function SettingsView(): JSX.Element {
     )
   }
 
-  async function saveEmailFilters(patch: Partial<NonNullable<typeof emailFilters>>): Promise<void> {
-    const updated = await window.api.invoke('rose-email:saveFilters', patch) as typeof emailFilters
-    setEmailFilters(updated)
-  }
-
-  function renderEmail(): JSX.Element {
-    const spamRules = emailFilters?.spamRules ?? []
-    const injectionPatterns = emailFilters?.injectionPatterns ?? []
-    const customFolders = emailFilters?.customFolders ?? []
-
-    async function addSpamRule(): Promise<void> {
-      const value = newSpamValue.trim()
-      if (!value) return
-      const rule = { id: `sr-${Date.now()}`, type: newSpamType, value, enabled: true }
-      await saveEmailFilters({ spamRules: [...spamRules, rule] })
-      setNewSpamValue('')
-    }
-
-    async function removeSpamRule(id: string): Promise<void> {
-      await saveEmailFilters({ spamRules: spamRules.filter(r => r.id !== id) })
-    }
-
-    async function toggleSpamRule(id: string): Promise<void> {
-      await saveEmailFilters({ spamRules: spamRules.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r) })
-    }
-
-    async function toggleInjectionPattern(id: string): Promise<void> {
-      await saveEmailFilters({ injectionPatterns: injectionPatterns.map(p => p.id === id ? { ...p, enabled: !p.enabled } : p) })
-    }
-
-    async function addInjectionPattern(): Promise<void> {
-      const value = newInjectionPattern.trim()
-      if (!value) return
-      const pattern = { id: `ip-${Date.now()}`, pattern: value, isRegex: newInjectionIsRegex, enabled: true, builtin: false }
-      await saveEmailFilters({ injectionPatterns: [...injectionPatterns, pattern] })
-      setNewInjectionPattern('')
-      setNewInjectionIsRegex(false)
-    }
-
-    async function removeInjectionPattern(id: string): Promise<void> {
-      await saveEmailFilters({ injectionPatterns: injectionPatterns.filter(p => p.id !== id) })
-    }
-
-    return (
-      <>
-        <section className={styles.section}>
-          <div className={styles.sectionTitle}>Email (IMAP)</div>
-          <div className={styles.settingCard}>
-            <div className={styles.settingLabel}>Server</div>
-            <div className={styles.inputRow}>
-              <input
-                className={`${styles.input} ${styles.inputRowFlex}`}
-                type="text"
-                placeholder="imap.gmail.com"
-                value={imapHost}
-                onChange={(e) => { update({ imapHost: e.target.value }); setTestState('idle') }}
-              />
-              <input
-                className={`${styles.input} ${styles.inputNarrow}`}
-                type="number"
-                placeholder="993"
-                value={imapPort}
-                onChange={(e) => { update({ imapPort: Number(e.target.value) }); setTestState('idle') }}
-              />
-            </div>
-            <div className={styles.settingLabel}>Email Address</div>
-            <input
-              className={styles.input}
-              type="text"
-              placeholder="you@example.com"
-              value={imapUser}
-              onChange={(e) => { update({ imapUser: e.target.value }); setTestState('idle') }}
-            />
-            <div className={styles.settingLabel}>Password / App Password</div>
-            <input
-              className={styles.input}
-              type="password"
-              placeholder="••••••••"
-              value={imapPassword}
-              onChange={(e) => { update({ imapPassword: e.target.value }); setTestState('idle') }}
-            />
-            <label className={styles.checkboxRow}>
-              <input
-                type="checkbox"
-                checked={imapTLS}
-                onChange={(e) => update({ imapTLS: e.target.checked })}
-              />
-              Use TLS (recommended)
-            </label>
-            <div className={styles.inputRow}>
-              <button
-                type="button"
-                className={styles.testBtn}
-                onClick={testImapConnection}
-                disabled={testState === 'testing' || !imapHost || !imapUser}
-              >
-                {testState === 'testing' ? 'Testing…' : 'Test Connection'}
-              </button>
-              {testState === 'ok' && <span className={styles.testOk}>Connected</span>}
-              {testState === 'fail' && <span className={styles.testFail}>{testError}</span>}
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionTitle}>Spam Rules</div>
-          <div className={styles.settingDesc} style={{ marginBottom: 10 }}>
-            Emails matching any rule go to the Spam folder immediately, skipping AI classification.
-          </div>
-          {spamRules.map(rule => (
-            <div key={rule.id} className={styles.settingRow}>
-              <div className={styles.settingInfo}>
-                <span className={styles.filterRuleType}>{rule.type}</span>
-                <span className={styles.settingLabel}>{rule.value}</span>
-              </div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <button
-                  type="button"
-                  className={`${styles.toggle} ${rule.enabled ? styles.toggleOn : styles.toggleOff}`}
-                  onClick={() => toggleSpamRule(rule.id)}
-                  role="switch"
-                  aria-checked={rule.enabled}
-                >
-                  <span className={styles.toggleThumb} />
-                </button>
-                <button type="button" className={styles.removeBtn} onClick={() => removeSpamRule(rule.id)}>Remove</button>
-              </div>
-            </div>
-          ))}
-          <div className={styles.inputRow} style={{ marginTop: 8 }}>
-            <select
-              className={styles.select}
-              value={newSpamType}
-              onChange={(e) => setNewSpamType(e.target.value as 'sender' | 'domain' | 'subject')}
-              style={{ width: 100, flexShrink: 0 }}
-            >
-              <option value="sender">Sender</option>
-              <option value="domain">Domain</option>
-              <option value="subject">Subject</option>
-            </select>
-            <input
-              className={`${styles.input} ${styles.inputRowFlex}`}
-              type="text"
-              placeholder={newSpamType === 'domain' ? 'example.com' : newSpamType === 'sender' ? 'spam@example.com' : 'limited time offer'}
-              value={newSpamValue}
-              onChange={(e) => setNewSpamValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addSpamRule() }}
-            />
-            <button type="button" className={styles.addModelBtn} onClick={addSpamRule} disabled={!newSpamValue.trim()}>
-              + Add
-            </button>
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionTitle}>Injection Filters</div>
-          <div className={styles.settingDesc} style={{ marginBottom: 10 }}>
-            Emails matching any pattern are quarantined. Built-in patterns detect common prompt injection phrases.
-          </div>
-          {injectionPatterns.map(p => (
-            <div key={p.id} className={styles.settingRow}>
-              <div className={styles.settingInfo}>
-                <div className={styles.settingLabel}>
-                  {p.pattern}
-                  {p.isRegex && <span className={styles.filterRuleType} style={{ marginLeft: 6 }}>regex</span>}
-                  {p.builtin && <span className={styles.filterRuleType} style={{ marginLeft: 6 }}>built-in</span>}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <button
-                  type="button"
-                  className={`${styles.toggle} ${p.enabled ? styles.toggleOn : styles.toggleOff}`}
-                  onClick={() => toggleInjectionPattern(p.id)}
-                  role="switch"
-                  aria-checked={p.enabled}
-                >
-                  <span className={styles.toggleThumb} />
-                </button>
-                {!p.builtin && (
-                  <button type="button" className={styles.removeBtn} onClick={() => removeInjectionPattern(p.id)}>Remove</button>
-                )}
-              </div>
-            </div>
-          ))}
-          <div className={styles.inputRow} style={{ marginTop: 8, flexWrap: 'wrap', gap: 6 }}>
-            <input
-              className={`${styles.input} ${styles.inputRowFlex}`}
-              type="text"
-              placeholder="Pattern text or regex…"
-              value={newInjectionPattern}
-              onChange={(e) => setNewInjectionPattern(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addInjectionPattern() }}
-            />
-            <label className={styles.checkboxRow} style={{ whiteSpace: 'nowrap' }}>
-              <input
-                type="checkbox"
-                checked={newInjectionIsRegex}
-                onChange={(e) => setNewInjectionIsRegex(e.target.checked)}
-              />
-              Regex
-            </label>
-            <button type="button" className={styles.addModelBtn} onClick={addInjectionPattern} disabled={!newInjectionPattern.trim()}>
-              + Add
-            </button>
-          </div>
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionTitle}>Folders</div>
-          <div className={styles.settingDesc}>
-            Custom folders are created and managed from the folder sidebar in the Email view.
-            {customFolders.length === 0
-              ? ' No custom folders yet.'
-              : ` ${customFolders.length} custom folder${customFolders.length === 1 ? '' : 's'}: ${customFolders.map(f => f.name).join(', ')}.`}
-          </div>
-        </section>
-      </>
-    )
-  }
-
   function renderPlaceholder(): JSX.Element {
     const current = sidebarItems.find((i) => i.id === activePage)
     return (
@@ -1017,89 +762,20 @@ export function SettingsView(): JSX.Element {
     )
   }
 
-  async function discordRefreshChannels(): Promise<void> {
-    const result = await window.api.invoke('rose-discord:connect') as { ok: boolean; channels?: typeof discordChannelsList }
-    if (result.ok && result.channels) {
-      setDiscordChannelsList(result.channels)
-      setDiscordConnected(true)
-    }
-  }
-
-  function discordToggleChannel(id: string): void {
-    const updated = (discordEnabledIds ?? []).includes(id)
-      ? (discordEnabledIds ?? []).filter((c) => c !== id)
-      : [...(discordEnabledIds ?? []), id]
-    update({ discordChannels: updated })
-  }
-
-  function renderDiscord(): JSX.Element {
-    const guilds = Array.from(new Map(discordChannelsList.map((c) => [c.guildId, c.guildName])).entries())
-
-    return (
-      <>
-        <section className={styles.section}>
-          <div className={styles.sectionTitle}>Discord Bot</div>
-          <div className={styles.settingCard}>
-            <div className={styles.settingLabel}>Bot Token</div>
-            <div className={styles.settingDesc}>
-              Create a bot at discord.com/developers, enable the Guilds, GuildMessages, and MessageContent
-              (privileged) intents, invite the bot to your servers, then paste the token below.
-            </div>
-            <input
-              className={styles.input}
-              type="password"
-              placeholder="Bot token…"
-              value={discordBotToken}
-              onChange={(e) => update({ discordBotToken: e.target.value })}
-            />
-            <div className={styles.settingDesc} style={{ marginTop: 8 }}>
-              Status: {discordConnected ? '● Connected' : '○ Disconnected'}
-            </div>
-          </div>
-        </section>
-
-        {discordBotToken && (
-          <section className={styles.section}>
-            <div className={styles.sectionTitle} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              Visible Channels
-              <button className={styles.testBtn} onClick={() => void discordRefreshChannels()}>Refresh</button>
-            </div>
-            <div className={styles.settingDesc} style={{ marginBottom: 8 }}>
-              Checked channels appear in the Discord view and are accessible to the AI tools.
-            </div>
-            {discordChannelsList.length === 0 && (
-              <div className={styles.emptyState}>No channels found. Click Refresh to connect the bot.</div>
-            )}
-            {guilds.map(([guildId, guildName]) => (
-              <div key={guildId} className={styles.settingCard}>
-                <div className={styles.settingLabel}>{guildName}</div>
-                {discordChannelsList.filter((c) => c.guildId === guildId).map((ch) => (
-                  <label key={ch.id} className={styles.checkboxRow}>
-                    <input
-                      type="checkbox"
-                      checked={(discordEnabledIds ?? []).includes(ch.id)}
-                      onChange={() => discordToggleChannel(ch.id)}
-                    />
-                    <span># {ch.name}</span>
-                  </label>
-                ))}
-              </div>
-            ))}
-          </section>
-        )}
-      </>
-    )
-  }
-
   function renderPage(): JSX.Element {
     switch (activePage) {
       case 'dashboard': return renderDashboard()
       case 'chat': return renderChat()
       case 'heartbeat': return renderHeartbeat()
-      case 'rose-email': return renderEmail()
-      case 'rose-discord': return renderDiscord()
       case 'extensions': return renderExtensions()
-      default: return renderPlaceholder()
+      default: {
+        const ext = getExtensionByViewId(activePage)
+        if (ext?.SettingsView) {
+          const ExtSettingsView = ext.SettingsView
+          return <ExtSettingsView />
+        }
+        return renderPlaceholder()
+      }
     }
   }
 

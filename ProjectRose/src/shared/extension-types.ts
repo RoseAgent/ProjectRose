@@ -37,3 +37,12 @@ export interface ExtensionToolDefinition {
   parameters: Record<string, ExtensionToolParameter>
   execute: (params: Record<string, unknown>) => Promise<string>
 }
+
+// Runtime tool entry registered by extension main modules via ctx.registerTools()
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface ExtensionToolEntry {
+  name: string
+  description: string
+  schema: Record<string, any>
+  execute: (input: Record<string, unknown>, projectRoot: string) => Promise<string>
+}

@@ -5,6 +5,8 @@ import type { ExtensionManifest } from '../../../shared/extension-types'
 export interface RendererExtension {
   manifest: ExtensionManifest
   PageView?: ComponentType<any>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  SettingsView?: ComponentType<any>
 }
 
 // All extensions are loaded dynamically at runtime from the installed list.
@@ -79,8 +81,10 @@ export async function loadDynamicExtensions(rootPath: string): Promise<void> {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const PageView = (mod.exports['PageView'] ?? mod.exports['default']) as ComponentType<any> | undefined
-      if (typeof PageView === 'function') {
-        DYNAMIC_EXTENSIONS.push({ manifest: ext.manifest, PageView })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const SettingsView = mod.exports['SettingsView'] as ComponentType<any> | undefined
+      if (typeof PageView === 'function' || typeof SettingsView === 'function') {
+        DYNAMIC_EXTENSIONS.push({ manifest: ext.manifest, PageView, SettingsView })
       }
 
       // Load the extension's main-process module (if it declares one)

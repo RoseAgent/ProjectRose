@@ -71,6 +71,24 @@ if (typeof document !== 'undefined') document.head.appendChild(__s);
   },
 }
 
+// esbuild plugin: resolves @main/* imports to ProjectRose/src/main/*
+const mainSrcDir = join(rootDir, 'ProjectRose', 'src', 'main')
+const mainAliasPlugin = {
+  name: 'main-alias',
+  setup(build) {
+    build.onResolve({ filter: /^@main\// }, (args) => {
+      const rel = args.path.slice('@main/'.length)
+      const base = join(mainSrcDir, rel)
+      for (const ext of ['.ts', '.tsx', '.js', '.jsx', '']) {
+        const candidate = base + ext
+        if (existsSync(candidate)) return { path: candidate }
+      }
+      // Fall back without extension — esbuild will emit the error
+      return { path: base }
+    })
+  }
+}
+
 let packaged = 0
 let failed = 0
 
@@ -89,7 +107,7 @@ for (const name of readdirSync(extensionsDir)) {
   // ── 1. Compile renderer.ts → renderer.js ────────────────────────────────
   const rendererEntry = join(extPath, 'renderer.ts')
   const rendererOut = join(extPath, 'renderer.js')
-  let compileOk = false
+  let rendererCompiled = false
 
   if (existsSync(rendererEntry)) {
     try {
@@ -105,10 +123,36 @@ for (const name of readdirSync(extensionsDir)) {
         loader: { '.json': 'json' },
         logLevel: 'silent',
       })
-      compileOk = true
-      process.stdout.write(' (compiled)')
+      rendererCompiled = true
+      process.stdout.write(' renderer')
     } catch (err) {
-      process.stdout.write(` (renderer compile FAILED: ${err.message})`)
+      process.stdout.write(` (renderer FAILED: ${err.message})`)
+    }
+  }
+
+  // ── 1b. Compile main.ts → main.js ────────────────────────────────────────
+  const mainEntry = join(extPath, 'main.ts')
+  const mainOut = join(extPath, 'main.js')
+  let mainCompiled = false
+
+  if (existsSync(mainEntry)) {
+    try {
+      await esbuild.build({
+        entryPoints: [mainEntry],
+        bundle: true,
+        format: 'cjs',
+        platform: 'node',
+        outfile: mainOut,
+        external: ['electron'],
+        plugins: [mainAliasPlugin],
+        loader: { '.json': 'json' },
+        resolveExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+        logLevel: 'silent',
+      })
+      mainCompiled = true
+      process.stdout.write(' main')
+    } catch (err) {
+      process.stdout.write(` (main FAILED: ${err.message})`)
     }
   }
 
@@ -126,9 +170,12 @@ for (const name of readdirSync(extensionsDir)) {
     })
   }
 
-  // ── 3. Clean up compiled renderer.js from source tree ───────────────────
-  if (compileOk && existsSync(rendererOut)) {
+  // ── 3. Clean up compiled files from source tree ──────────────────────────
+  if (rendererCompiled && existsSync(rendererOut)) {
     try { rmSync(rendererOut) } catch { /* ignore */ }
+  }
+  if (mainCompiled && existsSync(mainOut)) {
+    try { rmSync(mainOut) } catch { /* ignore */ }
   }
 
   if (result.status !== 0) {
