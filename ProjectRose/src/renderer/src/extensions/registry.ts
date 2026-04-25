@@ -89,7 +89,7 @@ export async function loadDynamicExtensions(rootPath: string): Promise<void> {
 
       // Load the extension's main-process module (if it declares one)
       if (ext.manifest.provides.main) {
-        window.api.extension.loadMainModule(rootPath, ext.manifest.id).catch(() => {})
+        await window.api.extension.loadMainModule(rootPath, ext.manifest.id).catch(() => {})
       }
     } catch (err) {
       console.error(`[rose-ext] Failed to load extension ${ext.manifest.id}:`, err)
