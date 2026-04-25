@@ -24,9 +24,43 @@ async function getPipeline(): Promise<TranscriptionPipeline> {
   return _pipeline
 }
 
+// ~-40 dBFS. Silence and ambient noise sit well below this; normal speech well above.
+const SILENCE_RMS_THRESHOLD = 0.01
+
+function rms(pcm: Float32Array): number {
+  let sum = 0
+  for (let i = 0; i < pcm.length; i++) sum += pcm[i] * pcm[i]
+  return Math.sqrt(sum / pcm.length)
+}
+
+// Whisper commonly hallucinates these patterns on silence or near-silence.
+const HALLUCINATION_PATTERNS: RegExp[] = [
+  /^\[.*?\]$/,                                  // [Music], [Applause], [Silence], etc.
+  /^\(.*?\)$/,                                  // (Music), (piano music), etc.
+  /^thank\s+you\.?$/i,
+  /^thanks?\s+(for\s+watching)?\.?$/i,
+  /^you$/i,
+  /^\.+$/,                                      // lone periods
+  /^[\s.,!?]+$/,                                // punctuation only
+]
+
+function isSilentOrHallucination(text: string): boolean {
+  const t = text.trim()
+  if (t.length === 0) return true
+  if (t.length <= 2) return true                // single char / emoji artifact
+  return HALLUCINATION_PATTERNS.some((p) => p.test(t))
+}
+
 export async function transcribe(wavPath: string): Promise<string> {
   const pipe = await getPipeline()
   const pcm = readWavAsPCM(wavPath)
+
+  // Gate on energy — don't send silence to Whisper at all
+  if (rms(pcm) < SILENCE_RMS_THRESHOLD) return ''
+
   const result = await pipe(pcm, { sampling_rate: 16000, language: 'en', task: 'transcribe' })
-  return result.text.trim()
+  const text = result.text.trim()
+
+  if (isSilentOrHallucination(text)) return ''
+  return text
 }
