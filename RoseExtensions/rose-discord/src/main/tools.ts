@@ -1,5 +1,5 @@
 import { readSettings } from '@main/ipc/settingsHandlers'
-import { fetchDiscordChannels, fetchDiscordMessages, sendDiscordMessage } from '@main/services/discordService'
+import { fetchDiscordChannels, fetchDiscordMessages, sendDiscordMessage } from './service'
 import type { ExtensionToolEntry } from '@main/extensions/builtinTools'
 
 async function handleListDiscordChannels(_input: Record<string, unknown>, projectRoot: string): Promise<string> {

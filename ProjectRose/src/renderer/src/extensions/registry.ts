@@ -82,6 +82,11 @@ export async function loadDynamicExtensions(rootPath: string): Promise<void> {
       if (typeof PageView === 'function') {
         DYNAMIC_EXTENSIONS.push({ manifest: ext.manifest, PageView })
       }
+
+      // Load the extension's main-process module (if it declares one)
+      if (ext.manifest.provides.main) {
+        window.api.extension.loadMainModule(rootPath, ext.manifest.id).catch(() => {})
+      }
     } catch (err) {
       console.error(`[rose-ext] Failed to load extension ${ext.manifest.id}:`, err)
     }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useGitStore } from '@renderer/stores/useGitStore'
+import { useGitStore } from './store'
 import { DiffFileList } from './DiffFileList'
 import { DiffEditor } from './DiffEditor'
 import { ConfirmDialog } from './ConfirmDialog'

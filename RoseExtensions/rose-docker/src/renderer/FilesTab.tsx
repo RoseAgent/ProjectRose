@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { DockerDirEntry, DockerMount } from '@renderer/types/electron'
+import type { DockerDirEntry, DockerMount } from './store'
 import styles from './DockerView.module.css'
 
 interface Props {
@@ -34,7 +34,7 @@ export function FilesTab({ containerId }: Props): JSX.Element {
     setLoading(true)
     setError(null)
     try {
-      const res = await window.api.docker.listFiles(containerId, p)
+      const res = await window.api.invoke('rose-docker:listFiles', containerId, p) as { entries: DockerDirEntry[] }
       setEntries(res.entries)
     } catch (err) {
       setError(String(err))
@@ -46,7 +46,7 @@ export function FilesTab({ containerId }: Props): JSX.Element {
 
   useEffect(() => {
     setPath('/')
-    window.api.docker.mounts(containerId).then(setMounts).catch(() => setMounts([]))
+    ;(window.api.invoke('rose-docker:mounts', containerId) as Promise<DockerMount[]>).then(setMounts).catch(() => setMounts([]))
   }, [containerId])
 
   useEffect(() => { load(path) }, [load, path])

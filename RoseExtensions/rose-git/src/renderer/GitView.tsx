@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useProjectStore } from '@renderer/stores/useProjectStore'
 import { useViewStore } from '@renderer/stores/useViewStore'
-import { useGitStore } from '@renderer/stores/useGitStore'
+import { useGitStore } from './store'
 import { LeftTabs } from './LeftTabs'
 import { HistoryList } from './HistoryList'
 import { BranchList } from './BranchList'

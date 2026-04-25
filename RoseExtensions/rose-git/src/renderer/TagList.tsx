@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useGitStore } from '@renderer/stores/useGitStore'
+import { useGitStore } from './store'
 import { ConfirmDialog } from './ConfirmDialog'
 import styles from './GitView.module.css'
 

@@ -2,10 +2,17 @@ import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
 import * as speechDB from '../services/speech/speechDB'
 import { saveRecording, webmPathToWav, cleanupWav } from '../services/speech/audioService'
-import { train } from '../services/speech/speakerService'
+import { train, getEmbedder, warmupEmbedder } from '../services/speech/speakerService'
 import { startSession, stopSession, processChunk } from '../services/speech/liveSession'
 
+// Tracks the current phase of in-flight training jobs so the UI can show
+// "Downloading model..." vs "Training..." without a DB schema change.
+const jobPhases = new Map<number, string>()
+
 export function registerActiveSpeechHandlers(): void {
+  // Pre-warm the WavLM model in background so the first Train click doesn't hang.
+  warmupEmbedder()
+
   ipcMain.handle(
     IPC.ACTIVE_LISTENING_GET_SPEAKERS,
     (_event, projectPath: string) => speechDB.getSpeakers(projectPath)
@@ -64,7 +71,15 @@ export function registerActiveSpeechHandlers(): void {
       setImmediate(async () => {
         try {
           const recordings = speechDB.getLabeledRecordings(projectPath)
+
+          jobPhases.set(job_id, 'downloading-model')
+          const embedder = await getEmbedder()
+          if (!embedder) throw new Error('Speaker model unavailable — check internet connection and try again.')
+
+          jobPhases.set(job_id, 'training')
           const { accuracy, deployed } = await train(projectPath, recordings, webmPathToWav, cleanupWav)
+
+          jobPhases.delete(job_id)
           speechDB.updateTrainingJob(projectPath, job_id, {
             status: 'complete',
             accuracy,
@@ -74,6 +89,7 @@ export function registerActiveSpeechHandlers(): void {
             speechDB.createModelVersion(projectPath, accuracy, recordings.length)
           }
         } catch (e) {
+          jobPhases.delete(job_id)
           speechDB.updateTrainingJob(projectPath, job_id, {
             status: 'failed',
             error: e instanceof Error ? e.message : String(e)
@@ -99,7 +115,8 @@ export function registerActiveSpeechHandlers(): void {
         status: job.status,
         accuracy: job.accuracy,
         deployed: !!job.deployed,
-        error: job.error
+        error: job.error,
+        phase: jobPhases.get(payload.jobId) ?? null
       }
     }
   )

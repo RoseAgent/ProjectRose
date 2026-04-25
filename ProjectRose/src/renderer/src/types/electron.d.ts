@@ -1,32 +1,5 @@
 import type { FileNode } from '@shared/types'
 
-export interface SpamRule {
-  id: string
-  type: 'sender' | 'domain' | 'subject'
-  value: string
-  enabled: boolean
-}
-
-export interface InjectionPattern {
-  id: string
-  pattern: string
-  isRegex: boolean
-  enabled: boolean
-  builtin: boolean
-}
-
-export interface EmailFilters {
-  spamRules: SpamRule[]
-  injectionPatterns: InjectionPattern[]
-  customFolders: Array<{ id: string; name: string }>
-}
-
-export interface EmailMessageMeta {
-  folder: string
-  spamClassified: boolean
-  injectionDetected: boolean
-}
-
 export interface ModelConfig {
   id: string
   displayName: string
@@ -40,64 +13,6 @@ export interface RouterConfig {
   enabled: boolean
   modelName: string
   baseUrl: string
-}
-
-export interface DiscordChannel {
-  id: string
-  name: string
-  guildId: string
-  guildName: string
-  type: number
-}
-
-export interface DiscordAttachment {
-  id: string
-  filename: string
-  url: string
-  size: number
-  contentType?: string
-}
-
-export interface DiscordEmbed {
-  title?: string
-  description?: string
-  url?: string
-  color?: number
-  fields?: Array<{ name: string; value: string; inline?: boolean }>
-  image?: { url: string }
-  thumbnail?: { url: string }
-  footer?: { text: string }
-}
-
-export interface DiscordReaction {
-  emoji: string
-  count: number
-}
-
-export interface DiscordMessage {
-  id: string
-  channelId: string
-  authorId: string
-  authorUsername: string
-  authorDisplayName: string
-  avatarUrl: string | null
-  content: string
-  timestamp: string
-  editedTimestamp: string | null
-  attachments: DiscordAttachment[]
-  embeds: DiscordEmbed[]
-  reactions: DiscordReaction[]
-  referencedMessageId: string | null
-}
-
-export interface DiscordAPI {
-  connect: () => Promise<{ ok: boolean; error?: string }>
-  disconnect: () => Promise<void>
-  getChannels: () => Promise<DiscordChannel[]>
-  fetchMessages: (channelId: string, limit: number, beforeId?: string) => Promise<DiscordMessage[]>
-  sendMessage: (channelId: string, content: string) => Promise<DiscordMessage>
-  onMessageCreate: (callback: (msg: DiscordMessage) => void) => () => void
-  onConnectionState: (callback: (state: { connected: boolean }) => void) => () => void
 }
 
 export interface AppSettingsData {
@@ -241,18 +156,6 @@ export interface ElectronAPI {
   // Chat Sessions
   session: SessionAPI
 
-  // Email
-  email: EmailAPI
-
-  // Discord
-  discord: DiscordAPI
-
-  // Docker
-  docker: DockerAPI
-
-  // Git
-  git: GitAPI
-
   // Extensions
   extension: ExtensionAPI
 
@@ -261,6 +164,10 @@ export interface ElectronAPI {
 
   // Account auth
   auth: AuthAPI
+
+  // Generic IPC bridge for extensions
+  invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+  on: (channel: string, callback: (...args: unknown[]) => void) => () => void
 
 }
 
@@ -280,67 +187,6 @@ export interface SessionAPI {
   load: (rootPath: string, sessionId: string) => Promise<ChatSession | null>
   save: (rootPath: string, session: ChatSession) => Promise<void>
   delete: (rootPath: string, sessionId: string) => Promise<void>
-}
-
-export interface EmailMessage {
-  uid: number
-  subject: string
-  from: string
-  date: string
-  read: boolean
-  folder: string
-  injectionDetected: boolean
-}
-
-export interface EmailAPI {
-  testConnection: () => Promise<{ ok: boolean; error?: string }>
-  fetchMessages: () => Promise<EmailMessage[]>
-  fetchMessage: (uid: number) => Promise<string>
-  deleteMessage: (uid: number) => Promise<{ ok: boolean; error?: string }>
-  getFilters: () => Promise<EmailFilters>
-  setFilters: (patch: Partial<EmailFilters>) => Promise<EmailFilters>
-  getMeta: () => Promise<Record<string, EmailMessageMeta>>
-  setMessageFolder: (uid: number, folder: string) => Promise<void>
-}
-
-export interface DockerContainer {
-  id: string
-  name: string
-  image: string
-  service?: string
-  composeFile?: string
-  state: string
-  status: string
-  ports: string
-  createdAt: string
-}
-
-export interface DockerMount {
-  Source: string
-  Destination: string
-  Type: string
-}
-
-export interface DockerDirEntry {
-  name: string
-  type: 'file' | 'dir' | 'link' | 'other'
-  size: number
-}
-
-export interface DockerAPI {
-  check: () => Promise<{ installed: boolean; version?: string }>
-  listCompose: (rootPath: string) => Promise<string[]>
-  ps: (composeFiles: string[]) => Promise<DockerContainer[]>
-  inspect: (id: string) => Promise<unknown>
-  start: (id: string) => Promise<{ ok: boolean; error?: string }>
-  stop: (id: string) => Promise<{ ok: boolean; error?: string }>
-  restart: (id: string) => Promise<{ ok: boolean; error?: string }>
-  subscribeLogs: (id: string, opts?: { tail?: number }) => Promise<string>
-  unsubscribeLogs: (sessionId: string) => Promise<void>
-  onLogsData: (callback: (payload: { sessionId: string; chunk: string }) => void) => () => void
-  onLogsExit: (callback: (payload: { sessionId: string; code: number }) => void) => () => void
-  listFiles: (id: string, path: string) => Promise<{ entries: DockerDirEntry[] }>
-  mounts: (id: string) => Promise<DockerMount[]>
 }
 
 export interface GitCommit {
@@ -405,51 +251,14 @@ export interface GitOpResult {
   error?: string
 }
 
-export interface GitAPI {
-  isRepo: (cwd: string) => Promise<boolean>
-  status: (cwd: string) => Promise<GitStatus>
-  log: (cwd: string, opts?: { limit?: number; skip?: number; ref?: string; filePath?: string }) => Promise<GitCommit[]>
-  show: (cwd: string, sha: string) => Promise<GitCommitDetail>
-  diffFile: (cwd: string, params: { sha: string; path: string }) => Promise<{ oldContent: string; newContent: string; binary?: boolean }>
-  diffWorking: (cwd: string, params: { path: string; staged?: boolean }) => Promise<{ oldContent: string; newContent: string; binary?: boolean }>
-  branches: (cwd: string) => Promise<GitBranch[]>
-  checkout: (cwd: string, ref: string) => Promise<GitOpResult>
-  branchCreate: (cwd: string, params: { name: string; startPoint?: string }) => Promise<GitOpResult>
-  branchDelete: (cwd: string, params: { name: string; force?: boolean }) => Promise<GitOpResult>
-  branchRename: (cwd: string, params: { oldName: string; newName: string }) => Promise<GitOpResult>
-  remotes: (cwd: string) => Promise<GitRemote[]>
-  fetch: (cwd: string, remote?: string) => Promise<GitOpResult>
-  pull: (cwd: string, params?: { remote?: string; branch?: string }) => Promise<GitOpResult>
-  push: (cwd: string, params?: { remote?: string; branch?: string; force?: boolean }) => Promise<GitOpResult>
-  stage: (cwd: string, paths: string[]) => Promise<GitOpResult>
-  unstage: (cwd: string, paths: string[]) => Promise<GitOpResult>
-  discard: (cwd: string, paths: string[]) => Promise<GitOpResult>
-  commit: (cwd: string, params: { message: string; amend?: boolean; allowEmpty?: boolean }) => Promise<GitOpResult>
-  cherryPick: (cwd: string, sha: string) => Promise<GitOpResult>
-  revert: (cwd: string, sha: string) => Promise<GitOpResult>
-  merge: (cwd: string, ref: string) => Promise<GitOpResult>
-  rebase: (cwd: string, ref: string) => Promise<GitOpResult>
-  reset: (cwd: string, params: { target: string; mode: 'soft' | 'mixed' | 'hard' }) => Promise<GitOpResult>
-  tags: (cwd: string) => Promise<GitTag[]>
-  tagCreate: (cwd: string, params: { name: string; ref?: string; message?: string }) => Promise<GitOpResult>
-  tagDelete: (cwd: string, name: string) => Promise<GitOpResult>
-  stashes: (cwd: string) => Promise<GitStash[]>
-  stashPush: (cwd: string, message?: string) => Promise<GitOpResult>
-  stashPop: (cwd: string, index?: number) => Promise<GitOpResult>
-  stashDrop: (cwd: string, index: number) => Promise<GitOpResult>
-  stashApply: (cwd: string, index: number) => Promise<GitOpResult>
-  onHeadChanged: (callback: (payload: { cwd: string }) => void) => () => void
-}
-
 export interface ExtensionAPI {
   list: (rootPath: string) => Promise<{ installed: import('@shared/extension-types').InstalledExtension[] }>
-  install: (rootPath: string, downloadUrl: string) => Promise<{ ok: boolean }>
   installFromDisk: (rootPath: string) => Promise<{ ok: boolean; canceled?: boolean }>
   uninstall: (rootPath: string, id: string) => Promise<{ ok: boolean }>
   enable: (rootPath: string, id: string) => Promise<{ ok: boolean }>
   disable: (rootPath: string, id: string) => Promise<{ ok: boolean }>
-  fetchRegistry: (registryUrl: string) => Promise<import('@shared/extension-types').ExtensionRegistry>
   loadRendererCode: (rootPath: string, id: string) => Promise<{ ok: boolean; code: string | null }>
+  loadMainModule: (rootPath: string, id: string) => Promise<{ ok: boolean }>
 }
 
 export interface AuthAPI {

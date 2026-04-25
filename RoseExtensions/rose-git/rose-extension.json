@@ -5,5 +5,5 @@
   "description": "Git repository management",
   "author": "ProjectRose",
   "navItem": { "label": "Git", "iconName": "git" },
-  "provides": { "pageView": true }
+  "provides": { "pageView": true, "main": true }
 }

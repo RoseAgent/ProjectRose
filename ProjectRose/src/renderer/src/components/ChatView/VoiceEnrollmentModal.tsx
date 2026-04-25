@@ -118,10 +118,15 @@ export function VoiceEnrollmentModal({ onClose }: { onClose: () => void }): JSX.
         const poll = setInterval(async () => {
           try {
             const status = await window.api.activeSpeech.trainStatus({ jobId: job_id, projectPath: rootPath })
-            if (status.accuracy !== null) {
+            const ph = (status as { phase?: string | null }).phase
+            if (ph === 'downloading-model') {
+              setTrainMessage('Downloading speaker model (first run only)…')
+            } else if (ph === 'training') {
+              setTrainMessage('Training voice model…')
+            } else if (status.accuracy !== null) {
               setTrainMessage(`Training… ${Math.round(status.accuracy * 100)}% accuracy`)
             }
-            if (status.status === 'done') {
+            if (status.status === 'complete') {
               clearInterval(poll)
               resolve()
             } else if (status.status === 'failed') {

@@ -1,13 +1,12 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { readFile, writeFile, mkdir, readdir, rm } from 'fs/promises'
-import { createWriteStream, existsSync } from 'fs'
-import https from 'https'
-import http from 'http'
-import { pipeline } from 'stream/promises'
+import { existsSync, readFileSync } from 'fs'
+import { createRequire } from 'module'
 import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
-import type { InstalledExtension, ExtensionManifest, ExtensionRegistry } from '../../shared/extension-types'
+import { readSettings } from './settingsHandlers'
+import type { InstalledExtension, ExtensionManifest } from '../../shared/extension-types'
 
 function getExtensionsDir(rootPath: string): string {
   return prPath(rootPath, 'extensions')
@@ -50,6 +49,55 @@ async function extractZip(zipPath: string, destDir: string): Promise<void> {
   }
 }
 
+// Tracks cleanup functions for loaded extension main modules, keyed by "<rootPath>/<id>"
+const loadedMains = new Map<string, () => void>()
+
+interface ExtensionMainContext {
+  getSettings: () => Promise<Record<string, unknown>>
+  broadcast: (channel: string, data: unknown) => void
+}
+
+function loadExtensionMainModule(rootPath: string, id: string): void {
+  const key = `${rootPath}/${id}`
+  if (loadedMains.has(key)) return
+
+  const mainPath = join(getExtensionsDir(rootPath), id, 'main.js')
+  if (!existsSync(mainPath)) return
+
+  try {
+    const code = readFileSync(mainPath, 'utf-8')
+    const extRequire = createRequire(mainPath)
+    const mod: { exports: Record<string, unknown> } = { exports: {} }
+    // eslint-disable-next-line no-new-func
+    const wrapper = new Function('module', 'exports', 'require', '__dirname', '__filename', code)
+    wrapper(mod, mod.exports, extRequire, dirname(mainPath), mainPath)
+
+    const ctx: ExtensionMainContext = {
+      getSettings: async () => readSettings(rootPath) as unknown as Record<string, unknown>,
+      broadcast: (channel: string, data: unknown) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) win.webContents.send(channel, data)
+        }
+      }
+    }
+
+    const register = mod.exports['register'] as ((ctx: ExtensionMainContext) => (() => void) | void) | undefined
+    const cleanup = register?.(ctx)
+    loadedMains.set(key, typeof cleanup === 'function' ? cleanup : () => {})
+  } catch (err) {
+    console.error(`[rose-ext] Failed to load main module for ${id}:`, err)
+  }
+}
+
+function unloadExtensionMainModule(rootPath: string, id: string): void {
+  const key = `${rootPath}/${id}`
+  const cleanup = loadedMains.get(key)
+  if (cleanup) {
+    try { cleanup() } catch {}
+    loadedMains.delete(key)
+  }
+}
+
 export async function listInstalledExtensions(rootPath: string): Promise<InstalledExtension[]> {
   if (!rootPath) return []
   const extensionsDir = getExtensionsDir(rootPath)
@@ -72,64 +120,11 @@ export async function listInstalledExtensions(rootPath: string): Promise<Install
   return results
 }
 
-function downloadFile(url: string, destPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proto = url.startsWith('https') ? https : http
-    const file = createWriteStream(destPath)
-    proto.get(url, (res) => {
-      if (res.statusCode === 302 || res.statusCode === 301) {
-        file.close()
-        downloadFile(res.headers.location!, destPath).then(resolve).catch(reject)
-        return
-      }
-      pipeline(res, file).then(resolve).catch(reject)
-    }).on('error', reject)
-  })
-}
-
-async function fetchRegistry(rawRegistryUrl: string): Promise<ExtensionRegistry> {
-  return new Promise((resolve, reject) => {
-    const proto = rawRegistryUrl.startsWith('https') ? https : http
-    proto.get(rawRegistryUrl, (res) => {
-      let data = ''
-      res.on('data', (chunk) => { data += chunk })
-      res.on('end', () => {
-        try { resolve(JSON.parse(data) as ExtensionRegistry) }
-        catch (e) { reject(e) }
-      })
-    }).on('error', reject)
-  })
-}
-
 export function registerExtensionHandlers(): void {
   ipcMain.handle(IPC.EXTENSION_LIST, async (_event, rootPath: string) => {
     if (!rootPath) return { installed: [] }
     const installed = await listInstalledExtensions(rootPath)
     return { installed }
-  })
-
-  ipcMain.handle(IPC.EXTENSION_INSTALL, async (_event, rootPath: string, downloadUrl: string) => {
-    await ensureExtensionsDir(rootPath)
-    const extensionsDir = getExtensionsDir(rootPath)
-    const tmpZip = join(extensionsDir, `_tmp_${Date.now()}.zip`)
-    const tmpDir = join(extensionsDir, `_extract_${Date.now()}`)
-    try {
-      await downloadFile(downloadUrl, tmpZip)
-      await mkdir(tmpDir, { recursive: true })
-      await extractZip(tmpZip, tmpDir)
-
-      const manifest = await readManifest(tmpDir)
-      if (!manifest) throw new Error('Invalid extension: missing rose-extension.json')
-
-      const destDir = join(extensionsDir, manifest.id)
-      if (existsSync(destDir)) await rm(destDir, { recursive: true, force: true })
-      const { renameSync } = await import('fs')
-      renameSync(tmpDir, destDir)
-    } finally {
-      try { await rm(tmpZip, { force: true }) } catch { /* ignore */ }
-      try { await rm(tmpDir, { recursive: true, force: true }) } catch { /* ignore */ }
-    }
-    return { ok: true }
   })
 
   ipcMain.handle(IPC.EXTENSION_INSTALL_FROM_DISK, async (event, rootPath: string) => {
@@ -165,6 +160,7 @@ export function registerExtensionHandlers(): void {
   })
 
   ipcMain.handle(IPC.EXTENSION_UNINSTALL, async (_event, rootPath: string, id: string) => {
+    unloadExtensionMainModule(rootPath, id)
     const extensionPath = join(getExtensionsDir(rootPath), id)
     await rm(extensionPath, { recursive: true, force: true })
     return { ok: true }
@@ -178,14 +174,11 @@ export function registerExtensionHandlers(): void {
   })
 
   ipcMain.handle(IPC.EXTENSION_DISABLE, async (_event, rootPath: string, id: string) => {
+    unloadExtensionMainModule(rootPath, id)
     await ensureExtensionsDir(rootPath)
     await mkdir(join(getExtensionsDir(rootPath), id), { recursive: true })
     await writeEnabledState(rootPath, id, false)
     return { ok: true }
-  })
-
-  ipcMain.handle(IPC.EXTENSION_FETCH_REGISTRY, async (_event, registryUrl: string) => {
-    return fetchRegistry(registryUrl)
   })
 
   ipcMain.handle(IPC.EXTENSION_LOAD_RENDERER, async (_event, rootPath: string, id: string) => {
@@ -196,5 +189,10 @@ export function registerExtensionHandlers(): void {
     } catch {
       return { ok: false, code: null }
     }
+  })
+
+  ipcMain.handle(IPC.EXTENSION_LOAD_MAIN, (_event, rootPath: string, id: string) => {
+    loadExtensionMainModule(rootPath, id)
+    return { ok: true }
   })
 }

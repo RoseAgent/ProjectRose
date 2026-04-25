@@ -95,7 +95,6 @@ export async function checkDocker(): Promise<{ installed: boolean; version?: str
 
 export async function findComposeFiles(rootPath: string): Promise<string[]> {
   const found: string[] = []
-
   async function scan(dir: string, depth: number): Promise<void> {
     let entries: Dirent[]
     try {
@@ -114,7 +113,6 @@ export async function findComposeFiles(rootPath: string): Promise<string[]> {
       }
     }
   }
-
   await scan(rootPath, 0)
   return found
 }
@@ -138,24 +136,18 @@ export async function listContainers(composeFiles: string[]): Promise<DockerCont
   const results: DockerContainer[] = []
   for (const file of composeFiles) {
     const res = await run('docker', ['compose', '-f', file, 'ps', '--format', 'json', '--all'])
-    if (res.code !== 0) {
-      console.error(`docker compose ps failed for ${file}: ${res.stderr}`)
-      continue
-    }
+    if (res.code !== 0) { console.error(`docker compose ps failed for ${file}: ${res.stderr}`); continue }
     const out = res.stdout.trim()
     if (!out) continue
-    // Newer docker compose emits line-delimited JSON; older emits a JSON array.
-    const first = out[0]
     try {
-      if (first === '[') {
+      if (out[0] === '[') {
         const arr = JSON.parse(out) as Record<string, unknown>[]
         for (const row of arr) results.push(mapPsRow(row, file))
       } else {
         for (const line of out.split(/\r?\n/)) {
           const trimmed = line.trim()
           if (!trimmed) continue
-          const row = JSON.parse(trimmed) as Record<string, unknown>
-          results.push(mapPsRow(row, file))
+          results.push(mapPsRow(JSON.parse(trimmed) as Record<string, unknown>, file))
         }
       }
     } catch (err) {
@@ -187,12 +179,7 @@ export function restart(id: string): Promise<{ ok: boolean; error?: string }> { 
 const logSessions = new Map<string, ChildProcess>()
 let sessionCounter = 0
 
-export function subscribeLogs(
-  id: string,
-  tail: number,
-  onData: (chunk: string) => void,
-  onExit: (code: number) => void
-): string {
+export function subscribeLogs(id: string, tail: number, onData: (chunk: string) => void, onExit: (code: number) => void): string {
   if (!ID_RE.test(id)) throw new Error('Invalid container id')
   const safeTail = Number.isFinite(tail) && tail >= 0 ? Math.floor(tail) : 500
   const sessionId = `docker-logs-${++sessionCounter}`
@@ -201,10 +188,7 @@ export function subscribeLogs(
   proc.stdout?.on('data', (d) => onData(d.toString()))
   proc.stderr?.on('data', (d) => onData(d.toString()))
   proc.on('error', (err) => onData(`[docker logs error: ${String(err)}]\n`))
-  proc.on('close', (code) => {
-    logSessions.delete(sessionId)
-    onExit(code ?? -1)
-  })
+  proc.on('close', (code) => { logSessions.delete(sessionId); onExit(code ?? -1) })
   return sessionId
 }
 
@@ -215,7 +199,7 @@ export function unsubscribeLogs(sessionId: string): void {
   try { proc.kill() } catch {}
 }
 
-export function disposeAllDockerSessions(): void {
+export function disposeAllSessions(): void {
   for (const [id, proc] of logSessions) {
     try { proc.kill() } catch {}
     logSessions.delete(id)
@@ -236,20 +220,14 @@ export async function listFiles(id: string, path: string): Promise<{ entries: Do
   const res = await run('docker', ['exec', id, 'ls', '-la', '--time-style=+%s', path])
   if (res.code !== 0) throw new Error(res.stderr.trim() || 'docker exec ls failed')
   const entries: DockerDirEntry[] = []
-  const lines = res.stdout.split(/\r?\n/)
-  for (const line of lines) {
-    if (!line.trim()) continue
-    if (/^total\s+\d+/.test(line)) continue
-    // Example: drwxr-xr-x 2 root root 4096 1700000000 name
+  for (const line of res.stdout.split(/\r?\n/)) {
+    if (!line.trim() || /^total\s+\d+/.test(line)) continue
     const match = line.match(/^(\S)\S{9}\s+\S+\s+\S+\s+\S+\s+(\d+)\s+\S+\s+(.+?)\s*$/)
     if (!match) continue
     const type = classifyType(match[1])
     const size = Number(match[2]) || 0
     let name = match[3]
-    if (type === 'link') {
-      const arrow = name.indexOf(' -> ')
-      if (arrow !== -1) name = name.slice(0, arrow)
-    }
+    if (type === 'link') { const arrow = name.indexOf(' -> '); if (arrow !== -1) name = name.slice(0, arrow) }
     if (name === '.' || name === '..') continue
     entries.push({ name, type, size })
   }

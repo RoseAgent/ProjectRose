@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { GitFileChange } from '@renderer/types/electron'
+import type { GitFileChange } from './store'
 import styles from './GitView.module.css'
 
 interface StagingTreeProps {

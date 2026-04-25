@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import * as monaco from 'monaco-editor'
-import { useDockerStore } from '@renderer/stores/useDockerStore'
+import { useDockerStore } from './store'
 import { useThemeStore } from '@renderer/stores/useThemeStore'
 import styles from './DockerView.module.css'
 
@@ -39,7 +39,7 @@ export function InspectTab({ containerId }: Props): JSX.Element {
   useEffect(() => {
     let cancelled = false
     setError(null)
-    window.api.docker.inspect(containerId)
+    window.api.invoke('rose-docker:inspect', containerId)
       .then((data) => {
         if (cancelled) return
         setInspect(containerId, data)

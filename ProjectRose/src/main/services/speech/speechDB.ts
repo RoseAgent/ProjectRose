@@ -76,6 +76,8 @@ export function getSpeakers(projectPath: string): unknown[] {
 
 export function createSpeaker(projectPath: string, name: string): { id: number; name: string } {
   const db = getDb(projectPath)
+  const existing = db.prepare('SELECT id, name FROM speakers WHERE name = ?').get(name) as { id: number; name: string } | undefined
+  if (existing) return existing
   const result = db.prepare('INSERT INTO speakers (name) VALUES (?)').run(name)
   return { id: result.lastInsertRowid as number, name }
 }

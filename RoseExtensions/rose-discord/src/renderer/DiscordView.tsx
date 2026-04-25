@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { useDiscordStore } from '@renderer/stores/useDiscordStore'
+import { useDiscordStore } from './store'
 import { useSettingsStore } from '@renderer/stores/useSettingsStore'
 import { useViewStore } from '@renderer/stores/useViewStore'
-import type { DiscordMessage, DiscordEmbed } from '@renderer/types/electron'
+import type { DiscordMessage, DiscordEmbed } from './store'
 import styles from './DiscordView.module.css'
 
 function formatTimestamp(iso: string): string {

@@ -9,6 +9,7 @@
     "pageView": true,
     "globalSettings": true,
     "agentTools": true,
+    "main": true,
     "tools": [
       {
         "name": "list_emails",

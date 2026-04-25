@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react'
-import { useGitStore } from '@renderer/stores/useGitStore'
+import { useGitStore, type GitBranch } from './store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import styles from './GitView.module.css'
-import type { GitBranch } from '@renderer/types/electron'
 
 export function BranchList(): JSX.Element {
   const branches = useGitStore((s) => s.branches)

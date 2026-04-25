@@ -5,5 +5,5 @@
   "description": "Docker container management",
   "author": "ProjectRose",
   "navItem": { "label": "Docker", "iconName": "docker" },
-  "provides": { "pageView": true }
+  "provides": { "pageView": true, "main": true }
 }

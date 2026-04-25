@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import clsx from 'clsx'
-import { useEmailStore } from '@renderer/stores/useEmailStore'
+import { useEmailStore } from './store'
 import { useSettingsStore } from '@renderer/stores/useSettingsStore'
 import { useViewStore } from '@renderer/stores/useViewStore'
 import styles from './EmailView.module.css'
@@ -93,7 +93,7 @@ export function EmailView(): JSX.Element {
     // Move messages in deleted folder back to inbox
     const moved = messages
       .filter(m => m.folder === id)
-      .map(m => window.api.email.setMessageFolder(m.uid, 'inbox'))
+      .map(m => window.api.invoke('rose-email:setMessageFolder', m.uid, 'inbox'))
     await Promise.all(moved)
     if (activeFolder === id) setActiveFolder('inbox')
   }

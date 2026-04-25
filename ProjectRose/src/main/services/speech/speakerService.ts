@@ -5,37 +5,49 @@ import { readWavAsPCM } from './audioService'
 
 const THRESHOLD = 0.75
 
-type EmbedPipeline = (
-  input: Float32Array,
-  opts: { sampling_rate: number; pooling: string; normalize: boolean }
-) => Promise<{ tolist: () => number[][] }>
+// FeatureExtractionPipeline is a text pipeline and calls this.tokenizer().
+// WavLM is an audio XVector model — use AutoProcessor + AutoModelForAudioXVector directly.
+type Processor = (audio: Float32Array, opts: { sampling_rate: number }) => Promise<Record<string, unknown>>
+type XVectorModel = (inputs: Record<string, unknown>) => Promise<{ embeddings: { tolist: () => number[][] } }>
 
-let _embedder: EmbedPipeline | null = null
+let _processor: Processor | null = null
+let _model: XVectorModel | null = null
 
 interface SpeakerEmbeddings {
   [speakerId: string]: number[]
 }
 
-async function getEmbedder(): Promise<EmbedPipeline | null> {
-  if (_embedder) return _embedder
+export async function getEmbedder(): Promise<boolean> {
+  if (_processor && _model) return true
 
   try {
-    const { pipeline, env } = await import('@huggingface/transformers')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { AutoProcessor, AutoModelForXVector, env } = await import('@huggingface/transformers') as any
     env.cacheDir = path.join(app.getPath('userData'), 'hf-models')
 
     console.log('[Speech] Loading speaker embedding model...')
-    _embedder = (await pipeline(
-      'feature-extraction',
-      'Xenova/wavlm-base-sv',
-      { dtype: 'fp32' }
-    )) as unknown as EmbedPipeline
+    const TEN_MINUTES = 10 * 60 * 1000
+    const loadPromise = Promise.all([
+      AutoProcessor.from_pretrained('Xenova/wavlm-base-sv'),
+      AutoModelForXVector.from_pretrained('Xenova/wavlm-base-sv', { dtype: 'fp32' })
+    ])
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Speaker model download timed out after 10 minutes')), TEN_MINUTES)
+    )
+    const [processor, model] = await Promise.race([loadPromise, timeoutPromise])
+    _processor = processor as Processor
+    _model = model as XVectorModel
     console.log('[Speech] Speaker embedder ready')
   } catch (e) {
     console.warn('[Speech] Speaker embedding model unavailable — speaker ID disabled:', e)
-    return null
+    return false
   }
 
-  return _embedder
+  return true
+}
+
+export function warmupEmbedder(): void {
+  getEmbedder().catch(e => console.warn('[Speech] Model warmup failed:', e))
 }
 
 function cosine(a: number[], b: number[]): number {
@@ -65,13 +77,27 @@ export function saveEmbeddings(projectPath: string, embeddings: SpeakerEmbedding
   fs.writeFileSync(embeddingsPath(projectPath), JSON.stringify(embeddings))
 }
 
-export async function embed(wavPath: string): Promise<number[] | null> {
-  const embedder = await getEmbedder()
-  if (!embedder) return null
+const MAX_EMBED_SAMPLES = 5 * 16000  // cap at 5s to keep CPU inference fast
 
-  const pcm = readWavAsPCM(wavPath)
-  const out = await embedder(pcm, { sampling_rate: 16000, pooling: 'mean', normalize: true })
-  return out.tolist()[0]
+export async function embed(wavPath: string): Promise<number[] | null> {
+  const ready = await getEmbedder()
+  if (!ready || !_processor || !_model) return null
+
+  let pcm = readWavAsPCM(wavPath)
+  if (pcm.length > MAX_EMBED_SAMPLES) pcm = pcm.slice(0, MAX_EMBED_SAMPLES)
+
+  console.log(`[Speech] embed: processing ${pcm.length} samples from ${wavPath}`)
+  const inputs = await _processor(pcm, { sampling_rate: 16000 })
+  console.log('[Speech] embed: processor done, running model...')
+  const output = await _model(inputs)
+  console.log('[Speech] embed: model done')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const embeddings = (output as any).embeddings
+  if (!embeddings) {
+    console.warn('[Speech] embed: model output has no embeddings field, keys:', Object.keys(output as object))
+    return null
+  }
+  return embeddings.tolist()[0]
 }
 
 export function identify(
@@ -100,10 +126,9 @@ export async function train(
   webmPathToWav: (audioPath: string) => Promise<string>,
   cleanupWav: (p: string) => void
 ): Promise<{ accuracy: number; deployed: boolean }> {
-  const embedder = await getEmbedder()
-  if (!embedder) {
-    return { accuracy: 0, deployed: false }
-  }
+  console.log(`[Speech] train: starting with ${recordings.length} recordings`)
+  const ready = await getEmbedder()
+  if (!ready) return { accuracy: 0, deployed: false }
 
   // Group recordings by speaker
   const bySpeaker = new Map<number, string[]>()
@@ -160,13 +185,7 @@ export async function train(
   const deployed = accuracy >= 0.7
 
   if (!deployed) {
-    // Roll back embeddings if accuracy too low
     const existing = loadEmbeddings(projectPath)
-    if (Object.keys(existing).length === 0) {
-      // No previous model — keep the new one anyway so user has something
-      // but mark as not deployed
-    }
-    // Don't save bad embeddings — keep previous
     saveEmbeddings(projectPath, existing)
   }
 

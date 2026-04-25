@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useGitStore } from '@renderer/stores/useGitStore'
+import { useGitStore } from './store'
 import styles from './GitView.module.css'
 import { StagingTree } from './StagingTree'
 

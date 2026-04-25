@@ -1,5 +1,5 @@
 import styles from './GitView.module.css'
-import type { GitFileChange } from '@renderer/types/electron'
+import type { GitFileChange } from './store'
 
 interface Props {
   files: GitFileChange[]

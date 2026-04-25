@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import { useDockerStore } from '@renderer/stores/useDockerStore'
-import type { DockerContainer } from '@renderer/types/electron'
+import { useDockerStore } from './store'
+import type { DockerContainer } from './store'
 import styles from './DockerView.module.css'
 
 function statusClass(state: string): string {

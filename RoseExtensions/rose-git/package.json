@@ -5,5 +5,15 @@
   "private": true,
   "exports": {
     "./renderer": "./renderer.ts"
+  },
+  "scripts": {
+    "build:renderer": "esbuild renderer.ts --bundle --format=cjs --platform=browser --outfile=dist/renderer.js --external:react --external:react/jsx-runtime --external:@renderer/* --external:monaco-editor",
+    "build:main": "esbuild main.ts --bundle --format=cjs --platform=node --outfile=dist/main.js --external:electron",
+    "build": "npm run build:renderer && npm run build:main"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.0",
+    "typescript": "^5.0.0",
+    "zustand": "^4.5.0"
   }
 }

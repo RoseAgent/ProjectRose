@@ -17,7 +17,6 @@ import { useFileStore } from './stores/useFileStore'
 import { useProjectStore } from './stores/useProjectStore'
 import { useIndexingStore } from './stores/useIndexingStore'
 import { useSettingsStore } from './stores/useSettingsStore'
-import { useDiscordStore } from './stores/useDiscordStore'
 import { useServiceStore } from './stores/useServiceStore'
 import styles from './App.module.css'
 
@@ -32,8 +31,7 @@ function App(): JSX.Element {
   const refreshTree = useProjectStore((s) => s.refreshTree)
   const toggleTerminal = useViewStore((s) => s.toggleTerminal)
 
-  const { heartbeatEnabled, heartbeatIntervalMinutes, loaded: settingsLoaded, discordBotToken, discordChannels, load: loadSettings } = useSettingsStore()
-  const { connect: discordConnect, initEnabledChannels, loadChannels: discordLoadChannels } = useDiscordStore()
+  const { heartbeatEnabled, heartbeatIntervalMinutes, loaded: settingsLoaded, load: loadSettings } = useSettingsStore()
   const setServiceStatus = useServiceStore((s) => s.setStatus)
   const [needsSetup, setNeedsSetup] = useState(false)
   const [, setExtVersion] = useState(0)
@@ -56,13 +54,6 @@ function App(): JSX.Element {
 
   // Reload settings when a project is opened to merge in repo config
   useEffect(() => { if (rootPath) loadSettings() }, [rootPath, loadSettings])
-
-  // Auto-connect Discord and sync enabled channels whenever token/channels change
-  useEffect(() => {
-    initEnabledChannels(discordChannels)
-    if (!discordBotToken) return
-    discordConnect().then(() => discordLoadChannels()).catch(() => {})
-  }, [discordBotToken, discordChannels]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)

@@ -4,17 +4,13 @@ import { registerTerminalHandlers } from './terminalHandlers'
 import { registerProjectHandlers } from './projectHandlers'
 import { registerLspHandlers } from './lspHandlers'
 import { registerAiHandlers } from './aiHandlers'
-import { registerDockerHandlers } from './dockerHandlers'
-import { registerGitHandlers } from './gitHandlers'
 import { registerRoseSetupHandlers } from './roseSetupHandlers'
 import { registerHeartbeatHandlers } from './heartbeatHandlers'
 import { registerSettingsHandlers } from './settingsHandlers'
 import { registerWhisperHandlers } from './whisperHandlers'
 import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
-import { registerEmailHandlers } from './emailHandlers'
 import { registerSessionHandlers } from './sessionHandlers'
 import { registerProjectSettingsHandlers } from './projectSettingsHandlers'
-import { registerDiscordHandlers } from './discordHandlers'
 import { registerExtensionHandlers } from './extensionHandlers'
 import { registerAuthHandlers } from './authHandlers'
 export function registerAllHandlers(): void {
@@ -24,17 +20,13 @@ export function registerAllHandlers(): void {
   registerProjectHandlers()
   registerLspHandlers()
   registerAiHandlers()
-  registerDockerHandlers()
-  registerGitHandlers()
   registerRoseSetupHandlers()
   registerHeartbeatHandlers()
   registerSettingsHandlers()
   registerWhisperHandlers()
   registerActiveSpeechHandlers()
-  registerEmailHandlers()
   registerSessionHandlers()
   registerProjectSettingsHandlers()
-  registerDiscordHandlers()
   registerExtensionHandlers()
   registerAuthHandlers()
 }

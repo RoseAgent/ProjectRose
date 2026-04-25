@@ -8,7 +8,7 @@ import {
   matchesInjectionPattern,
   fetchEmailBody,
   type EmailSummary
-} from '@main/services/emailService'
+} from './service'
 import type { ExtensionToolEntry } from '@main/extensions/builtinTools'
 
 async function handleListEmails(input: Record<string, unknown>, projectRoot: string): Promise<string> {
@@ -39,10 +39,8 @@ async function handleListEmails(input: Record<string, unknown>, projectRoot: str
       }
     })
 
-    const [filters, meta] = await Promise.all([
-      readEmailFilters(cfg.imapUser),
-      readEmailMeta(cfg.imapUser)
-    ])
+    const filters = readEmailFilters(cfg.imapUser)
+    const meta = readEmailMeta(cfg.imapUser)
 
     const tagged = rawMessages.map(m => {
       const cached = meta[m.uid]
@@ -74,11 +72,11 @@ async function handleReadEmail(input: Record<string, unknown>, projectRoot: stri
   if (!cfg.imapHost || !cfg.imapUser) return 'Email not configured.'
   try {
     const body = await fetchEmailBody(cfg, uid)
-    const filters = await readEmailFilters(cfg.imapUser)
+    const filters = readEmailFilters(cfg.imapUser)
     if (matchesInjectionPattern(filters.injectionPatterns, body)) {
-      const meta = await readEmailMeta(cfg.imapUser)
+      const meta = readEmailMeta(cfg.imapUser)
       meta[uid] = { ...(meta[uid] ?? { spamClassified: false }), folder: 'quarantine', injectionDetected: true }
-      await writeEmailMeta(cfg.imapUser, meta)
+      writeEmailMeta(cfg.imapUser, meta)
       return '[QUARANTINED: Potential prompt injection detected in message body.]'
     }
     return body || '(empty message)'
@@ -93,9 +91,9 @@ async function handleMoveEmailToFolder(input: Record<string, unknown>, projectRo
   if (!uid || !folder) return 'Missing uid or folder parameter.'
   const cfg = await readSettings(projectRoot)
   if (!cfg.imapHost || !cfg.imapUser) return 'Email not configured.'
-  const meta = await readEmailMeta(cfg.imapUser)
+  const meta = readEmailMeta(cfg.imapUser)
   meta[uid] = { ...(meta[uid] ?? { spamClassified: false, injectionDetected: false }), folder }
-  await writeEmailMeta(cfg.imapUser, meta)
+  writeEmailMeta(cfg.imapUser, meta)
   return `Email ${uid} moved to ${folder}.`
 }
 
@@ -113,9 +111,9 @@ async function handleDeleteEmail(input: Record<string, unknown>, projectRoot: st
         lock.release()
       }
     })
-    const meta = await readEmailMeta(cfg.imapUser)
+    const meta = readEmailMeta(cfg.imapUser)
     delete meta[uid]
-    await writeEmailMeta(cfg.imapUser, meta)
+    writeEmailMeta(cfg.imapUser, meta)
     return `Email ${uid} deleted.`
   } catch (err) {
     return `Failed to delete email: ${(err as Error).message}`

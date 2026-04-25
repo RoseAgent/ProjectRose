@@ -1,4 +1,4 @@
-import { useGitStore } from '@renderer/stores/useGitStore'
+import { useGitStore } from './store'
 import styles from './GitView.module.css'
 
 const TABS: Array<{ id: 'history' | 'branches' | 'tags' | 'stashes'; label: string }> = [

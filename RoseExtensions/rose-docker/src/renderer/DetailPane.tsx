@@ -1,4 +1,4 @@
-import { useDockerStore } from '@renderer/stores/useDockerStore'
+import { useDockerStore } from './store'
 import { ActionBar } from './ActionBar'
 import { LogsTab } from './LogsTab'
 import { InspectTab } from './InspectTab'

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { useDockerStore } from '@renderer/stores/useDockerStore'
+import { useDockerStore } from './store'
 import '@xterm/xterm/css/xterm.css'
 import styles from './DockerView.module.css'
 
@@ -34,7 +34,7 @@ export function LogsTab({ containerId }: Props): JSX.Element {
     fitRef.current = fit
     setTimeout(() => { try { fit.fit() } catch {} }, 50)
 
-    const cleanup = window.api.docker.onLogsData((payload) => {
+    const cleanup = window.api.on('rose-docker:logsData', (payload) => {
       const entry = useDockerStore.getState().logs[containerId]
       if (!entry || entry.sessionId !== payload.sessionId) return
       term.write(payload.chunk)

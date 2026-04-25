@@ -2,8 +2,6 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { ExtensionsTab } from './ExtensionsTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
-import { useEmailStore } from '../../stores/useEmailStore'
-import { useDiscordStore } from '../../stores/useDiscordStore'
 import { subscribeToExtensionsChange } from '../../extensions/registry'
 import { NavItem } from '../../../../shared/types'
 import type { ModelConfig, ToolMeta } from '../../types/electron'
@@ -35,18 +33,13 @@ export function SettingsView(): JSX.Element {
   const {
     heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId,
     imapHost, imapPort, imapUser, imapPassword, imapTLS,
-    discordBotToken,
+    discordBotToken, discordChannels: discordEnabledIds,
     navItems, models, defaultModelId, providerKeys, router, hostMode, includeThinkingInContext, update
   } = useSettingsStore()
 
   const rootPath = useProjectStore((s) => s.rootPath)
-  const {
-    channels: discordChannels_list,
-    enabledChannelIds: discordEnabledIds,
-    connected: discordConnected,
-    toggleChannel: discordToggleChannel,
-    loadChannels: discordRefreshChannels
-  } = useDiscordStore()
+  const [discordChannelsList, setDiscordChannelsList] = useState<Array<{ id: string; name: string; guildId: string; guildName: string }>>([])
+  const [discordConnected, setDiscordConnected] = useState(false)
 
   const [availableTools, setAvailableTools] = useState<ToolMeta[]>([])
   const [disabledTools, setDisabledTools] = useState<string[]>([])
@@ -67,6 +60,12 @@ export function SettingsView(): JSX.Element {
   const [newSpamValue, setNewSpamValue] = useState('')
   const [newInjectionPattern, setNewInjectionPattern] = useState('')
   const [newInjectionIsRegex, setNewInjectionIsRegex] = useState(false)
+
+  const [emailFilters, setEmailFilters] = useState<{
+    spamRules: Array<{ id: string; type: 'sender'|'domain'|'subject'; value: string; enabled: boolean }>
+    injectionPatterns: Array<{ id: string; pattern: string; isRegex: boolean; enabled: boolean; builtin: boolean }>
+    customFolders: Array<{ id: string; name: string }>
+  } | null>(null)
 
   const [authStatus, setAuthStatus] = useState<{ loggedIn: boolean; email: string; plan: string }>({ loggedIn: false, email: '', plan: '' })
   const [authLoading, setAuthLoading] = useState(false)
@@ -120,7 +119,7 @@ export function SettingsView(): JSX.Element {
   const testImapConnection = useCallback(async () => {
     setTestState('testing')
     setTestError('')
-    const result = await window.api.email.testConnection()
+    const result = await window.api.invoke('rose-email:testConnection') as { ok: boolean; error?: string }
     if (result.ok) {
       setTestState('ok')
     } else {
@@ -223,7 +222,11 @@ export function SettingsView(): JSX.Element {
   }, [loadAudioDevices])
 
   useEffect(() => {
-    if (activePage === 'email') loadFilters()
+    if (activePage === 'rose-email') {
+      window.api.invoke('rose-email:loadFilters')
+        .then((f) => setEmailFilters(f as typeof emailFilters))
+        .catch(() => {})
+    }
   }, [activePage])
 
   useEffect(() => {
@@ -748,42 +751,47 @@ export function SettingsView(): JSX.Element {
     )
   }
 
+  async function saveEmailFilters(patch: Partial<NonNullable<typeof emailFilters>>): Promise<void> {
+    const updated = await window.api.invoke('rose-email:saveFilters', patch) as typeof emailFilters
+    setEmailFilters(updated)
+  }
+
   function renderEmail(): JSX.Element {
-    const spamRules = filters?.spamRules ?? []
-    const injectionPatterns = filters?.injectionPatterns ?? []
-    const customFolders = filters?.customFolders ?? []
+    const spamRules = emailFilters?.spamRules ?? []
+    const injectionPatterns = emailFilters?.injectionPatterns ?? []
+    const customFolders = emailFilters?.customFolders ?? []
 
     async function addSpamRule(): Promise<void> {
       const value = newSpamValue.trim()
       if (!value) return
       const rule = { id: `sr-${Date.now()}`, type: newSpamType, value, enabled: true }
-      await saveFilters({ spamRules: [...spamRules, rule] })
+      await saveEmailFilters({ spamRules: [...spamRules, rule] })
       setNewSpamValue('')
     }
 
     async function removeSpamRule(id: string): Promise<void> {
-      await saveFilters({ spamRules: spamRules.filter(r => r.id !== id) })
+      await saveEmailFilters({ spamRules: spamRules.filter(r => r.id !== id) })
     }
 
     async function toggleSpamRule(id: string): Promise<void> {
-      await saveFilters({ spamRules: spamRules.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r) })
+      await saveEmailFilters({ spamRules: spamRules.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r) })
     }
 
     async function toggleInjectionPattern(id: string): Promise<void> {
-      await saveFilters({ injectionPatterns: injectionPatterns.map(p => p.id === id ? { ...p, enabled: !p.enabled } : p) })
+      await saveEmailFilters({ injectionPatterns: injectionPatterns.map(p => p.id === id ? { ...p, enabled: !p.enabled } : p) })
     }
 
     async function addInjectionPattern(): Promise<void> {
       const value = newInjectionPattern.trim()
       if (!value) return
       const pattern = { id: `ip-${Date.now()}`, pattern: value, isRegex: newInjectionIsRegex, enabled: true, builtin: false }
-      await saveFilters({ injectionPatterns: [...injectionPatterns, pattern] })
+      await saveEmailFilters({ injectionPatterns: [...injectionPatterns, pattern] })
       setNewInjectionPattern('')
       setNewInjectionIsRegex(false)
     }
 
     async function removeInjectionPattern(id: string): Promise<void> {
-      await saveFilters({ injectionPatterns: injectionPatterns.filter(p => p.id !== id) })
+      await saveEmailFilters({ injectionPatterns: injectionPatterns.filter(p => p.id !== id) })
     }
 
     return (
@@ -979,8 +987,23 @@ export function SettingsView(): JSX.Element {
     )
   }
 
+  async function discordRefreshChannels(): Promise<void> {
+    const result = await window.api.invoke('rose-discord:connect') as { ok: boolean; channels?: typeof discordChannelsList }
+    if (result.ok && result.channels) {
+      setDiscordChannelsList(result.channels)
+      setDiscordConnected(true)
+    }
+  }
+
+  function discordToggleChannel(id: string): void {
+    const updated = (discordEnabledIds ?? []).includes(id)
+      ? (discordEnabledIds ?? []).filter((c) => c !== id)
+      : [...(discordEnabledIds ?? []), id]
+    update({ discordChannels: updated })
+  }
+
   function renderDiscord(): JSX.Element {
-    const guilds = Array.from(new Map(discordChannels_list.map((c) => [c.guildId, c.guildName])).entries())
+    const guilds = Array.from(new Map(discordChannelsList.map((c) => [c.guildId, c.guildName])).entries())
 
     return (
       <>
@@ -1009,22 +1032,22 @@ export function SettingsView(): JSX.Element {
           <section className={styles.section}>
             <div className={styles.sectionTitle} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               Visible Channels
-              <button className={styles.testBtn} onClick={() => discordRefreshChannels()}>Refresh</button>
+              <button className={styles.testBtn} onClick={() => void discordRefreshChannels()}>Refresh</button>
             </div>
             <div className={styles.settingDesc} style={{ marginBottom: 8 }}>
               Checked channels appear in the Discord view and are accessible to the AI tools.
             </div>
-            {discordChannels_list.length === 0 && (
-              <div className={styles.emptyState}>No channels found. Make sure the bot is connected.</div>
+            {discordChannelsList.length === 0 && (
+              <div className={styles.emptyState}>No channels found. Click Refresh to connect the bot.</div>
             )}
             {guilds.map(([guildId, guildName]) => (
               <div key={guildId} className={styles.settingCard}>
                 <div className={styles.settingLabel}>{guildName}</div>
-                {discordChannels_list.filter((c) => c.guildId === guildId).map((ch) => (
+                {discordChannelsList.filter((c) => c.guildId === guildId).map((ch) => (
                   <label key={ch.id} className={styles.checkboxRow}>
                     <input
                       type="checkbox"
-                      checked={discordEnabledIds.includes(ch.id)}
+                      checked={(discordEnabledIds ?? []).includes(ch.id)}
                       onChange={() => discordToggleChannel(ch.id)}
                     />
                     <span># {ch.name}</span>

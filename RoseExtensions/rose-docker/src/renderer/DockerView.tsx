@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useProjectStore } from '@renderer/stores/useProjectStore'
 import { useViewStore } from '@renderer/stores/useViewStore'
-import { useDockerStore } from '@renderer/stores/useDockerStore'
+import { useDockerStore } from './store'
 import { ContainerList } from './ContainerList'
 import { DetailPane } from './DetailPane'
 import styles from './DockerView.module.css'

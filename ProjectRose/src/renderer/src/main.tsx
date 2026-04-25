@@ -6,11 +6,7 @@ import { StrictMode } from 'react'
 import * as React from 'react'
 import * as ReactJSXRuntime from 'react/jsx-runtime'
 import { createRoot } from 'react-dom/client'
-import * as useDiscordStore from './stores/useDiscordStore'
-import * as useDockerStore from './stores/useDockerStore'
-import * as useEmailStore from './stores/useEmailStore'
 import * as useFileStore from './stores/useFileStore'
-import * as useGitStore from './stores/useGitStore'
 import * as useIndexingStore from './stores/useIndexingStore'
 import * as useProjectStore from './stores/useProjectStore'
 import * as useServiceStore from './stores/useServiceStore'
@@ -28,11 +24,7 @@ import './themes/variables.css'
 window.__rose__ = {
   'react': React,
   'react/jsx-runtime': ReactJSXRuntime,
-  '@renderer/stores/useDiscordStore': useDiscordStore,
-  '@renderer/stores/useDockerStore': useDockerStore,
-  '@renderer/stores/useEmailStore': useEmailStore,
   '@renderer/stores/useFileStore': useFileStore,
-  '@renderer/stores/useGitStore': useGitStore,
   '@renderer/stores/useIndexingStore': useIndexingStore,
   '@renderer/stores/useProjectStore': useProjectStore,
   '@renderer/stores/useServiceStore': useServiceStore,
