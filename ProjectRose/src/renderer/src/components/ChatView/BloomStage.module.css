@@ -87,6 +87,7 @@
   background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 13%, transparent) 0%, transparent 70%);
   opacity: 0;
   transition: opacity 0.6s ease;
+  will-change: opacity, transform;
 }
 
 .haloActive {
@@ -97,11 +98,13 @@
 /* rotating label ring */
 .ringLabel {
   animation: rotate-slow 80s linear infinite;
+  will-change: transform;
 }
 
 /* mid tick ring */
 .tickRing {
   animation: breath-slow 2.6s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 /* ring colors */
@@ -119,6 +122,7 @@
   position: absolute;
   inset: 28px;
   border-radius: 50%;
+  will-change: transform, opacity;
   background: radial-gradient(
     circle at 50% 45%,
     var(--color-accent) 0%,
@@ -188,6 +192,7 @@
   border-radius: 1px;
   height: 40px;
   transition: opacity 0.3s ease;
+  will-change: transform;
 }
 
 .barActive {
@@ -267,6 +272,7 @@
   border-radius: 1px;
   opacity: 0.4;
   transition: opacity 0.3s ease;
+  will-change: transform;
 }
 
 .stripBarActive {

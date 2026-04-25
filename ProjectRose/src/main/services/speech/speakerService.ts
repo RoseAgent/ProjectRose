@@ -1,7 +1,9 @@
-import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { readWavAsPCM } from './audioService'
+
+let _cacheDir = ''
+export function initCacheDir(dir: string): void { _cacheDir = dir }
 
 const THRESHOLD = 0.75
 
@@ -23,7 +25,7 @@ export async function getEmbedder(): Promise<boolean> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { AutoProcessor, AutoModelForXVector, env } = await import('@huggingface/transformers') as any
-    env.cacheDir = path.join(app.getPath('userData'), 'hf-models')
+    env.cacheDir = path.join(_cacheDir, 'hf-models')
 
     console.log('[Speech] Loading speaker embedding model...')
     const TEN_MINUTES = 10 * 60 * 1000

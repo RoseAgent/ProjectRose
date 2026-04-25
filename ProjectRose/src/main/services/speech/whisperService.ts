@@ -1,23 +1,25 @@
-import { app } from 'electron'
 import path from 'path'
 import { readWavAsPCM } from './audioService'
 
 type TranscriptionPipeline = (
   input: Float32Array,
-  opts: { sampling_rate: number; language: string; task: string }
+  opts: { sampling_rate: number }
 ) => Promise<{ text: string }>
 
 let _pipeline: TranscriptionPipeline | null = null
+let _cacheDir = ''
+
+export function initCacheDir(dir: string): void { _cacheDir = dir }
 
 async function getPipeline(): Promise<TranscriptionPipeline> {
   if (_pipeline) return _pipeline
 
   const { pipeline, env } = await import('@huggingface/transformers')
-  env.cacheDir = path.join(app.getPath('userData'), 'hf-models')
+  env.cacheDir = path.join(_cacheDir, 'hf-models')
 
   console.log('[Speech] Loading Whisper model (first use — may take a moment)...')
-  _pipeline = (await pipeline('automatic-speech-recognition', 'onnx-community/whisper-base', {
-    dtype: 'fp32'
+  _pipeline = (await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+    dtype: 'q8'
   })) as unknown as TranscriptionPipeline
   console.log('[Speech] Whisper ready')
 
@@ -58,7 +60,7 @@ export async function transcribe(wavPath: string): Promise<string> {
   // Gate on energy — don't send silence to Whisper at all
   if (rms(pcm) < SILENCE_RMS_THRESHOLD) return ''
 
-  const result = await pipe(pcm, { sampling_rate: 16000, language: 'en', task: 'transcribe' })
+  const result = await pipe(pcm, { sampling_rate: 16000 })
   const text = result.text.trim()
 
   if (isSilentOrHallucination(text)) return ''

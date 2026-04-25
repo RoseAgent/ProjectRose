@@ -1,8 +1,9 @@
-import { ipcMain } from 'electron'
+import { app, ipcMain } from 'electron'
+import path from 'path'
 import { IPC } from '../../shared/ipcChannels'
 import * as speechDB from '../services/speech/speechDB'
 import { saveRecording, webmPathToWav, cleanupWav } from '../services/speech/audioService'
-import { train, getEmbedder, warmupEmbedder } from '../services/speech/speakerService'
+import { train, getEmbedder, initCacheDir as initSpeakerCache } from '../services/speech/speakerService'
 import { startSession, stopSession, processChunk } from '../services/speech/liveSession'
 
 // Tracks the current phase of in-flight training jobs so the UI can show
@@ -10,8 +11,8 @@ import { startSession, stopSession, processChunk } from '../services/speech/live
 const jobPhases = new Map<number, string>()
 
 export function registerActiveSpeechHandlers(): void {
-  // Pre-warm the WavLM model in background so the first Train click doesn't hang.
-  warmupEmbedder()
+  // Init cacheDir for training (runs in main thread; worker inits its own copy)
+  initSpeakerCache(app.getPath('userData'))
 
   ipcMain.handle(
     IPC.ACTIVE_LISTENING_GET_SPEAKERS,

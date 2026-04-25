@@ -18,6 +18,10 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin({ include: ['node-pty'] })],
     build: {
       rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          speechWorker: resolve('src/main/services/speech/speechWorker.ts')
+        },
         external: ['node-pty']
       }
     },
