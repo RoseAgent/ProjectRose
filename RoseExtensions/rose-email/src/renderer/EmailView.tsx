@@ -199,6 +199,7 @@ export function EmailView(): JSX.Element {
                 >
                   <div className={styles.messageSubjectRow}>
                     {msg.injectionDetected && <span className={styles.injectionBadge} title="Potential prompt injection">⚠</span>}
+                    {msg.urlhausDetected && <span className={styles.injectionBadge} title="Sender domain blocked by URLhaus (malware/phishing)">☣</span>}
                     <span className={clsx(styles.messageSubject, !msg.read && styles.messageSubjectUnread)}>
                       {msg.subject}
                     </span>

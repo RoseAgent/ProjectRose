@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import * as email from './service'
+import * as urlhaus from './urlhaus'
 import type { ExtensionMainContext } from './types'
 import type { EmailFilters } from '../renderer/store'
 
@@ -35,6 +36,7 @@ export function registerHandlers(ctx: ExtensionMainContext): () => void {
       }
     })
 
+    urlhaus.ensureUrlhausLoaded()
     const filters = email.readEmailFilters(cfg.imapUser)
     const meta = email.readEmailMeta(cfg.imapUser)
 
@@ -42,16 +44,20 @@ export function registerHandlers(ctx: ExtensionMainContext): () => void {
       const cached = meta[m.uid]
       let folder = cached?.folder ?? 'inbox'
       let injectionDetected = cached?.injectionDetected ?? false
+      let urlhausDetected = cached?.urlhausDetected ?? false
       if (!cached) {
         const isSpam = filters.spamRules.some(r => email.matchesSpamRule(r, m))
         const isInjection = email.matchesInjectionPattern(
           filters.injectionPatterns,
           `${m.subject} ${m.from}`
         )
+        const senderDomain = m.from.match(/@([^>@\s]+)/)?.[1] ?? ''
+        const isUrlhaus = senderDomain ? urlhaus.isBlockedByUrlhaus(senderDomain) : false
         if (isSpam) folder = 'spam'
+        else if (isUrlhaus) { folder = 'spam'; urlhausDetected = true }
         else if (isInjection) { folder = 'quarantine'; injectionDetected = true }
       }
-      return { ...m, folder, injectionDetected }
+      return { ...m, folder, injectionDetected, urlhausDetected }
     })
   })
 
@@ -132,6 +138,12 @@ export function registerHandlers(ctx: ExtensionMainContext): () => void {
     return updated
   })
 
+  // rose-email:getUrlhausStatus
+  ipcMain.handle('rose-email:getUrlhausStatus', () => urlhaus.getUrlhausStatus())
+
+  // rose-email:refreshUrlhaus
+  ipcMain.handle('rose-email:refreshUrlhaus', async () => urlhaus.refreshUrlhaus())
+
   // rose-email:testConnection
   ipcMain.handle('rose-email:testConnection', async () => {
     const settings = await ctx.getSettings()
@@ -155,6 +167,8 @@ export function registerHandlers(ctx: ExtensionMainContext): () => void {
     ipcMain.removeHandler('rose-email:setMessageFolder')
     ipcMain.removeHandler('rose-email:loadFilters')
     ipcMain.removeHandler('rose-email:saveFilters')
+    ipcMain.removeHandler('rose-email:getUrlhausStatus')
+    ipcMain.removeHandler('rose-email:refreshUrlhaus')
     ipcMain.removeHandler('rose-email:testConnection')
   }
 }

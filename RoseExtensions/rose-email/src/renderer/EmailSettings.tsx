@@ -1,8 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSettingsStore } from '@renderer/stores/useSettingsStore'
-import type { SpamRule, InjectionPattern, EmailFilters } from './store'
+import type { SpamRule, InjectionPattern, EmailFilters, UrlhausStatus } from './store'
 
 type TestState = 'idle' | 'testing' | 'ok' | 'fail'
+
+function formatAge(ts: number): string {
+  const diffH = Math.floor((Date.now() - ts) / (1000 * 60 * 60))
+  if (diffH < 1) return 'less than an hour ago'
+  if (diffH < 24) return `${diffH} hour${diffH === 1 ? '' : 's'} ago`
+  const diffD = Math.floor(diffH / 24)
+  return `${diffD} day${diffD === 1 ? '' : 's'} ago`
+}
 
 const s: Record<string, React.CSSProperties> = {
   section: { marginBottom: 24 },
@@ -31,6 +39,8 @@ export function EmailSettings(): JSX.Element {
   const [newSpamValue, setNewSpamValue] = useState('')
   const [newInjectionPattern, setNewInjectionPattern] = useState('')
   const [newInjectionIsRegex, setNewInjectionIsRegex] = useState(false)
+  const [urlhausStatus, setUrlhausStatus] = useState<UrlhausStatus | null>(null)
+  const [urlhausRefreshing, setUrlhausRefreshing] = useState(false)
 
   const loadFilters = useCallback(async () => {
     try {
@@ -39,11 +49,28 @@ export function EmailSettings(): JSX.Element {
     } catch { /* extension not loaded */ }
   }, [])
 
-  useEffect(() => { loadFilters() }, [loadFilters])
+  const loadUrlhausStatus = useCallback(async () => {
+    try {
+      const status = await window.api.invoke('rose-email:getUrlhausStatus') as UrlhausStatus
+      setUrlhausStatus(status)
+    } catch { /* extension not loaded */ }
+  }, [])
+
+  useEffect(() => { loadFilters(); loadUrlhausStatus() }, [loadFilters, loadUrlhausStatus])
 
   async function saveFilters(patch: Partial<EmailFilters>): Promise<void> {
     const updated = await window.api.invoke('rose-email:saveFilters', patch) as EmailFilters
     setFilters(updated)
+  }
+
+  async function handleRefreshUrlhaus(): Promise<void> {
+    setUrlhausRefreshing(true)
+    try {
+      const status = await window.api.invoke('rose-email:refreshUrlhaus') as UrlhausStatus
+      setUrlhausStatus(status)
+    } finally {
+      setUrlhausRefreshing(false)
+    }
   }
 
   async function testConnection(): Promise<void> {
@@ -175,6 +202,37 @@ export function EmailSettings(): JSX.Element {
           {customFolders.length === 0
             ? ' No custom folders yet.'
             : ` ${customFolders.length} custom folder${customFolders.length === 1 ? '' : 's'}: ${customFolders.map((f) => f.name).join(', ')}.`}
+        </div>
+      </div>
+
+      <div style={s.section}>
+        <div style={s.title}>URLhaus Blocklist</div>
+        <div style={s.card}>
+          <div style={s.desc}>
+            Sender domains are checked against the abuse.ch URLhaus malware database.
+            Matched senders go directly to Spam. The list is cached locally and refreshed every 24 hours.
+          </div>
+          <div style={s.row}>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+              {urlhausStatus === null && <span style={{ color: 'var(--color-text-muted)' }}>Loading…</span>}
+              {urlhausStatus !== null && urlhausStatus.domainCount === 0 && (
+                <span style={{ color: 'var(--color-text-muted)' }}>Not yet loaded — click Refresh to download</span>
+              )}
+              {urlhausStatus !== null && urlhausStatus.domainCount > 0 && (
+                <>
+                  <span style={{ color: 'var(--color-success, #3a3)', fontWeight: 500 }}>
+                    {urlhausStatus.domainCount.toLocaleString()} domains
+                  </span>
+                  {urlhausStatus.lastUpdated != null && (
+                    <> · updated {formatAge(urlhausStatus.lastUpdated)}</>
+                  )}
+                </>
+              )}
+            </div>
+            <button style={s.btn} onClick={handleRefreshUrlhaus} disabled={urlhausRefreshing}>
+              {urlhausRefreshing ? 'Updating…' : 'Refresh Now'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

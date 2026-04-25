@@ -18,6 +18,7 @@ export type EmailMeta = Record<number, {
   folder: string
   spamClassified: boolean
   injectionDetected?: boolean
+  urlhausDetected?: boolean
 }>
 
 export type ImapConfig = {

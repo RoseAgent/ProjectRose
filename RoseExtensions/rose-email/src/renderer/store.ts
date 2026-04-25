@@ -8,6 +8,7 @@ export interface EmailMessageMeta {
   read: boolean
   folder: string
   injectionDetected?: boolean
+  urlhausDetected?: boolean
 }
 
 export interface SpamRule {
@@ -31,6 +32,11 @@ export interface EmailFilters {
   customFolders: { id: string; name: string }[]
 }
 
+export interface UrlhausStatus {
+  lastUpdated: number | null
+  domainCount: number
+}
+
 interface EmailState {
   messages: EmailMessageMeta[]
   selectedUid: number | null
@@ -40,6 +46,7 @@ interface EmailState {
   error: string | null
   activeFolder: string
   filters: EmailFilters | null
+  urlhausStatus: UrlhausStatus | null
   fetchMessages: () => Promise<void>
   fetchMessage: (uid: number) => Promise<void>
   deleteMessage: (uid: number) => Promise<void>
@@ -47,6 +54,8 @@ interface EmailState {
   moveToFolder: (uid: number, folder: string) => Promise<void>
   loadFilters: () => Promise<void>
   saveFilters: (patch: Partial<EmailFilters>) => Promise<void>
+  loadUrlhausStatus: () => Promise<void>
+  refreshUrlhaus: () => Promise<void>
 }
 
 export const useEmailStore = create<EmailState>((set, get) => ({
@@ -58,6 +67,7 @@ export const useEmailStore = create<EmailState>((set, get) => ({
   error: null,
   activeFolder: 'inbox',
   filters: null,
+  urlhausStatus: null,
 
   fetchMessages: async () => {
     set({ loading: true, error: null })
@@ -107,5 +117,19 @@ export const useEmailStore = create<EmailState>((set, get) => ({
   saveFilters: async (patch: Partial<EmailFilters>) => {
     const filters = await window.api.invoke('rose-email:saveFilters', patch) as EmailFilters
     set({ filters })
+  },
+
+  loadUrlhausStatus: async () => {
+    try {
+      const urlhausStatus = await window.api.invoke('rose-email:getUrlhausStatus') as UrlhausStatus
+      set({ urlhausStatus })
+    } catch { /* extension not loaded */ }
+  },
+
+  refreshUrlhaus: async () => {
+    try {
+      const urlhausStatus = await window.api.invoke('rose-email:refreshUrlhaus') as UrlhausStatus
+      set({ urlhausStatus })
+    } catch { /* extension not loaded */ }
   }
 }))
