@@ -44,7 +44,8 @@ async function writeEnabledState(rootPath: string, id: string, enabled: boolean)
 async function extractZip(zipPath: string, destDir: string): Promise<void> {
   const { execSync } = await import('child_process')
   if (process.platform === 'win32') {
-    execSync(`tar -xf "${zipPath}" -C "${destDir}"`)
+    const ps = `Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force`
+    execSync(`powershell -NoProfile -Command "${ps}"`)
   } else {
     execSync(`unzip -o "${zipPath}" -d "${destDir}"`)
   }

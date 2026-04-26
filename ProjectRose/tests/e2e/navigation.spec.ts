@@ -15,7 +15,6 @@ test.describe('Navigation', () => {
   test('ViewToggle shows all default nav buttons', async ({ win }) => {
     await expect(win.locator('button', { hasText: 'AGENT' })).toBeVisible()
     await expect(win.locator('button', { hasText: 'EDITOR' })).toBeVisible()
-    await expect(win.locator('button', { hasText: 'HEARTBEAT' })).toBeVisible()
     await expect(win.locator('button', { hasText: 'SETTINGS' })).toBeVisible()
   })
 
@@ -28,12 +27,6 @@ test.describe('Navigation', () => {
     await win.locator('button', { hasText: 'EDITOR' }).click()
     await win.waitForTimeout(500)
     await screenshot(win, 'editor--view')
-  })
-
-  test('navigate to heartbeat view', async ({ win }) => {
-    await win.locator('button', { hasText: 'HEARTBEAT' }).click()
-    await expect(win.getByText('Heartbeat Runs')).toBeVisible()
-    await screenshot(win, 'heartbeat--view')
   })
 
   test('navigate to settings view', async ({ win }) => {

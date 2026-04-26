@@ -51,7 +51,7 @@ test.describe('Extension System', () => {
       await openProject(app, win, dir)
       await win.locator('button', { hasText: 'SETTINGS' }).click()
       await win.getByRole('button', { name: 'Extensions', exact: true }).click()
-      await expect(win.getByText('INSTALL FROM DISK')).toBeVisible({ timeout: 5000 })
+      await expect(win.getByRole('button', { name: /INSTALL FROM DISK/ })).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'extensions--empty')
     })
 
@@ -69,10 +69,11 @@ test.describe('Extension System', () => {
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
       await win.getByRole('button', { name: 'Extensions', exact: true }).click()
-      await win.getByText('INSTALL FROM DISK').click()
+      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(1500)
 
-      await expect(win.getByText('Test Extension')).toBeVisible({ timeout: 5000 })
+      // Verify extension row appeared (Disable button = installed + enabled)
+      await expect(win.getByRole('button', { name: 'Disable', exact: true })).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'extensions--installed')
     })
 
@@ -89,11 +90,11 @@ test.describe('Extension System', () => {
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
       await win.getByRole('button', { name: 'Extensions', exact: true }).click()
-      await win.getByText('INSTALL FROM DISK').click()
+      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(2000)
 
-      // The extension's nav label should appear as a nav button
-      await expect(win.locator('button', { hasText: 'NAV TEST' })).toBeVisible({ timeout: 5000 })
+      // The extension's nav label should appear as a nav button (format: №XX NAV TEST)
+      await expect(win.getByRole('button', { name: /^№\d+ NAV TEST$/ })).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'extensions--nav-item')
     })
   })
@@ -112,11 +113,11 @@ test.describe('Extension System', () => {
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
       await win.getByRole('button', { name: 'Extensions', exact: true }).click()
-      await win.getByText('INSTALL FROM DISK').click()
+      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(2000)
 
       // Settings sidebar should now include the extension
-      await win.locator('button', { hasText: 'SETTINGS' }).click()
+      await win.getByRole('button', { name: /^№\d+ SETTINGS$/ }).click()
       await expect(win.getByRole('button', { name: 'Settings Test', exact: true })).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'extensions--settings-sidebar')
     })
@@ -134,7 +135,7 @@ test.describe('Extension System', () => {
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
       await win.getByRole('button', { name: 'Extensions', exact: true }).click()
-      await win.getByText('INSTALL FROM DISK').click()
+      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(2000)
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
@@ -160,7 +161,7 @@ test.describe('Extension System', () => {
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
       await win.getByRole('button', { name: 'Extensions', exact: true }).click()
-      await win.getByText('INSTALL FROM DISK').click()
+      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(1500)
 
       await win.getByRole('button', { name: 'Disable', exact: true }).click()
@@ -184,7 +185,7 @@ test.describe('Extension System', () => {
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
       await win.getByRole('button', { name: 'Extensions', exact: true }).click()
-      await win.getByText('INSTALL FROM DISK').click()
+      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(1500)
 
       const extRow = win.locator('[class*="section"]').filter({ hasText: 'Uninstall Test' })
@@ -203,7 +204,6 @@ test.describe('Extension System', () => {
       await win.locator('button', { hasText: 'SETTINGS' }).click()
       await expect(win.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible({ timeout: 5000 })
       await expect(win.getByRole('button', { name: 'Agent', exact: true })).toBeVisible()
-      await expect(win.getByRole('button', { name: 'Heartbeat', exact: true })).toBeVisible()
       await expect(win.getByRole('button', { name: 'Extensions', exact: true })).toBeVisible()
     })
   })

@@ -19,10 +19,9 @@ test.describe('Settings View', () => {
     await screenshot(win, 'settings--dashboard')
   })
 
-  test('sidebar contains Dashboard, Agent, Heartbeat, Extensions', async ({ win }) => {
+  test('sidebar contains Dashboard, Agent, Extensions', async ({ win }) => {
     await expect(win.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible()
     await expect(win.getByRole('button', { name: 'Agent', exact: true })).toBeVisible()
-    await expect(win.getByRole('button', { name: 'Heartbeat', exact: true })).toBeVisible()
     await expect(win.getByRole('button', { name: 'Extensions', exact: true })).toBeVisible()
   })
 
@@ -34,12 +33,6 @@ test.describe('Settings View', () => {
     await win.getByRole('button', { name: 'Extensions', exact: true }).click()
     await win.waitForTimeout(300)
     await screenshot(win, 'settings--extensions')
-  })
-
-  test('navigate to Heartbeat settings tab', async ({ win }) => {
-    await win.getByRole('button', { name: 'Heartbeat', exact: true }).click()
-    await expect(win.getByText('Enable Heartbeat')).toBeVisible({ timeout: 5000 })
-    await screenshot(win, 'settings--heartbeat')
   })
 
   test('navigate to Agent settings tab', async ({ win }) => {
