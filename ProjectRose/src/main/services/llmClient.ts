@@ -1,5 +1,5 @@
 import { streamText, generateText, stepCountIs, tool } from 'ai'
-import type { CoreMessage, ToolExecutionOptions } from 'ai'
+import type { ModelMessage, ToolExecutionOptions } from 'ai'
 import { applyHooks } from './chatHooks'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
@@ -261,7 +261,7 @@ function isXmlParseError(message: string): boolean {
   return message.toLowerCase().includes('xml syntax error')
 }
 
-function extractCompletedToolCalls(msgs: CoreMessage[]): Array<{ name: string; summary: string }> {
+function extractCompletedToolCalls(msgs: ModelMessage[]): Array<{ name: string; summary: string }> {
   const calls: Array<{ name: string; summary: string }> = []
   for (const m of msgs) {
     if (m.role !== 'assistant' || !Array.isArray(m.content)) continue
@@ -307,7 +307,7 @@ export async function streamChat(params: {
   }
   for (const name of disabledCoreTools ?? []) delete tools[name]
 
-  let coreMessages: CoreMessage[] = messages.map((m) => ({
+  let coreMessages: ModelMessage[] = messages.map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content
   }))
@@ -351,9 +351,9 @@ export async function streamChat(params: {
             if (chunk.text) emit(IPC.AI_THINKING, { content: chunk.text })
             break
           case 'finish':
-            if (chunk.usage) {
-              inputTokens += chunk.usage.inputTokens ?? 0
-              outputTokens += chunk.usage.outputTokens ?? 0
+            if (chunk.totalUsage) {
+              inputTokens += chunk.totalUsage.inputTokens ?? 0
+              outputTokens += chunk.totalUsage.outputTokens ?? 0
             }
             break
           case 'error': {

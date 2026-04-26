@@ -75,7 +75,7 @@ export async function sendDiscordMessage(channelId: string, content: string): Pr
   if (!client.isReady()) throw new Error('Discord not connected')
   const channel = await client.channels.fetch(channelId)
   if (!channel || !channel.isTextBased()) throw new Error('Channel not found or not text')
-  await channel.send(content)
+  await (channel as { send(c: string): Promise<unknown> }).send(content)
 }
 
 function mapMessage(msg: import('discord.js').Message): DiscordMessage {

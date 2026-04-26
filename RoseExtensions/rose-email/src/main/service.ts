@@ -2,7 +2,7 @@ import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
-import type { EmailFilters, SpamRule, InjectionPattern } from '../renderer/store'
+import type { EmailFilters, SpamRule, InjectionPattern } from '../shared/types'
 
 export type { SpamRule, InjectionPattern, EmailFilters }
 

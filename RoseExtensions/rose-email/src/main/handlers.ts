@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import * as email from './service'
 import * as urlhaus from './urlhaus'
 import type { ExtensionMainContext } from './types'
-import type { EmailFilters } from '../renderer/store'
+import type { EmailFilters } from '../shared/types'
 
 export function registerHandlers(ctx: ExtensionMainContext): () => void {
   // rose-email:fetchMessages

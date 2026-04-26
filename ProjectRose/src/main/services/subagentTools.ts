@@ -5,7 +5,8 @@ import { randomUUID } from 'crypto'
 import { streamChat } from './llmClient'
 import { saveSubagentSession } from './sessionService'
 import type { AgentContext, SubagentCounter } from './agentRunner'
-import type { ModelConfig, ProviderKeys } from '../ipc/settingsHandlers'
+import type { ModelConfig } from '../ipc/settingsHandlers'
+import type { ProviderKeys } from './llmClient'
 import { IPC } from '../../shared/ipcChannels'
 
 const EXPLORE_SYSTEM_PROMPT =

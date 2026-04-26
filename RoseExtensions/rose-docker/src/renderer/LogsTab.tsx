@@ -34,7 +34,8 @@ export function LogsTab({ containerId }: Props): JSX.Element {
     fitRef.current = fit
     setTimeout(() => { try { fit.fit() } catch {} }, 50)
 
-    const cleanup = window.api.on('rose-docker:logsData', (payload) => {
+    const cleanup = window.api.on('rose-docker:logsData', (...args) => {
+      const payload = args[0] as { sessionId: string; chunk: string }
       const entry = useDockerStore.getState().logs[containerId]
       if (!entry || entry.sessionId !== payload.sessionId) return
       term.write(payload.chunk)
