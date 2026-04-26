@@ -73,17 +73,17 @@ test.describe('Settings View', () => {
 
   test('agent page shows PLATE I Providers section', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Agent$/ }).click()
-    await expect(win.getByText('PLATE I')).toBeVisible({ timeout: 3000 })
-    await expect(win.getByText('Providers')).toBeVisible()
+    await expect(win.getByText('PLATE I', { exact: true })).toBeVisible({ timeout: 3000 })
+    await expect(win.getByText('Providers', { exact: true })).toBeVisible()
   })
 
   test('all five provider cards are visible', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Agent$/ }).click()
-    await expect(win.getByText('Anthropic')).toBeVisible({ timeout: 3000 })
-    await expect(win.getByText('OpenAI')).toBeVisible()
-    await expect(win.getByText('Amazon Bedrock')).toBeVisible()
-    await expect(win.getByText('Ollama')).toBeVisible()
-    await expect(win.getByText('OpenAI-compatible')).toBeVisible()
+    await expect(win.getByText('Anthropic', { exact: true })).toBeVisible({ timeout: 3000 })
+    await expect(win.getByText('OpenAI', { exact: true })).toBeVisible()
+    await expect(win.getByText('Amazon Bedrock', { exact: true })).toBeVisible()
+    await expect(win.getByText('Ollama', { exact: true })).toBeVisible()
+    await expect(win.getByText('OpenAI-compatible', { exact: true })).toBeVisible()
   })
 
   test('provider cards show botanical Latin names', async ({ win }) => {
@@ -95,10 +95,9 @@ test.describe('Settings View', () => {
 
   test('expanding a provider card shows its fields', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Agent$/ }).click()
-    // Click the Anthropic card header to expand it
-    const anthropicCard = win.locator('[class*="providerCard"]').filter({ hasText: 'Anthropic' }).first()
-    await anthropicCard.locator('button').first().click()
-    await expect(win.getByText('API KEY')).toBeVisible({ timeout: 3000 })
+    // Click the Anthropic card header button to expand it
+    await win.locator('button[class*="providerCardHeader"]').nth(0).click()
+    await expect(win.getByText('API KEY', { exact: true })).toBeVisible({ timeout: 3000 })
     await expect(win.getByRole('button', { name: 'VERIFY & SAVE' })).toBeVisible()
     await expect(win.getByRole('button', { name: 'CLEAR' })).toBeVisible()
     await screenshot(win, 'settings--agent-provider-expanded')
@@ -106,30 +105,32 @@ test.describe('Settings View', () => {
 
   test('only one provider card can be open at a time', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Agent$/ }).click()
-    const cards = win.locator('[class*="providerCardHeader"]')
+    // Target only the <button> elements — [class*="providerCardHeader"] would also match
+    // the inner div (providerCardHeaderInner) causing wrong elements to be clicked
+    const cards = win.locator('button[class*="providerCardHeader"]')
     // Open Anthropic card
     await cards.nth(0).click()
-    await expect(win.getByText('API KEY')).toBeVisible({ timeout: 3000 })
+    await expect(win.getByText('API KEY', { exact: true })).toBeVisible({ timeout: 3000 })
     // Open OpenAI card — Anthropic should close
     await cards.nth(1).click()
     await expect(win.getByText('VERIFY & SAVE')).toBeVisible({ timeout: 3000 })
     // Only one set of fields should be visible
-    await expect(win.locator('[class*="providerCardBody"]')).toHaveCount(1)
+    await expect(win.locator('[class*="providerCardBody"]')).toHaveCount(1, { timeout: 3000 })
   })
 
   // ── Agent page: PLATE II · Router ────────────────────────────
 
   test('agent page shows PLATE II Router section', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Agent$/ }).click()
-    await expect(win.getByText('PLATE II')).toBeVisible({ timeout: 3000 })
-    await expect(win.getByText('Router')).toBeVisible()
+    await expect(win.getByText('PLATE II', { exact: true })).toBeVisible({ timeout: 3000 })
+    await expect(win.getByText('Router', { exact: true })).toBeVisible()
   })
 
   test('router fields hidden when disabled', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Agent$/ }).click()
-    await expect(win.getByText('PLATE II')).toBeVisible({ timeout: 3000 })
+    await expect(win.getByText('PLATE II', { exact: true })).toBeVisible({ timeout: 3000 })
     // Base URL and Router Model fields should not be visible when router is off
-    await expect(win.getByText('OLLAMA BASE URL')).not.toBeVisible()
+    await expect(win.getByText('OLLAMA BASE URL', { exact: true })).not.toBeVisible()
   })
 
   test('router fields appear when enabled', async ({ win }) => {
@@ -137,23 +138,23 @@ test.describe('Settings View', () => {
     // Find the Enable Router toggle
     const routerRow = win.locator('[class*="hSettingRow"]').filter({ hasText: 'Enable Router' })
     await routerRow.locator('button[role="switch"]').click()
-    await expect(win.getByText('OLLAMA BASE URL')).toBeVisible({ timeout: 3000 })
-    await expect(win.getByText('ROUTER MODEL')).toBeVisible()
+    await expect(win.getByText('OLLAMA BASE URL', { exact: true })).toBeVisible({ timeout: 3000 })
+    await expect(win.getByText('ROUTER MODEL', { exact: true })).toBeVisible()
   })
 
   // ── Agent page: PLATE III · Models ───────────────────────────
 
   test('agent page shows PLATE III Models section', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Agent$/ }).click()
-    await expect(win.getByText('PLATE III')).toBeVisible({ timeout: 3000 })
-    await expect(win.getByText('Models')).toBeVisible()
+    await expect(win.getByText('PLATE III', { exact: true })).toBeVisible({ timeout: 3000 })
+    await expect(win.getByText('Models', { exact: true })).toBeVisible()
   })
 
   test('models table has correct column headers', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Agent$/ }).click()
-    await expect(win.getByText('DISPLAY NAME / MODEL')).toBeVisible({ timeout: 3000 })
-    await expect(win.getByText('PROVIDER')).toBeVisible()
-    await expect(win.getByText('USE-CASE TAGS')).toBeVisible()
+    await expect(win.getByText('DISPLAY NAME / MODEL', { exact: true })).toBeVisible({ timeout: 3000 })
+    await expect(win.getByText('PROVIDER', { exact: true })).toBeVisible()
+    await expect(win.getByText('USE-CASE TAGS', { exact: true })).toBeVisible()
   })
 
   test('add model button is present', async ({ win }) => {
@@ -173,8 +174,8 @@ test.describe('Settings View', () => {
 
   test('agent page shows PLATE IV Behavior and Tools section', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Agent$/ }).click()
-    await expect(win.getByText('PLATE IV')).toBeVisible({ timeout: 3000 })
-    await expect(win.getByText('Behavior & Tools')).toBeVisible()
+    await expect(win.getByText('PLATE IV', { exact: true })).toBeVisible({ timeout: 3000 })
+    await expect(win.getByText('Behavior & Tools', { exact: true })).toBeVisible()
   })
 
   test('behavior panel has expected toggles', async ({ win }) => {
@@ -192,6 +193,9 @@ test.describe('Settings View', () => {
 
   test('agent page colophon is visible', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Agent$/ }).click()
-    await expect(win.getByText('Rosa configurata')).toBeVisible({ timeout: 3000 })
+    // Scope to the colophon block (contains 'COLOPHON') to avoid matching header/status bar
+    await expect(
+      win.locator('[class*="colophon"]').filter({ hasText: 'COLOPHON' })
+    ).toContainText('Rosa configurata', { timeout: 3000 })
   })
 })
