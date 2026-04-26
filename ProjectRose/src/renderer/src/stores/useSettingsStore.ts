@@ -31,6 +31,9 @@ interface SettingsState {
   router: RouterConfig
   hostMode: 'projectrose' | 'self'
   includeThinkingInContext: boolean
+  ollamaBaseUrl: string
+  openaiCompatBaseUrl: string
+  openaiCompatApiKey: string
   extensions: Record<string, Record<string, unknown>>
   loaded: boolean
   load: () => Promise<void>
@@ -74,6 +77,9 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
   hostMode: 'self',
   includeThinkingInContext: false,
+  ollamaBaseUrl: 'http://localhost:11434',
+  openaiCompatBaseUrl: '',
+  openaiCompatApiKey: '',
   extensions: {},
   loaded: false,
 
