@@ -50,7 +50,7 @@ test.describe('Extension System', () => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: 'Extensions', exact: true }).click()
+      await win.getByRole('button', { name: /Extensions/ }).click()
       await expect(win.getByRole('button', { name: /INSTALL FROM DISK/ })).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'extensions--empty')
     })
@@ -68,7 +68,7 @@ test.describe('Extension System', () => {
       }, zipPath)
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: 'Extensions', exact: true }).click()
+      await win.getByRole('button', { name: /Extensions/ }).click()
       await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(1500)
 
@@ -89,7 +89,7 @@ test.describe('Extension System', () => {
       }, zipPath)
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: 'Extensions', exact: true }).click()
+      await win.getByRole('button', { name: /Extensions/ }).click()
       await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(2000)
 
@@ -112,13 +112,13 @@ test.describe('Extension System', () => {
       }, zipPath)
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: 'Extensions', exact: true }).click()
+      await win.getByRole('button', { name: /Extensions/ }).click()
       await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(2000)
 
-      // Settings sidebar should now include the extension
+      // Settings sidebar should now include the extension (sidebar items have №XX prefix)
       await win.getByRole('button', { name: /^№\d+ SETTINGS$/ }).click()
-      await expect(win.getByRole('button', { name: 'Settings Test', exact: true })).toBeVisible({ timeout: 5000 })
+      await expect(win.getByRole('button', { name: /Settings Test/ })).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'extensions--settings-sidebar')
     })
 
@@ -134,12 +134,12 @@ test.describe('Extension System', () => {
       }, zipPath)
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: 'Extensions', exact: true }).click()
+      await win.getByRole('button', { name: /Extensions/ }).click()
       await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(2000)
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: 'Panel Test', exact: true }).click()
+      await win.getByRole('button', { name: /Panel Test/ }).click()
 
       // The extension's SettingsView should render
       await expect(win.locator('[data-testid="rose-settingspanel-settings"]')).toBeVisible({ timeout: 5000 })
@@ -160,7 +160,7 @@ test.describe('Extension System', () => {
       }, zipPath)
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: 'Extensions', exact: true }).click()
+      await win.getByRole('button', { name: /Extensions/ }).click()
       await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(1500)
 
@@ -184,7 +184,7 @@ test.describe('Extension System', () => {
       }, zipPath)
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: 'Extensions', exact: true }).click()
+      await win.getByRole('button', { name: /Extensions/ }).click()
       await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
       await win.waitForTimeout(1500)
 
@@ -202,9 +202,10 @@ test.describe('Extension System', () => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await expect(win.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible({ timeout: 5000 })
-      await expect(win.getByRole('button', { name: 'Agent', exact: true })).toBeVisible()
-      await expect(win.getByRole('button', { name: 'Extensions', exact: true })).toBeVisible()
+      // Sidebar items now include a №XX prefix in their accessible name
+      await expect(win.getByRole('button', { name: /Dashboard/ })).toBeVisible({ timeout: 5000 })
+      await expect(win.getByRole('button', { name: /^№\d+\s+Agent$/ })).toBeVisible()
+      await expect(win.getByRole('button', { name: /Extensions/ })).toBeVisible()
     })
   })
 })
