@@ -1,18 +1,14 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useProjectStore } from '../../stores/useProjectStore'
+import { useProjectStore } from '@renderer/stores/useProjectStore'
 import styles from './HeartbeatView.module.css'
 
 function formatLogName(filename: string): string {
-  // filename: 2026-04-19T12-30-00-000Z.md
   const base = filename.replace('.md', '').replace(/T(\d{2})-(\d{2})-(\d{2})-\d+Z/, 'T$1:$2:$3Z')
   try {
     const date = new Date(base)
     return date.toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     })
   } catch {
     return filename
@@ -28,27 +24,25 @@ export function HeartbeatView(): JSX.Element {
 
   const loadLogs = useCallback(async () => {
     if (!rootPath) return
-    const files = await window.api.getHeartbeatLogs(rootPath)
+    const files = await window.api.invoke('rose-heartbeat:getLogs', rootPath) as string[]
     setLogs(files)
-    if (files.length > 0 && !selected) {
-      setSelected(files[0])
-    }
+    if (files.length > 0 && !selected) setSelected(files[0])
   }, [rootPath, selected])
 
-  useEffect(() => {
-    loadLogs()
-  }, [loadLogs])
+  useEffect(() => { loadLogs() }, [loadLogs])
 
   useEffect(() => {
     if (!rootPath || !selected) return
-    window.api.getHeartbeatLogContent(rootPath, selected).then(setContent).catch(() => setContent(''))
+    window.api.invoke('rose-heartbeat:logContent', rootPath, selected)
+      .then((c) => setContent(c as string))
+      .catch(() => setContent(''))
   }, [rootPath, selected])
 
   const handleRunNow = async (): Promise<void> => {
     if (!rootPath || running) return
     setRunning(true)
     try {
-      await window.api.runHeartbeat(rootPath)
+      await window.api.invoke('rose-heartbeat:run', rootPath)
       await loadLogs()
     } finally {
       setRunning(false)
@@ -60,11 +54,7 @@ export function HeartbeatView(): JSX.Element {
       <div className={styles.sidebar}>
         <div className={styles.sidebarHeader}>
           <span className={styles.sidebarTitle}>Heartbeat Runs</span>
-          <button
-            className={styles.runBtn}
-            onClick={handleRunNow}
-            disabled={running}
-          >
+          <button className={styles.runBtn} onClick={handleRunNow} disabled={running}>
             {running ? 'Running…' : 'Run Now'}
           </button>
         </div>
@@ -84,7 +74,6 @@ export function HeartbeatView(): JSX.Element {
           )}
         </div>
       </div>
-
       <div className={styles.content}>
         {selected ? (
           <pre className={styles.logContent}>{content}</pre>

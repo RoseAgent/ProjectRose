@@ -5,7 +5,6 @@ import { FileActions } from './components/TopBar/FileActions'
 import { EditorView } from './components/EditorView/EditorView'
 import { ChatView } from './components/ChatView/ChatView'
 import { ChatPanel } from './components/ChatView/ChatPanel'
-import { HeartbeatView } from './components/HeartbeatView/HeartbeatView'
 import { SettingsView } from './components/SettingsView/SettingsView'
 import { AccountView } from './components/AccountView/AccountView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
@@ -31,7 +30,7 @@ function App(): JSX.Element {
   const refreshTree = useProjectStore((s) => s.refreshTree)
   const toggleTerminal = useViewStore((s) => s.toggleTerminal)
 
-  const { heartbeatEnabled, heartbeatIntervalMinutes, loaded: settingsLoaded, load: loadSettings } = useSettingsStore()
+  const { load: loadSettings } = useSettingsStore()
   const setServiceStatus = useServiceStore((s) => s.setStatus)
   const [needsSetup, setNeedsSetup] = useState(false)
   const [, setExtVersion] = useState(0)
@@ -80,20 +79,6 @@ function App(): JSX.Element {
       if (hasMd) window.api.ensureScaffold(rootPath).catch(() => {})
     })
   }, [rootPath])
-
-  // Run heartbeat on project open and then on the configured interval.
-  // Wait for settings to load so we respect the persisted enabled flag.
-  useEffect(() => {
-    if (!rootPath || needsSetup || !settingsLoaded || !heartbeatEnabled) return
-
-    window.api.runHeartbeat(rootPath).catch(() => {})
-
-    const interval = setInterval(() => {
-      window.api.runHeartbeat(rootPath).catch(() => {})
-    }, heartbeatIntervalMinutes * 60 * 1000)
-
-    return () => clearInterval(interval)
-  }, [rootPath, needsSetup, settingsLoaded, heartbeatEnabled, heartbeatIntervalMinutes])
 
   // Poll the file tree every minute to catch external changes.
   useEffect(() => {
@@ -174,7 +159,6 @@ function App(): JSX.Element {
         <div className={styles.viewArea}>
           {activeView === 'editor' && <EditorView />}
           {activeView === 'chat' && <ChatView />}
-          {activeView === 'heartbeat' && <HeartbeatView />}
           {activeView === 'settings' && <SettingsView />}
           {activeView === 'account' && <AccountView />}
           {(() => {

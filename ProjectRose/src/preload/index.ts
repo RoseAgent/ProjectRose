@@ -115,15 +115,6 @@ const api = {
   initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string; commStyle: string; depth: string; proactivity: string }): Promise<void> =>
     ipcRenderer.invoke(IPC.ROSE_INIT_PROJECT, payload),
 
-  runHeartbeat: (rootPath: string): Promise<string> =>
-    ipcRenderer.invoke(IPC.HEARTBEAT_RUN, rootPath),
-
-  getHeartbeatLogs: (rootPath: string): Promise<string[]> =>
-    ipcRenderer.invoke(IPC.HEARTBEAT_GET_LOGS, rootPath),
-
-  getHeartbeatLogContent: (rootPath: string, filename: string): Promise<string> =>
-    ipcRenderer.invoke(IPC.HEARTBEAT_LOG_CONTENT, { rootPath, filename }),
-
   getSettings: (rootPath?: string): Promise<unknown> =>
     ipcRenderer.invoke(IPC.SETTINGS_GET, rootPath),
 

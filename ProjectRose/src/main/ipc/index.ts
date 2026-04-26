@@ -5,7 +5,6 @@ import { registerProjectHandlers } from './projectHandlers'
 import { registerLspHandlers } from './lspHandlers'
 import { registerAiHandlers } from './aiHandlers'
 import { registerRoseSetupHandlers } from './roseSetupHandlers'
-import { registerHeartbeatHandlers } from './heartbeatHandlers'
 import { registerSettingsHandlers } from './settingsHandlers'
 import { registerWhisperHandlers } from './whisperHandlers'
 import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
@@ -21,7 +20,6 @@ export function registerAllHandlers(): void {
   registerLspHandlers()
   registerAiHandlers()
   registerRoseSetupHandlers()
-  registerHeartbeatHandlers()
   registerSettingsHandlers()
   registerWhisperHandlers()
   registerActiveSpeechHandlers()

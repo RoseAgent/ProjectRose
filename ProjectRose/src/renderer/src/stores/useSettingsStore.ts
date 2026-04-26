@@ -4,10 +4,9 @@ import type { ModelConfig, RouterConfig } from '../types/electron'
 import { useProjectStore } from './useProjectStore'
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { viewId: 'chat',      label: 'Agent',     visible: true },
-  { viewId: 'editor',    label: 'Editor',    visible: true },
-  { viewId: 'heartbeat', label: 'Heartbeat', visible: true },
-  { viewId: 'settings',  label: 'Settings',  visible: true },
+  { viewId: 'chat',     label: 'Agent',    visible: true },
+  { viewId: 'editor',   label: 'Editor',   visible: true },
+  { viewId: 'settings', label: 'Settings', visible: true },
 ]
 
 interface SettingsState {

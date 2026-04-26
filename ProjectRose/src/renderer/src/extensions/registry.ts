@@ -25,7 +25,8 @@ const VIEW_ID_MIGRATIONS: Record<string, string> = {
   email: 'rose-email',
   git: 'rose-git',
   docker: 'rose-docker',
-  activeListening: 'rose-listen'
+  activeListening: 'rose-listen',
+  heartbeat: 'rose-heartbeat'
 }
 
 export function migrateViewId(viewId: string): string {

@@ -6,6 +6,7 @@ import { createRequire } from 'module'
 import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
 import { readSettings, writeSettings } from './settingsHandlers'
+import { heartbeatChat } from '../services/aiService'
 import type { InstalledExtension, ExtensionManifest, ExtensionToolEntry } from '../../shared/extension-types'
 
 function getExtensionsDir(rootPath: string): string {
@@ -60,10 +61,12 @@ export function getRegisteredExtensionTools(rootPath: string, enabledIds: string
 }
 
 interface ExtensionMainContext {
+  rootPath: string
   getSettings: () => Promise<Record<string, unknown>>
   updateSettings: (patch: Record<string, unknown>) => Promise<void>
   broadcast: (channel: string, data: unknown) => void
   registerTools: (tools: ExtensionToolEntry[]) => void
+  runBackgroundAgent: (prompt: string) => Promise<string>
 }
 
 function loadExtensionMainModule(rootPath: string, id: string): void {
@@ -82,6 +85,7 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
     wrapper(mod, mod.exports, extRequire, dirname(mainPath), mainPath)
 
     const ctx: ExtensionMainContext = {
+      rootPath,
       getSettings: async () => readSettings(rootPath) as unknown as Record<string, unknown>,
       updateSettings: async (patch: Record<string, unknown>) => {
         const current = await readSettings(rootPath)
@@ -94,6 +98,10 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
       },
       registerTools: (tools: ExtensionToolEntry[]) => {
         extensionToolsRegistry.set(key, tools)
+      },
+      runBackgroundAgent: async (prompt: string) => {
+        const { content } = await heartbeatChat([{ role: 'user', content: prompt }], rootPath)
+        return content
       }
     }
 

@@ -121,11 +121,6 @@ export interface ElectronAPI {
   ensureScaffold: (rootPath: string) => Promise<void>
   initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string; commStyle: string; depth: string; proactivity: string }) => Promise<void>
 
-  // Heartbeat
-  runHeartbeat: (rootPath: string) => Promise<string>
-  getHeartbeatLogs: (rootPath: string) => Promise<string[]>
-  getHeartbeatLogContent: (rootPath: string, filename: string) => Promise<string>
-
   // Settings
   getSettings: (rootPath?: string) => Promise<AppSettingsData>
   setSettings: (patch: Partial<AppSettingsData>, rootPath?: string) => Promise<AppSettingsData>
