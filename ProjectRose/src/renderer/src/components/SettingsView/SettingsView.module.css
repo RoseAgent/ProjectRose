@@ -978,7 +978,8 @@
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
   font-size: 13px;
-  min-width: 180px;
+  width: 220px;
+  flex-shrink: 0;
   cursor: pointer;
 }
 
@@ -991,8 +992,8 @@
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
   font-size: 13px;
-  width: 100%;
-  box-sizing: border-box;
+  width: 220px;
+  flex-shrink: 0;
 }
 
 .input:focus { outline: none; border-color: var(--color-accent); }

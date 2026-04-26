@@ -665,7 +665,7 @@ export function SettingsView(): JSX.Element {
           </div>
         </section>
 
-        <section className={styles.section}>
+        <section className={styles.section} style={{ paddingTop: 16 }}>
           <div className={styles.sectionTitle}>Voice Input</div>
           <div className={styles.settingRow}>
             <div className={styles.settingInfo}>
