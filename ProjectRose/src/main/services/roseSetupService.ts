@@ -87,19 +87,19 @@ export interface InitProjectPayload {
 }
 
 /**
- * True once the agent has been initialised — i.e. ~/.rose/ROSE.md exists.
+ * True once the user has completed the first-time setup wizard.
  * The rootPath parameter is retained for IPC back-compat but ignored;
  * agent initialisation is a once-per-machine event, not per-workspace.
- * The renderer uses this to decide whether to show the first-time setup
- * wizard before opening any workspace UI.
+ *
+ * We can't just check for ~/.rose/ROSE.md — ensureAgentRoseMd() writes a
+ * placeholder on every app start so the system-prompt builder always has a
+ * file to read. Instead, agentName in settings is the canonical signal:
+ * it starts empty and is only populated by initRoseProject() when the
+ * wizard completes.
  */
 export async function checkRoseMd(_rootPath: string): Promise<boolean> {
-  try {
-    await access(agentRoseMdPath())
-    return true
-  } catch {
-    return false
-  }
+  const settings = await readSettings().catch(() => null)
+  return !!settings?.agentName?.trim()
 }
 
 export async function ensureRoseScaffold(rootPath: string): Promise<void> {
@@ -144,9 +144,9 @@ export async function initRoseProject(payload: InitProjectPayload): Promise<void
 /**
  * Idempotent: ensure ~/.rose/ exists with a default ROSE.md if one was never
  * written. Called on app-ready before any window opens so the system prompt
- * builder always has a file to read. If the user has not run the setup
- * wizard yet, checkRoseMd() still returns false and the renderer routes them
- * through it; the file we write here is only a placeholder.
+ * builder always has a file to read. This placeholder does NOT count as
+ * setup-complete — checkRoseMd() gates the wizard on settings.agentName,
+ * which stays empty until initRoseProject() runs.
  */
 export async function ensureAgentRoseMd(): Promise<void> {
   await ensureAgentHome()
