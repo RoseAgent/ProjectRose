@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir, rm, access } from 'fs/promises'
 import { resolve, sep } from 'path'
 import { prPath } from '../lib/projectPaths'
+import { agentRoseMdPath, ensureAgentHome } from '../lib/agentHome'
 import { listInstalledExtensions } from './extensionService'
 import { readProjectSettings } from './projectSettingsService'
 
@@ -146,16 +147,20 @@ async function assertKnownExtension(rootPath: string, extId: string): Promise<vo
   }
 }
 
-export async function readRosePrompt(rootPath: string): Promise<string> {
+// The agent's identity ROSE.md is machine-level, living at ~/.rose/ROSE.md —
+// see agentMd.buildAgentMd which reads from the same path. The Settings →
+// Prompts tab edits this file directly so changes apply to every workspace.
+export async function readRosePrompt(): Promise<string> {
   try {
-    return await readFile(prPath(rootPath, 'ROSE.md'), 'utf-8')
+    return await readFile(agentRoseMdPath(), 'utf-8')
   } catch {
     return ''
   }
 }
 
-export async function writeRosePrompt(rootPath: string, content: string): Promise<void> {
-  await writeFile(prPath(rootPath, 'ROSE.md'), content, 'utf-8')
+export async function writeRosePrompt(content: string): Promise<void> {
+  await ensureAgentHome()
+  await writeFile(agentRoseMdPath(), content, 'utf-8')
 }
 
 export async function writeExtensionPrompt(rootPath: string, extId: string, content: string): Promise<void> {

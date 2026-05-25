@@ -8,6 +8,15 @@ export interface ReleaseEntry {
 
 export const RELEASES: ReleaseEntry[] = [
   {
+    version: '1.9.3',
+    tag: null,
+    date: null,
+    title: 'Prompt editor reads the real ROSE.md',
+    highlights: [
+      'Fix: the ROSE.md card in Settings → Prompts now opens the global ~/.rose/ROSE.md that the agent actually reads at chat time — it had been pointing at a per-workspace file, so the editor showed empty content and Save wrote to a file the system prompt never loaded'
+    ]
+  },
+  {
     version: '1.9.2',
     tag: null,
     date: null,

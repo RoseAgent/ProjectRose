@@ -115,7 +115,7 @@ export function PromptsTab(): JSX.Element {
     let cancelled = false
     void (async () => {
       const [roseText, settings] = await Promise.all([
-        window.api.prompts.readRose(rootPath),
+        window.api.prompts.readRose(),
         window.api.project.getSettings(rootPath)
       ])
       if (cancelled) return
@@ -193,17 +193,16 @@ export function PromptsTab(): JSX.Element {
   }, [rootPath, disabledPrompts])
 
   const saveRose = useCallback(async () => {
-    if (!rootPath) return
     setRoseSaving(true)
     try {
-      await window.api.prompts.writeRose(rootPath, roseContent)
+      await window.api.prompts.writeRose(roseContent)
       setRoseOriginal(roseContent)
     } catch (err) {
       console.error('[prompts] rose save failed', err)
     } finally {
       setRoseSaving(false)
     }
-  }, [rootPath, roseContent])
+  }, [roseContent])
 
   const discardRose = useCallback(() => {
     setRoseContent(roseOriginal)
@@ -262,7 +261,7 @@ export function PromptsTab(): JSX.Element {
           <div className={styles.providerCardBody}>
             <MarkdownPromptEditor value={roseContent} onChange={setRoseContent} height={420} />
             <div className={styles.providerCardFooter}>
-              <span className={styles.providerStorageHint}>.projectrose/ROSE.md</span>
+              <span className={styles.providerStorageHint}>~/.rose/ROSE.md</span>
               <div className={styles.providerFooterBtns}>
                 <button
                   type="button"
