@@ -22,27 +22,6 @@ export const FEATURED_CATALOG: CatalogEntry[] = [
     repoUrl: 'https://github.com/RoseAgent/projectrose-discord.git'
   },
   {
-    id: 'rose-docker',
-    name: 'Docker',
-    description: 'Docker container management.',
-    author: 'ProjectRose',
-    repoUrl: 'https://github.com/RoseAgent/projectrose-docker.git'
-  },
-  {
-    id: 'rose-git',
-    name: 'Git',
-    description: 'Git repository management with diff viewer and staging area.',
-    author: 'ProjectRose',
-    repoUrl: 'https://github.com/RoseAgent/projectrose-git.git'
-  },
-  {
-    id: 'rose-heartbeat',
-    name: 'Heartbeat',
-    description: 'Automatically processes deferred tasks and scheduled work on a configurable interval.',
-    author: 'ProjectRose',
-    repoUrl: 'https://github.com/RoseAgent/projectrose-heartbeat.git'
-  },
-  {
     id: 'rose-qwen-director',
     name: 'Qwen Director',
     description: 'Tracks checklists in agent thinking and reminds the agent to finish all tasks before responding to the user.',
