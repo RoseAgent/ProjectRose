@@ -15,7 +15,6 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { RRule, rrulestr } from 'rrule'
-import type { ExtensionManifest } from '@shared/extension-types'
 import type { ExtensionMainContext } from '@shared/extension-contract'
 import { logInteraction } from '../../../services/interactionLog'
 import {
@@ -26,32 +25,15 @@ import {
   slugifyRoutineName,
   type ParsedRoutine
 } from '@shared/routineFields'
+import { isoLocal, timestampForFilename } from '@shared/detachedRunTranscript'
 import {
   buildRunMarkdown,
-  isoLocal,
-  timestampForFilename,
   type RoutineRunRecord,
   type RoutineRunTrigger
-} from '@shared/routineTranscript'
+} from '@shared/routineRun'
 import { notifyFailure } from '../../../tray'
 
-export const manifest: ExtensionManifest = {
-  id: 'rose-routines',
-  name: 'Routines',
-  version: '1.0.0',
-  description:
-    'Recurring prompts that fire the Agent on a calendar schedule. Each fire is saved for audit.',
-  author: 'ProjectRose',
-  latin: 'Rota',
-  navItem: { label: 'Routines', iconName: 'clock' },
-  provides: {
-    pageView: true,
-    main: true,
-    detachedRunWithTools: true,
-    notifyStatus: true,
-    broadcast: true
-  }
-}
+export { manifest } from './manifest'
 
 const ROUTINES_DIR = '.projectrose/routines'
 const ROUTINES_CHANGED_CHANNEL = 'routines:changed'

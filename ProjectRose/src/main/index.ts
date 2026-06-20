@@ -15,6 +15,7 @@ import { buildSkillTools } from './services/skillService'
 import { ensureAgentRoseMd } from './services/roseSetupService'
 import { ensureAgentHome } from './lib/agentHome'
 import { initMemorySubsystem } from './services/memory'
+import { startEmailSyncLoop } from './services/email/emailSyncLoop'
 import { IPC } from '../shared/ipcChannels'
 import log from 'electron-log/main'
 
@@ -103,6 +104,11 @@ app.whenReady().then(async () => {
   // ~/.rose/memory/{diary,behavior-records,contact,conversations,agent-activity}
   // was already created by ensureAgentHome() above.
   initMemorySubsystem()
+
+  // Email background sync — polls the inbox and emits `new-message` so other
+  // built-ins (rose-channels) can react to arrivals. Idempotent; a no-op
+  // while no transport is configured. See ADR 0011 amendment 2026-05-25.
+  startEmailSyncLoop()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

@@ -32,7 +32,7 @@ import type { ExtensionManifest, ExtensionToolEntry } from '../../shared/extensi
 import type { ChatHook } from '../../shared/extensionHooks'
 import type { ExtensionMainContext } from '../../shared/extension-contract'
 import type { AgentSession } from '../../shared/extension-agent-session'
-import type { RoutineTranscript } from '../../shared/routineTranscript'
+import type { DetachedRunTranscript } from '../../shared/detachedRunTranscript'
 import { logActivity } from '../services/memory/agentActivity'
 
 /** Full host surface, with no manifest gating. The slicer picks from this. */
@@ -54,7 +54,7 @@ export interface HostExtensionSurface {
     prompt: string,
     systemPrompt: string,
     options: { allowedTools: string[] }
-  ) => Promise<RoutineTranscript>
+  ) => Promise<DetachedRunTranscript>
   openAgentSession: (opts: { systemPrompt: string }) => AgentSession
 }
 

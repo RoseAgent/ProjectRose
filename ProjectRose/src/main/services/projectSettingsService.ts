@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'fs/promises'
 import { listInstalledExtensions } from './extensionService'
+import { listBuiltinMainManifests } from '../extensions/builtins/manifests'
 import { prPath } from '../lib/projectPaths'
 import { toolRegistry } from './toolRegistry'
 import type { ToolMeta } from '../../shared/types'
@@ -224,10 +225,28 @@ const BUILTIN_EXTENSION_TOOLS: Record<string, BuiltinExtensionToolMeta> = {
  * seeded with these in `disabledTools[]`, matching the behaviour of
  * `applyDefaultDisabledTools()` for installed extensions but at first-read
  * time (built-ins are never installed, so there's no install hook to fire).
+ *
+ * Two sources:
+ *  1. `BUILTIN_EXTENSION_TOOLS` above — covers tools registered via the
+ *     host's `buildCoreTools` (rose-contacts / rose-calendar / rose-email)
+ *     that don't have their own manifest entry.
+ *  2. Built-in main modules' manifests — covers extensions that register
+ *     their tools via `ctx.registerTools()` and declare them in
+ *     `provides.tools[]` (rose-channels). Walked at read-time so adding a
+ *     new built-in with new default-off tools picks them up automatically.
  */
-const BUILTIN_DEFAULT_DISABLED_TOOLS: readonly string[] = Object.entries(BUILTIN_EXTENSION_TOOLS)
-  .filter(([, meta]) => meta.defaultDisabled === true)
-  .map(([name]) => name)
+function collectBuiltinDefaultDisabledTools(): string[] {
+  const out = new Set<string>()
+  for (const [name, meta] of Object.entries(BUILTIN_EXTENSION_TOOLS)) {
+    if (meta.defaultDisabled === true) out.add(name)
+  }
+  for (const manifest of listBuiltinMainManifests()) {
+    for (const t of manifest.provides.tools ?? []) {
+      if (t.defaultDisabled === true) out.add(t.name)
+    }
+  }
+  return [...out]
+}
 
 export async function readProjectSettings(rootPath: string): Promise<ProjectSettings> {
   const path = prPath(rootPath, 'project-settings.json')
@@ -240,7 +259,7 @@ export async function readProjectSettings(rootPath: string): Promise<ProjectSett
   const seeded = new Set(raw.seededDefaultDisabledTools ?? [])
   const disabled = new Set(raw.disabledTools ?? [])
   let changed = false
-  for (const tool of BUILTIN_DEFAULT_DISABLED_TOOLS) {
+  for (const tool of collectBuiltinDefaultDisabledTools()) {
     if (!seeded.has(tool)) {
       disabled.add(tool)
       seeded.add(tool)
@@ -309,5 +328,23 @@ export async function listTools(rootPath: string): Promise<ToolMeta[]> {
       }))
     )
 
-  return [...coreMeta, ...extensionMeta]
+  // Built-in extensions that register tools via `ctx.registerTools()` (e.g.
+  // rose-channels). Their tools aren't in `getCoreToolNames()` (they're not
+  // host built-ins) and they're not in `listInstalledExtensions` (they're
+  // not installed). Surface them here directly from the manifests so the
+  // picker shows them alongside everything else.
+  const builtinExtensionMeta = listBuiltinMainManifests()
+    .filter((m) => m.provides.tools?.length)
+    .flatMap((m) =>
+      (m.provides.tools ?? []).map((t) => ({
+        name: t.name,
+        displayName: t.displayName,
+        description: t.description,
+        type: 'extension' as const,
+        extensionId: m.id,
+        extensionName: m.name
+      }))
+    )
+
+  return [...coreMeta, ...extensionMeta, ...builtinExtensionMeta]
 }

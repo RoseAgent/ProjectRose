@@ -33,7 +33,10 @@ export function buildRoseMd(
   name: string,
   identity: string,
   autonomy: string,
-  userName: string,
+  // People (User/Agent) is no longer baked into the identity file — it is
+  // injected into the system prompt from settings. Kept positionally so call
+  // sites stay unchanged. See buildInjectedSections / stripPeopleSection.
+  _userName: string,
   commStyle: string,
   depth: string,
   proactivity: string
@@ -43,11 +46,6 @@ export function buildRoseMd(
 ## Identity
 
 ${identity}
-
-## People
-
-User: ${userName}
-Agent: ${name}
 
 ## Personality
 
@@ -65,6 +63,31 @@ When you need clarification or a decision from the user before you can proceed, 
 
 ${AUTONOMY_TEXT[autonomy] ?? AUTONOMY_TEXT.high}
 `
+}
+
+/**
+ * Remove a "## People" section from a ROSE.md body. The User/Agent block is now
+ * injected into the system prompt from settings (see buildInjectedSections), so
+ * it must not also live in the editable identity file. Strips the heading and
+ * everything under it up to the next heading; idempotent, and a no-op for files
+ * that never had the section (the common case for newly-created identities).
+ */
+export function stripPeopleSection(md: string): string {
+  const lines = md.split('\n')
+  const out: string[] = []
+  let skipping = false
+  for (const line of lines) {
+    if (/^##\s+People\s*$/.test(line)) {
+      skipping = true
+      continue
+    }
+    if (skipping) {
+      if (/^#{1,6}\s+/.test(line)) skipping = false
+      else continue
+    }
+    out.push(line)
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n')
 }
 
 async function mkdirSafe(p: string): Promise<void> {

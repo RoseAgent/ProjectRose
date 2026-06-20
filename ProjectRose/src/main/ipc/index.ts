@@ -75,7 +75,7 @@ import { handleLogout, cancelPairing, getAuthStatus, fetchUsage } from '../servi
 
 import { aiIpc } from '../services/aiService.ipc'
 import { chat, compressToolNoise, getContextStatus } from '../services/aiService'
-import { buildAgentMd } from '../services/agentMd'
+import { buildAgentMd, buildInjectedSections } from '../services/agentMd'
 import { sessionRegistry } from '../services/sessionRegistry'
 
 import { extensionIpc } from '../services/extensionService.ipc'
@@ -93,6 +93,23 @@ import {
   listRuns as routinesListRuns,
   readRun as routinesReadRun
 } from '../extensions/builtins/rose-routines/main'
+import { channelsIpc } from '../extensions/builtins/rose-channels/channelsService.ipc'
+import {
+  listRules as channelsList,
+  readRule as channelsRead,
+  saveRule as channelsSave,
+  deleteRule as channelsDelete,
+  runNow as channelsRunNow,
+  listRuns as channelsListRuns,
+  readRun as channelsReadRun,
+  getStatus as channelsStatus,
+  listDiscordChannels as channelsListDiscordChannels,
+  listSlackChannels as channelsListSlackChannels,
+  setDiscordToken as channelsSetDiscord,
+  clearDiscord as channelsClearDiscord,
+  setSlackTokens as channelsSetSlack,
+  clearSlack as channelsClearSlack
+} from '../extensions/builtins/rose-channels/main'
 import {
   listExtensions,
   installFromGit,
@@ -221,6 +238,7 @@ export function registerIpcManifests(): void {
   promptIpc.register({
     readRose: readRosePrompt,
     writeRose: writeRosePrompt,
+    readInjected: buildInjectedSections,
     listExtension: listExtensionPrompts,
     readExtension: readExtensionPrompt,
     writeExtension: writeExtensionPrompt,
@@ -317,6 +335,22 @@ export function registerIpcManifests(): void {
     runNow: routinesRunNow,
     listRuns: routinesListRuns,
     readRun: routinesReadRun
+  })
+  channelsIpc.register({
+    list: channelsList,
+    read: channelsRead,
+    save: channelsSave,
+    delete: channelsDelete,
+    runNow: channelsRunNow,
+    listRuns: channelsListRuns,
+    readRun: channelsReadRun,
+    status: channelsStatus,
+    listDiscordChannels: channelsListDiscordChannels,
+    listSlackChannels: channelsListSlackChannels,
+    setDiscordToken: channelsSetDiscord,
+    clearDiscord: channelsClearDiscord,
+    setSlackTokens: channelsSetSlack,
+    clearSlack: channelsClearSlack
   })
   activeSpeechIpc.register({
     getSpeakers,

@@ -55,32 +55,78 @@ function MarkdownPromptEditor({
         theme={monacoTheme}
         onChange={(v) => onChange(v ?? '')}
         onMount={handleMount}
-        options={{
-          fontFamily: theme === 'dark'
-            ? "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace"
-            : "'IBM Plex Mono', ui-monospace, monospace",
-          fontSize: 13,
-          lineHeight: 20,
-          minimap: { enabled: false },
-          scrollBeyondLastLine: false,
-          wordWrap: 'on',
-          automaticLayout: true,
-          renderLineHighlight: 'none',
-          glyphMargin: false,
-          folding: false,
-          lineNumbers: 'off',
-          padding: { top: 12, bottom: 12 }
-        }}
+        options={editorOptions(theme)}
       />
     </div>
   )
 }
 
+// Read-only panel for a host-injected region of the prompt, rendered directly
+// above (header) or below (footer) the editable identity editor. Kept entirely
+// outside Monaco so it can never interfere with editing; styled to read as a
+// continuous, locked extension of the same prompt file.
+function InjectedSectionPanel({
+  text,
+  theme,
+  position
+}: {
+  text: string
+  theme: string
+  position: 'header' | 'footer'
+}): JSX.Element {
+  const mono = theme === 'dark'
+    ? "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace"
+    : "'IBM Plex Mono', ui-monospace, monospace"
+  const isHeader = position === 'header'
+  const label = isHeader
+    ? '▲ Injected from settings · read-only'
+    : '▼ Injected into the system prompt at runtime · read-only'
+  return (
+    <div
+      style={{
+        border: '1px solid var(--color-border)',
+        [isHeader ? 'borderBottom' : 'borderTop']: 'none',
+        background: 'var(--color-bg-secondary, rgba(127,127,127,0.06))',
+        borderLeft: '2px solid var(--color-accent)',
+        padding: '10px 14px 12px'
+      }}
+    >
+      <div style={{ fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 6 }}>
+        {label}
+      </div>
+      <pre style={{ margin: 0, fontFamily: mono, fontSize: 13, lineHeight: '20px', whiteSpace: 'pre-wrap', color: 'var(--color-text-secondary)' }}>
+        {text.trim()}
+      </pre>
+    </div>
+  )
+}
+
+function editorOptions(theme: string): monaco.editor.IStandaloneEditorConstructionOptions {
+  return {
+    fontFamily: theme === 'dark'
+      ? "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace"
+      : "'IBM Plex Mono', ui-monospace, monospace",
+    fontSize: 13,
+    lineHeight: 20,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    wordWrap: 'on',
+    automaticLayout: true,
+    renderLineHighlight: 'none',
+    glyphMargin: false,
+    folding: false,
+    lineNumbers: 'off',
+    padding: { top: 12, bottom: 12 }
+  }
+}
+
 export function PromptsTab(): JSX.Element {
   const rootPath = useProjectStore((s) => s.rootPath)
+  const theme = useThemeStore((s) => s.theme)
 
   const [roseContent, setRoseContent] = useState('')
   const [roseOriginal, setRoseOriginal] = useState('')
+  const [roseInjected, setRoseInjected] = useState<{ header: string; footer: string }>({ header: '', footer: '' })
   const [roseExpanded, setRoseExpanded] = useState(true)
   const [roseSaving, setRoseSaving] = useState(false)
 
@@ -110,22 +156,44 @@ export function PromptsTab(): JSX.Element {
     }))
   }, [rootPath])
 
+  const refreshInjected = useCallback(async () => {
+    if (!rootPath) return
+    try {
+      setRoseInjected(await window.api.prompts.readInjected(rootPath))
+    } catch (err) {
+      console.error('[prompts] failed to load injected sections', err)
+    }
+  }, [rootPath])
+
   useEffect(() => {
     if (!rootPath) return
     let cancelled = false
+    // Load each source independently — the ROSE.md identity must still render
+    // even if project settings or the injected-sections build fails, otherwise
+    // a failure in one blanks the whole editor.
     void (async () => {
-      const [roseText, settings] = await Promise.all([
-        window.api.prompts.readRose(),
-        window.api.project.getSettings(rootPath)
-      ])
-      if (cancelled) return
-      setRoseContent(roseText)
-      setRoseOriginal(roseText)
-      setDisabledPrompts(settings.disabledPrompts)
-      await refreshList()
+      try {
+        const roseText = await window.api.prompts.readRose()
+        if (cancelled) return
+        setRoseContent(roseText)
+        setRoseOriginal(roseText)
+      } catch (err) {
+        console.error('[prompts] failed to load ROSE.md', err)
+      }
     })()
+    void (async () => {
+      try {
+        const settings = await window.api.project.getSettings(rootPath)
+        if (cancelled) return
+        setDisabledPrompts(settings.disabledPrompts)
+      } catch (err) {
+        console.error('[prompts] failed to load project settings', err)
+      }
+    })()
+    void refreshInjected()
+    void refreshList()
     return () => { cancelled = true }
-  }, [rootPath, refreshList])
+  }, [rootPath, refreshList, refreshInjected])
 
   const loadRowContent = useCallback(async (id: string) => {
     if (!rootPath) return
@@ -160,11 +228,12 @@ export function PromptsTab(): JSX.Element {
         ? { ...r, original: r.content, dirty: false, source: 'user', hasUserFile: true, saving: false }
         : r
       ))
+      void refreshInjected()
     } catch (err) {
       console.error('[prompts] save failed', err)
       setRows((prev) => prev.map((r) => r.id === id ? { ...r, saving: false } : r))
     }
-  }, [rootPath, rows])
+  }, [rootPath, rows, refreshInjected])
 
   const discardRow = useCallback((id: string) => {
     setRows((prev) => prev.map((r) => r.id === id
@@ -181,7 +250,8 @@ export function PromptsTab(): JSX.Element {
       ? { ...r, content: result.content, original: result.content, source: result.source, dirty: false, hasUserFile: false }
       : r
     ))
-  }, [rootPath])
+    void refreshInjected()
+  }, [rootPath, refreshInjected])
 
   const togglePromptEnabled = useCallback(async (id: string) => {
     if (!rootPath) return
@@ -190,7 +260,8 @@ export function PromptsTab(): JSX.Element {
       : [...disabledPrompts, id]
     setDisabledPrompts(next)
     await window.api.project.setSettings(rootPath, { disabledPrompts: next })
-  }, [rootPath, disabledPrompts])
+    void refreshInjected()
+  }, [rootPath, disabledPrompts, refreshInjected])
 
   const saveRose = useCallback(async () => {
     setRoseSaving(true)
@@ -259,7 +330,19 @@ export function PromptsTab(): JSX.Element {
         </button>
         {roseExpanded && (
           <div className={styles.providerCardBody}>
+            {roseInjected.header.trim() && (
+              <InjectedSectionPanel text={roseInjected.header} theme={theme} position="header" />
+            )}
             <MarkdownPromptEditor value={roseContent} onChange={setRoseContent} height={420} />
+            {roseInjected.footer.trim() && (
+              <InjectedSectionPanel text={roseInjected.footer} theme={theme} position="footer" />
+            )}
+            <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', margin: '8px 0 0' }}>
+              The greyed panels are injected into the system prompt and cannot be edited here. The
+              People block above comes from your settings; the sections below (workspace
+              instructions, extension prompts, environment, and core rules) are appended at chat
+              time. Only the middle editor — your identity — is editable.
+            </p>
             <div className={styles.providerCardFooter}>
               <span className={styles.providerStorageHint}>~/.rose/ROSE.md</span>
               <div className={styles.providerFooterBtns}>

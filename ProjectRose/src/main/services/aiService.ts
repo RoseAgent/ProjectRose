@@ -15,9 +15,9 @@ import { pickActiveModel } from './modelSelection'
 import { toolRegistry } from './toolRegistry'
 import { listInstalledExtensions } from './extensionService'
 import type {
-  RoutineTranscript,
-  RoutineTranscriptEntry
-} from '../../shared/routineTranscript'
+  DetachedRunTranscript,
+  DetachedRunTranscriptEntry
+} from '../../shared/detachedRunTranscript'
 
 export type { ChatResponse }
 
@@ -89,16 +89,16 @@ export async function runAgentOnce(
 // back a data URL. Neither has a meaningful headless behaviour.
 const INTERACTIVE_TOOL_NAMES = new Set<string>(['ask_user', 'screenshot'])
 
-export interface RoutineRunWarnings {
+export interface DetachedRunWarnings {
   /** Tool names the caller requested but the host did not find at fire time. */
   unknownTools: string[]
   /** Tool names the caller requested but the host auto-stripped (interactive). */
   strippedTools: string[]
 }
 
-export interface RoutineRunResult {
-  transcript: RoutineTranscript
-  warnings: RoutineRunWarnings
+export interface DetachedRunResult {
+  transcript: DetachedRunTranscript
+  warnings: DetachedRunWarnings
 }
 
 /**
@@ -115,7 +115,7 @@ export async function runAgentOnceWithTools(
   systemPrompt: string,
   allowedTools: string[],
   rootPath: string
-): Promise<RoutineRunResult> {
+): Promise<DetachedRunResult> {
   const startedAt = Date.now()
   const sessionId = randomUUID()
   const settings = await readSettings(rootPath)
@@ -137,7 +137,7 @@ export async function runAgentOnceWithTools(
   const universe = new Set<string>([...coreNames, ...extensionNames])
 
   const allowed = new Set(allowedTools)
-  const warnings: RoutineRunWarnings = {
+  const warnings: DetachedRunWarnings = {
     unknownTools: [],
     strippedTools: []
   }
@@ -179,7 +179,7 @@ export async function runAgentOnceWithTools(
     })
 
     const entries = buildTranscriptEntries(prompt, result.finalMessages)
-    const transcript: RoutineTranscript = {
+    const transcript: DetachedRunTranscript = {
       entries,
       finalText: result.content,
       durationMs: Date.now() - startedAt,
@@ -196,13 +196,13 @@ export async function runAgentOnceWithTools(
 
 /**
  * Walk the Vercel AI SDK `ModelMessage[]` produced by `streamChat` and
- * emit a flat `RoutineTranscriptEntry[]` the renderer can render top-to-
+ * emit a flat `DetachedRunTranscriptEntry[]` the renderer can render top-to-
  * bottom. We treat the initial user message (which was the prompt we
  * sent) as the first entry, then unfold each assistant/tool message into
  * one entry per content part.
  */
-function buildTranscriptEntries(prompt: string, messages: ModelMessage[]): RoutineTranscriptEntry[] {
-  const entries: RoutineTranscriptEntry[] = []
+function buildTranscriptEntries(prompt: string, messages: ModelMessage[]): DetachedRunTranscriptEntry[] {
+  const entries: DetachedRunTranscriptEntry[] = []
   entries.push({ kind: 'user_message', content: prompt })
 
   for (const msg of messages) {

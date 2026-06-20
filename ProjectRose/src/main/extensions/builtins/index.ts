@@ -24,6 +24,7 @@ import type { ExtensionManifest } from '../../../shared/extension-types'
 import type { ExtensionMainContext } from '../../../shared/extension-contract'
 
 import * as roseRoutines from './rose-routines/main'
+import * as roseChannels from './rose-channels/main'
 
 interface BuiltinMain {
   id: string
@@ -38,6 +39,11 @@ const BUILTIN_MAINS: BuiltinMain[] = [
     id: roseRoutines.manifest.id,
     manifest: roseRoutines.manifest,
     register: roseRoutines.register
+  },
+  {
+    id: roseChannels.manifest.id,
+    manifest: roseChannels.manifest,
+    register: roseChannels.register
   }
 ]
 
@@ -93,3 +99,8 @@ export function unloadAllBuiltinMains(rootPath: string): void {
 export function listBuiltinMainIds(): string[] {
   return BUILTIN_MAINS.map((b) => b.id)
 }
+
+// `listBuiltinMainManifests` lives in `./manifests.ts` (manifest-only,
+// no electron-pulling imports) so it can be consumed from vitest-targeted
+// code paths like projectSettingsService without dragging the runtime
+// chain in. Don't re-export it from here.

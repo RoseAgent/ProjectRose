@@ -1159,3 +1159,17 @@
 .hostToggleBtn { flex: 1; padding: 7px 0; background: none; border: none; font-size: 12px; font-family: inherit; color: var(--color-text-muted); cursor: pointer; text-align: center; }
 .hostToggleBtn + .hostToggleBtn { border-left: 1px solid var(--color-border); }
 .hostToggleBtnActive { background: var(--color-accent); color: #fff; }
+
+/* ── Locked / injected lines in the ROSE.md prompt editor ──
+   These class names are referenced by Monaco line decorations, so they must
+   be emitted as plain global class names (CSS-module hashing would break the
+   string Monaco looks up). The whole-line decoration greys the injected
+   suffix and draws a left accent so it reads as host-owned, not user text. */
+:global(.rose-injected-line) {
+  background: var(--color-bg-secondary, rgba(127, 127, 127, 0.06));
+  opacity: 0.62;
+}
+:global(.rose-injected-glyph) {
+  border-left: 2px solid var(--color-accent);
+  margin-left: 2px;
+}

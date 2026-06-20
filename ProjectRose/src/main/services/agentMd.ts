@@ -3,7 +3,7 @@ import { readFile } from 'fs/promises'
 import { prPath } from '../lib/projectPaths'
 import { agentRoseMdPath } from '../lib/agentHome'
 import { readSettings } from './settingsService'
-import { buildRoseMd } from './roseSetupService'
+import { buildRoseMd, stripPeopleSection } from './roseSetupService'
 import { loadExtensionPrompts } from './promptService'
 import { BUILTIN_SKILL_NAMES } from './builtinSkills'
 
@@ -22,10 +22,6 @@ import { BUILTIN_SKILL_NAMES } from './builtinSkills'
  *   3. Extension prompt contributions and the standard host blocks.
  */
 export async function buildAgentMd(rootPath: string): Promise<string> {
-  const os = platform() === 'win32' ? 'Windows' : platform() === 'darwin' ? 'macOS' : 'Linux'
-  const shell = platform() === 'win32' ? 'PowerShell' : 'bash'
-  const date = new Date().toISOString().split('T')[0]
-
   let rose: string
   try {
     rose = await readFile(agentRoseMdPath(), 'utf-8')
@@ -41,6 +37,45 @@ export async function buildAgentMd(rootPath: string): Promise<string> {
       'balanced'
     )
   }
+
+  // People is injected from settings and leads the prompt; drop any legacy
+  // "## People" block still present in an older identity file so it isn't
+  // duplicated. The header (People) goes *before* the editable identity; the
+  // footer (project / extensions / skills / environment / rules) goes after.
+  const { header, footer } = await buildInjectedSections(rootPath)
+  return `${header}\n${stripPeopleSection(rose)}\n${footer}`
+}
+
+/** The two host-injected, read-only halves that bracket the editable identity. */
+export interface InjectedSections {
+  /** Sections composed *before* the editable identity — currently People. */
+  header: string
+  /** Sections composed *after* the editable identity. */
+  footer: string
+}
+
+/**
+ * The host-injected portions of the system prompt — everything the user does
+ * not hand-edit in ~/.rose/ROSE.md:
+ *   header — the People block (User/Agent), sourced from settings, which leads
+ *            the prompt so identity context is established first.
+ *   footer — the workspace's optional Project Operating Instructions, extension
+ *            prompt contributions, the built-in skills note, the Environment
+ *            block, and the CRITICAL rules.
+ *
+ * Exposed so the Settings → Prompts editor can render these read-only above and
+ * below the editable identity. buildAgentMd() composes
+ * `${header}\n${identity}\n${footer}`, so the editor preview stays in sync.
+ */
+export async function buildInjectedSections(rootPath: string): Promise<InjectedSections> {
+  const os = platform() === 'win32' ? 'Windows' : platform() === 'darwin' ? 'macOS' : 'Linux'
+  const shell = platform() === 'win32' ? 'PowerShell' : 'bash'
+  const date = new Date().toISOString().split('T')[0]
+
+  // People (User/Agent) is sourced from settings — the user supplies these in
+  // the setup wizard / Settings, so it is injected rather than hand-editable.
+  const settings = await readSettings().catch(() => ({ userName: '', agentName: '' }))
+  const header = `## People\n\nUser: ${settings.userName || 'User'}\nAgent: ${settings.agentName || 'Rose'}\n`
 
   let projectInstructions = ''
   try {
@@ -70,8 +105,7 @@ export async function buildAgentMd(rootPath: string): Promise<string> {
 ProjectRose ships reference skills you can load with the load_skill tool when the user asks about the app itself. Start with rose:about — it tells you which other skill to load. Available: ${BUILTIN_SKILL_NAMES.join(', ')}.
 `
 
-  return `${rose}
-${projectInstructions}${extensionPromptBlock}
+  const footer = `${projectInstructions}${extensionPromptBlock}
 ${builtinSkillsBlock}
 ## Environment
 - Operating system: ${os}
@@ -95,4 +129,6 @@ Do NOT claim to have made changes you have not made. A file change exists only i
 Never ask the user a question in your response text. If you need clarification or a decision before proceeding, you must use the ask_user tool — that is its sole purpose. Asking questions as plain text is broken behaviour: the user cannot respond to them in a structured way and it stalls the task. If you are uncertain, make a reasonable assumption and proceed, or use ask_user. Never do both.
 
 `
+
+  return { header, footer }
 }

@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir, rm, access } from 'fs/promises'
 import { resolve, sep } from 'path'
 import { prPath } from '../lib/projectPaths'
 import { agentRoseMdPath, ensureAgentHome } from '../lib/agentHome'
+import { stripPeopleSection } from './roseSetupService'
 import { listInstalledExtensions } from './extensionService'
 import { readProjectSettings } from './projectSettingsService'
 
@@ -152,7 +153,10 @@ async function assertKnownExtension(rootPath: string, extId: string): Promise<vo
 // Prompts tab edits this file directly so changes apply to every workspace.
 export async function readRosePrompt(): Promise<string> {
   try {
-    return await readFile(agentRoseMdPath(), 'utf-8')
+    // Strip the legacy "## People" block: it is now injected from settings and
+    // shown read-only in the editor, so it must not appear as editable text.
+    // Saving the editor back persists the stripped form, migrating old files.
+    return stripPeopleSection(await readFile(agentRoseMdPath(), 'utf-8'))
   } catch {
     return ''
   }

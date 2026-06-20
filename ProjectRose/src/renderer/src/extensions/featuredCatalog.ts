@@ -15,13 +15,6 @@ export const FEATURED_CATALOG: CatalogEntry[] = [
     repoUrl: 'https://github.com/RoseAgent/projectrose-bond.git'
   },
   {
-    id: 'rose-discord',
-    name: 'Discord',
-    description: 'Discord channel integration and messaging.',
-    author: 'ProjectRose',
-    repoUrl: 'https://github.com/RoseAgent/projectrose-discord.git'
-  },
-  {
     id: 'rose-qwen-director',
     name: 'Qwen Director',
     description: 'Tracks checklists in agent thinking and reminds the agent to finish all tasks before responding to the user.',

@@ -28,6 +28,12 @@ import {
   hasImapPasswords,
   writeImapPasswords
 } from './imapCredentialsStore'
+import { startEmailSyncLoop } from './emailSyncLoop'
+
+// Re-export the events emitter so other built-ins can subscribe via the
+// stable `emailService` facade (rose-channels does this). See ADR 0011
+// amendment 2026-05-25.
+export { emailEvents } from './emailSyncLoop'
 
 // ── Status / configuration ──────────────────────────────────────────────
 
@@ -68,6 +74,9 @@ export async function saveImapTransport(args: SaveImapTransportArgs): Promise<Em
     imap: args.imap,
     smtp: args.smtp
   })
+  // Kick the sync loop so the new transport's first poll happens immediately
+  // instead of waiting for the periodic tick. Idempotent if already running.
+  startEmailSyncLoop()
   return getEmailStatus()
 }
 
@@ -91,6 +100,7 @@ export async function activateGoogleTransport(): Promise<EmailStatus> {
     smtp: null
   })
   await clearImapPasswords()
+  startEmailSyncLoop()
   return getEmailStatus()
 }
 

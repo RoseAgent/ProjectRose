@@ -79,18 +79,17 @@ export const capabilityLabels: Readonly<Record<_Capability, string>> = Object.fr
 // host when an extension calls `ctx.openAgentSession(...)`.
 export type { AgentSession } from './extension-agent-session'
 
-// --- Detached Run with tools (ADR 0014) -----------------------------------
+// --- Detached Run with tools (ADR 0014, renamed in ADR 0015) --------------
 // Sibling to `runBackgroundAgent`. The host runs a one-shot Agent turn with
 // a pre-filtered tool set (the `allowedTools` allowlist; interactive tools
 // like `ask_user` / `screenshot` are auto-stripped) and returns a structured
-// transcript instead of a single string.
+// transcript instead of a single string. The transcript is consumer-agnostic
+// — rose-routines wraps it in a RoutineRunRecord, rose-channels in a
+// ChannelRuleRunRecord; each extension owns its own per-fire wrapper.
 export type {
-  RoutineTranscript,
-  RoutineTranscriptEntry,
-  RoutineRunRecord,
-  RoutineRunTrigger,
-  RoutineRunStatus
-} from './routineTranscript'
+  DetachedRunTranscript,
+  DetachedRunTranscriptEntry
+} from './detachedRunTranscript'
 
 // --- View id ---------------------------------------------------------------
 // New rule, documented as part of the contract: **`manifest.id` IS the
@@ -122,7 +121,7 @@ import type {
 } from './extension-types'
 import type { ChatHook } from './extensionHooks'
 import type { AgentSession } from './extension-agent-session'
-import type { RoutineTranscript } from './routineTranscript'
+import type { DetachedRunTranscript } from './detachedRunTranscript'
 
 // Suppress unused import warning — kept for documentation that ToolCtx is
 // part of this contract.
@@ -189,7 +188,7 @@ export interface ExtensionMainContext {
     prompt: string,
     systemPrompt: string,
     options: { allowedTools: string[] }
-  ) => Promise<RoutineTranscript>
+  ) => Promise<DetachedRunTranscript>
 
   /**
    * Register chat hooks. Hooks fire only for the user-visible main chat;

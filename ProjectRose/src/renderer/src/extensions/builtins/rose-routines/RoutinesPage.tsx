@@ -17,10 +17,11 @@ import {
   getRoutinePrompt,
   type ParsedRoutine
 } from '@shared/routineFields'
-import { parseRunMarkdown, type RoutineRunRecord } from '@shared/routineTranscript'
+import { parseRunMarkdown, type RoutineRunRecord } from '@shared/routineRun'
 import type { ToolMeta } from '@shared/types'
 import { useProjectStore } from '../../../stores/useProjectStore'
 import { logInteraction } from '../../../lib/interactionLog'
+import { DetachedRunTranscriptView } from '../../../components/DetachedRunTranscriptView'
 import styles from './RoutinesPage.module.css'
 
 type View = { kind: 'list' } | { kind: 'edit'; slug: string | null } | { kind: 'run'; slug: string; filename: string }
@@ -570,78 +571,12 @@ function RunView({
         <span>{record.scheduledAt}</span>
         <span>{record.trigger}</span>
         <span>{record.status}</span>
-        <span>{record.transcript.modelDisplay}</span>
-        <span>{record.transcript.durationMs}ms</span>
-        <span>
-          {record.transcript.inputTokens}↓ {record.transcript.outputTokens}↑
-        </span>
       </div>
-      {record.error && (
-        <div className={styles.transcriptError}>{record.error}</div>
-      )}
-      <div className={styles.field}>
-        <div className={styles.fieldLabel}>Prompt</div>
-        <div className={`${styles.transcriptCell} ${styles.transcriptCellUser}`}>
-          <div className={styles.transcriptContent}>{record.prompt}</div>
-        </div>
-      </div>
-      <div className={styles.transcriptBody}>
-        {record.transcript.entries.length === 0 ? (
-          <div className={styles.empty}>No transcript captured.</div>
-        ) : (
-          record.transcript.entries.map((e, i) => <TranscriptCell key={i} entry={e} />)
-        )}
-      </div>
-      {record.transcript.finalText.trim() && (
-        <div className={styles.field}>
-          <div className={styles.fieldLabel}>Final Response</div>
-          <div className={`${styles.transcriptCell} ${styles.transcriptCellAssistant}`}>
-            <div className={styles.transcriptContent}>{record.transcript.finalText}</div>
-          </div>
-        </div>
-      )}
+      <DetachedRunTranscriptView
+        prompt={record.prompt}
+        transcript={record.transcript}
+        error={record.error}
+      />
     </div>
   )
-}
-
-function TranscriptCell({ entry }: { entry: RoutineRunRecord['transcript']['entries'][number] }): JSX.Element {
-  switch (entry.kind) {
-    case 'user_message':
-      return (
-        <div className={`${styles.transcriptCell} ${styles.transcriptCellUser}`}>
-          <div className={styles.transcriptKind}>User</div>
-          <div className={styles.transcriptContent}>{entry.content}</div>
-        </div>
-      )
-    case 'assistant_thought':
-      return (
-        <div className={`${styles.transcriptCell} ${styles.transcriptCellThought}`}>
-          <div className={styles.transcriptKind}>Thought</div>
-          <div className={styles.transcriptContent}>{entry.content}</div>
-        </div>
-      )
-    case 'assistant_message':
-      return (
-        <div className={`${styles.transcriptCell} ${styles.transcriptCellAssistant}`}>
-          <div className={styles.transcriptKind}>Assistant</div>
-          <div className={styles.transcriptContent}>{entry.content}</div>
-        </div>
-      )
-    case 'tool_call':
-      return (
-        <div className={`${styles.transcriptCell} ${styles.transcriptCellToolCall}`}>
-          <div className={styles.transcriptKind}>Tool call · {entry.toolName}</div>
-          <div className={styles.transcriptContent}>
-            {typeof entry.input === 'string' ? entry.input : JSON.stringify(entry.input, null, 2)}
-          </div>
-        </div>
-      )
-    case 'tool_result':
-      return (
-        <div className={`${styles.transcriptCell} ${styles.transcriptCellToolResult}`}>
-          <div className={styles.transcriptKind}>Tool result · {entry.toolName}</div>
-          <div className={styles.transcriptContent}>{entry.output}</div>
-        </div>
-      )
-  }
 }
