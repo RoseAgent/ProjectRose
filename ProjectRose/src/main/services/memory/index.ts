@@ -52,3 +52,4 @@ export {
   googleCalendarApplyPush,
   googleCalendarSendInvite
 } from './googleCalendar'
+export { inviteAttendeesToEvent } from './calendarInvite'

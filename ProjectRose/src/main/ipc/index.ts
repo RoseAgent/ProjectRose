@@ -208,7 +208,7 @@ import {
   googleCalendarApplyPull,
   googleCalendarPreviewPush,
   googleCalendarApplyPush,
-  googleCalendarSendInvite
+  inviteAttendeesToEvent
 } from '../services/memory'
 
 // Hand-written handlers that don't fit the manifest pattern: dialog (needs
@@ -406,25 +406,15 @@ export function registerIpcManifests(): void {
     updateEvent: ({ ref, patch }) => updateCalendarEvent(ref, patch),
     deleteEvent: deleteCalendarEvent,
     inviteToEvent: async ({ ref, attendees }) => {
-      const event = await readCalendarEvent(ref)
-      if (!event) return { appliedAt: Date.now(), ok: false, message: `No event at ${ref.date}/${ref.slug}.` }
-      if (!event.googleId || !event.googleCalendarId) {
-        return { appliedAt: Date.now(), ok: false, message: 'Event not synced to Google. Push it first.' }
+      const outcome = await inviteAttendeesToEvent(ref, attendees)
+      switch (outcome.status) {
+        case 'no-event':
+          return { appliedAt: Date.now(), ok: false, message: `No event at ${ref.date}/${ref.slug}.` }
+        case 'not-synced':
+          return { appliedAt: Date.now(), ok: false, message: 'Event not synced to Google. Push it first.' }
+        case 'sent':
+          return outcome.result
       }
-      const result = await googleCalendarSendInvite({
-        googleId: event.googleId,
-        googleCalendarId: event.googleCalendarId,
-        additionalAttendees: attendees
-      })
-      if (result.ok) {
-        const existingEmails = new Set(event.attendees.map((a) => a.email.toLowerCase()))
-        const merged = [...event.attendees]
-        for (const att of attendees) {
-          if (!existingEmails.has(att.email.toLowerCase())) merged.push(att)
-        }
-        await updateCalendarEvent(ref, { attendees: merged })
-      }
-      return result
     },
     googleCalendarGetStatus,
     googleCalendarListCalendars,
