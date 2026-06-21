@@ -17,9 +17,16 @@ jobs:
   release:
     needs: ci
     strategy:
+      # Don't let one platform's failure cancel the others — we want the full
+      # per-OS signal on every run.
+      fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          # Pinned to windows-2022: `windows-latest` migrated to the
+          # windows-2025/VS2026 image, which the bundled node-gyp 9.4.1 can't
+          # detect ("Could not find any Visual Studio installation"), breaking
+          # the native node-pty rebuild during packaging. VS 2022 is detected.
+          - os: windows-2022
             platform: win
             files: |
               ProjectRose/release/*Setup*.exe
