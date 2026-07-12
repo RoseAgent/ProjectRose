@@ -32,6 +32,7 @@ import {
   type RoutineRunTrigger
 } from '@shared/routineRun'
 import { notifyFailure } from '../../../tray'
+import { buildRoutinesTools } from './tools'
 
 export { manifest } from './manifest'
 
@@ -457,6 +458,8 @@ export function register(ctx: ExtensionMainContext): () => void {
     running: new Set()
   }
   states.set(rootPath, state)
+
+  ctx.registerTools(buildRoutinesTools())
 
   // Schedule every enabled routine currently on disk. Async; tolerable if
   // some routines are added/edited concurrently — saveRoutine re-schedules.
