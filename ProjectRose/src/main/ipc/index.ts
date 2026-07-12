@@ -412,6 +412,8 @@ export function registerIpcManifests(): void {
           return { appliedAt: Date.now(), ok: false, message: `No event at ${ref.date}/${ref.slug}.` }
         case 'not-synced':
           return { appliedAt: Date.now(), ok: false, message: 'Event not synced to Google. Push it first.' }
+        case 'no-attendees':
+          return { appliedAt: Date.now(), ok: false, message: 'No attendees provided.' }
         case 'sent':
           return outcome.result
       }

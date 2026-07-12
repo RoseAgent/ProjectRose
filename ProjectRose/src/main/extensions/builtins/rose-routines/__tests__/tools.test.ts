@@ -109,7 +109,6 @@ describe('routines_read', () => {
 
 describe('routines_create', () => {
   it('creates with coerced inputs: RRULE prefix, tools csv, enabled flag', async () => {
-    vi.mocked(readRoutine).mockResolvedValue(null)
     vi.mocked(createRoutine).mockResolvedValue({ slug: 'weekly-report' })
     const out = await getTool('routines_create').execute(
       {
@@ -135,7 +134,6 @@ describe('routines_create', () => {
   })
 
   it('leaves optional fields to the routine defaults when omitted', async () => {
-    vi.mocked(readRoutine).mockResolvedValue(null)
     vi.mocked(createRoutine).mockResolvedValue({ slug: 'ad-hoc' })
     await getTool('routines_create').execute(
       { name: 'Ad hoc', prompt: 'Do the thing' },
@@ -148,8 +146,10 @@ describe('routines_create', () => {
     })
   })
 
-  it('rejects a duplicate slug and points at routines_update', async () => {
-    vi.mocked(readRoutine).mockResolvedValue(makeRoutine())
+  it('surfaces the duplicate-slug rejection from createRoutine', async () => {
+    vi.mocked(createRoutine).mockRejectedValue(
+      new Error('A routine with slug "morning-brief" already exists. Use routines_update to change it.')
+    )
     await expect(
       getTool('routines_create').execute(
         { name: 'Morning brief', prompt: 'p' },
@@ -157,11 +157,9 @@ describe('routines_create', () => {
         CTX
       )
     ).rejects.toThrow('already exists')
-    expect(createRoutine).not.toHaveBeenCalled()
   })
 
   it('rejects a malformed fire-time', async () => {
-    vi.mocked(readRoutine).mockResolvedValue(null)
     await expect(
       getTool('routines_create').execute(
         { name: 'Bad time', prompt: 'p', fireTime: '25:00' },
@@ -207,6 +205,21 @@ describe('routines_update', () => {
       ROOT,
       'morning-brief',
       expect.objectContaining({ sections: { Prompt: 'New prompt' } })
+    )
+  })
+
+  it('clears the schedule when recurrence is an empty string', async () => {
+    vi.mocked(readRoutine).mockResolvedValue(makeRoutine())
+    vi.mocked(saveRoutine).mockResolvedValue({ slug: 'morning-brief' })
+    await getTool('routines_update').execute(
+      { slug: 'morning-brief', recurrence: '' },
+      ROOT,
+      CTX
+    )
+    expect(saveRoutine).toHaveBeenCalledWith(
+      ROOT,
+      'morning-brief',
+      expect.objectContaining({ recurrence: [] })
     )
   })
 

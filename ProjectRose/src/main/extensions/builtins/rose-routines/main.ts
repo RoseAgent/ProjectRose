@@ -60,11 +60,25 @@ function routinesDirFor(rootPath: string): string {
   return join(rootPath, ROUTINES_DIR)
 }
 
+/**
+ * Slugs and run filenames reach these path joins from agent tool calls, so
+ * they must be confined to the routines directory — a `..` or separator
+ * would otherwise let a tool call read, overwrite, or delete arbitrary
+ * files outside it.
+ */
+function assertSafePathSegment(kind: 'slug' | 'filename', value: string): void {
+  if (!value || value === '.' || value === '..' || /[/\\:\0]/.test(value)) {
+    throw new Error(`Invalid routine ${kind} "${value}".`)
+  }
+}
+
 function routineFilePath(rootPath: string, slug: string): string {
+  assertSafePathSegment('slug', slug)
   return join(routinesDirFor(rootPath), `${slug}.md`)
 }
 
 function runsDirFor(rootPath: string, slug: string): string {
+  assertSafePathSegment('slug', slug)
   return join(routinesDirFor(rootPath), slug, 'runs')
 }
 
@@ -102,8 +116,9 @@ export async function readRoutine(
   rootPath: string,
   slug: string
 ): Promise<ParsedRoutine | null> {
+  const path = routineFilePath(rootPath, slug)
   try {
-    const content = await readFile(routineFilePath(rootPath, slug), 'utf-8')
+    const content = await readFile(path, 'utf-8')
     return parseRoutineContent(content)
   } catch {
     return null
@@ -126,9 +141,10 @@ export async function saveRoutine(
 }
 
 export async function deleteRoutine(rootPath: string, slug: string): Promise<void> {
+  const path = routineFilePath(rootPath, slug)
   cancelEntry(rootPath, slug)
   try {
-    await rm(routineFilePath(rootPath, slug))
+    await rm(path)
   } catch {
     /* not found */
   }
@@ -179,8 +195,13 @@ export async function readRun(
   slug: string,
   filename: string
 ): Promise<string | null> {
+  assertSafePathSegment('filename', filename)
+  if (!filename.endsWith('.md')) {
+    throw new Error(`Invalid routine filename "${filename}".`)
+  }
+  const path = join(runsDirFor(rootPath, slug), filename)
   try {
-    return await readFile(join(runsDirFor(rootPath, slug), filename), 'utf-8')
+    return await readFile(path, 'utf-8')
   } catch {
     return null
   }
@@ -442,6 +463,14 @@ export async function createRoutine(
   if (!routine.createdAt) routine.createdAt = isoLocal(new Date())
   if (!routine.sections['Prompt']) routine.sections['Prompt'] = partial.sections?.['Prompt'] ?? ''
   const slug = slugifyRoutineName(routine.name)
+  // saveRoutine overwrites by design (that's how edits work), so creation is
+  // where a name that slugifies to an existing slug must be rejected — for
+  // every caller, not just the agent tool.
+  if (await readRoutine(rootPath, slug)) {
+    throw new Error(
+      `A routine with slug "${slug}" already exists. Use routines_update to change it.`
+    )
+  }
   return saveRoutine(rootPath, slug, routine)
 }
 

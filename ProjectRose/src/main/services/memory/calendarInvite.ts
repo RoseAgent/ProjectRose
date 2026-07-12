@@ -13,6 +13,7 @@ import type { GoogleApplyResult } from '../../../shared/memory'
 export type EventInviteOutcome =
   | { status: 'no-event' }
   | { status: 'not-synced' }
+  | { status: 'no-attendees' }
   // Google's send call returned — `result.ok` distinguishes success (local
   // attendees already merged) from a send failure. Carries the raw result so
   // callers can surface Google's message.
@@ -25,6 +26,9 @@ export async function inviteAttendeesToEvent(
   const event = await readEvent(ref)
   if (!event) return { status: 'no-event' }
   if (!event.googleId || !event.googleCalendarId) return { status: 'not-synced' }
+  // Checked after the event guards so callers surface the real blocker
+  // (missing/unsynced event) before complaining about the attendee list.
+  if (attendees.length === 0) return { status: 'no-attendees' }
 
   const result = await googleCalendarSendInvite({
     googleId: event.googleId,

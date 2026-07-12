@@ -13,7 +13,7 @@
 import type { ExtensionToolEntry } from '@shared/extension-types'
 import {
   getRoutinePrompt,
-  slugifyRoutineName,
+  normaliseRrule,
   type ParsedRoutine
 } from '@shared/routineFields'
 import {
@@ -35,9 +35,10 @@ function assertFireTime(value: string): void {
   }
 }
 
-/** Mirror of routineFields' bullet normalisation: bare rules get the RRULE: prefix. */
-function normaliseRrule(value: string): string {
-  return value.toUpperCase().startsWith('RRULE:') ? value : `RRULE:${value}`
+/** Empty string clears the schedule (manual-only), mirroring `tools`. */
+function parseRecurrence(value: string): string[] {
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? [normaliseRrule(trimmed)] : []
 }
 
 function parseToolsCsv(value: string): string[] {
@@ -141,19 +142,12 @@ export function buildRoutinesTools(): ExtensionToolEntry[] {
           tools?: string
           enabled?: string
         }
-        const slug = slugifyRoutineName(name)
-        const existing = await readRoutine(projectRoot, slug)
-        if (existing) {
-          throw new Error(
-            `A routine with slug "${slug}" already exists. Use routines_update to change it.`
-          )
-        }
         if (fireTime !== undefined) assertFireTime(fireTime)
         const partial: Partial<ParsedRoutine> & { name: string } = {
           name,
           sections: { Prompt: prompt }
         }
-        if (recurrence !== undefined) partial.recurrence = [normaliseRrule(recurrence)]
+        if (recurrence !== undefined) partial.recurrence = parseRecurrence(recurrence)
         if (fireTime !== undefined) partial.fireTime = fireTime
         if (tools !== undefined) partial.tools = parseToolsCsv(tools)
         if (enabled !== undefined) partial.enabled = enabled === 'true'
@@ -174,7 +168,8 @@ export function buildRoutinesTools(): ExtensionToolEntry[] {
           prompt: { type: 'string', description: 'New prompt body (replaces the old one).' },
           recurrence: {
             type: 'string',
-            description: 'New RRULE recurrence (the RRULE: prefix is optional). Replaces existing rules.'
+            description:
+              'New RRULE recurrence (the RRULE: prefix is optional). Replaces existing rules. Empty string = remove the schedule (manual-only).'
           },
           fireTime: { type: 'string', description: 'New local 24h clock time HH:MM.' },
           tools: {
@@ -202,7 +197,7 @@ export function buildRoutinesTools(): ExtensionToolEntry[] {
         if (fireTime !== undefined) assertFireTime(fireTime)
         if (name !== undefined) routine.name = name
         if (prompt !== undefined) routine.sections['Prompt'] = prompt
-        if (recurrence !== undefined) routine.recurrence = [normaliseRrule(recurrence)]
+        if (recurrence !== undefined) routine.recurrence = parseRecurrence(recurrence)
         if (fireTime !== undefined) routine.fireTime = fireTime
         if (tools !== undefined) routine.tools = parseToolsCsv(tools)
         if (enabled !== undefined) routine.enabled = enabled === 'true'

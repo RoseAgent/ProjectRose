@@ -73,11 +73,9 @@ const KNOWN_LABELS = [
   'tools'
 ] as const
 
-function normaliseRruleBullet(label: 'recurrence' | 'rrule', value: string): string {
-  const upper = value.toUpperCase()
-  if (upper.startsWith('RRULE:')) return value
-  if (label === 'rrule' || label === 'recurrence') return `RRULE:${value}`
-  return value
+/** Bare rules get the RRULE: prefix; already-prefixed values pass through. */
+export function normaliseRrule(value: string): string {
+  return value.toUpperCase().startsWith('RRULE:') ? value : `RRULE:${value}`
 }
 
 /** Slugify a routine name for the on-disk filename. */
@@ -113,7 +111,7 @@ export function parseRoutineContent(content: string): ParsedRoutine {
         break
       case 'recurrence':
       case 'rrule':
-        out.recurrence.push(normaliseRruleBullet(label, value))
+        out.recurrence.push(normaliseRrule(value))
         break
       case 'fire-time':
         out.fireTime = value

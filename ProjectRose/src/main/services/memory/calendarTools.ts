@@ -150,14 +150,14 @@ export async function handleCalendarListEvents(input: Record<string, unknown>): 
 export async function handleCalendarInviteToEvent(input: Record<string, unknown>): Promise<string> {
   const ref = await resolveByAnyRef(input)
   if (!ref) return 'Missing event ref — pass `date` + `slug`, or `google_id`.'
-  const additional = coerceAttendees(input.attendees)
-  if (additional.length === 0) return 'Provide `attendees` as an array of email strings or objects with `email`.'
-  const outcome = await inviteAttendeesToEvent(ref, additional)
+  const outcome = await inviteAttendeesToEvent(ref, coerceAttendees(input.attendees))
   switch (outcome.status) {
     case 'no-event':
       return `No event at ${ref.date}/${ref.slug}.`
     case 'not-synced':
       return 'This event has not been synced to Google. Push it first (Settings → Calendar → Push to Google), then invitations can be sent via Google.'
+    case 'no-attendees':
+      return 'Provide `attendees` as an array of email strings or objects with `email`.'
     case 'sent':
       return outcome.result.ok ? outcome.result.message : `Invite failed: ${outcome.result.message}`
   }
