@@ -8,6 +8,15 @@ export interface ReleaseEntry {
 
 export const RELEASES: ReleaseEntry[] = [
   {
+    version: '1.9.4',
+    tag: null,
+    date: null,
+    title: 'Manage routines from chat',
+    highlights: [
+      'The agent can now manage Routines for you — ask it in chat to create, edit, enable/disable, delete, or immediately run a routine, and to read a routine\'s run history and transcripts. Eight new routines_* tools, all toggleable under Settings → Tools'
+    ]
+  },
+  {
     version: '1.9.3',
     tag: null,
     date: null,

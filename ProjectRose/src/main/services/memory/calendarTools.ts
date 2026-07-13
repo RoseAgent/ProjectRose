@@ -10,7 +10,8 @@ import {
   readEvent,
   updateEvent
 } from './calendar'
-import { googleCalendarDeleteRemote, googleCalendarSendInvite } from './googleCalendar'
+import { googleCalendarDeleteRemote } from './googleCalendar'
+import { inviteAttendeesToEvent } from './calendarInvite'
 import type {
   EventAttendee,
   EventRef,
@@ -149,28 +150,17 @@ export async function handleCalendarListEvents(input: Record<string, unknown>): 
 export async function handleCalendarInviteToEvent(input: Record<string, unknown>): Promise<string> {
   const ref = await resolveByAnyRef(input)
   if (!ref) return 'Missing event ref — pass `date` + `slug`, or `google_id`.'
-  const event = await readEvent(ref)
-  if (!event) return `No event at ${ref.date}/${ref.slug}.`
-  if (!event.googleId || !event.googleCalendarId) {
-    return 'This event has not been synced to Google. Push it first (Settings → Calendar → Push to Google), then invitations can be sent via Google.'
+  const outcome = await inviteAttendeesToEvent(ref, coerceAttendees(input.attendees))
+  switch (outcome.status) {
+    case 'no-event':
+      return `No event at ${ref.date}/${ref.slug}.`
+    case 'not-synced':
+      return 'This event has not been synced to Google. Push it first (Settings → Calendar → Push to Google), then invitations can be sent via Google.'
+    case 'no-attendees':
+      return 'Provide `attendees` as an array of email strings or objects with `email`.'
+    case 'sent':
+      return outcome.result.ok ? outcome.result.message : `Invite failed: ${outcome.result.message}`
   }
-  const additional = coerceAttendees(input.attendees)
-  if (additional.length === 0) return 'Provide `attendees` as an array of email strings or objects with `email`.'
-  const result = await googleCalendarSendInvite({
-    googleId: event.googleId,
-    googleCalendarId: event.googleCalendarId,
-    additionalAttendees: additional
-  })
-  if (!result.ok) return `Invite failed: ${result.message}`
-
-  // Reflect new attendees in the local file so subsequent reads show them.
-  const mergedAttendees: EventAttendee[] = [...event.attendees]
-  const existingEmails = new Set(mergedAttendees.map((a) => a.email.toLowerCase()))
-  for (const att of additional) {
-    if (!existingEmails.has(att.email.toLowerCase())) mergedAttendees.push(att)
-  }
-  await updateEvent(ref, { attendees: mergedAttendees })
-  return result.message
 }
 
 export async function handleCalendarDeleteEvent(input: Record<string, unknown>): Promise<string> {

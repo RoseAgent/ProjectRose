@@ -54,9 +54,14 @@ export interface ParsedRoutine {
   extraBullets: string[]
 }
 
+import {
+  parseRuleDocument,
+  buildRuleDocument,
+  parseBoolean,
+  slugify
+} from './ruleDocument'
+
 const HEADER_RE = /^\s*#\s*Routine:\s*(.+?)\s*$/i
-const BULLET_RE = /^(\s*)-\s+(.*?)\s*$/
-const SECTION_RE = /^\s*##\s+(.+?)\s*$/
 
 const KNOWN_LABELS = [
   'enabled',
@@ -68,49 +73,14 @@ const KNOWN_LABELS = [
   'tools'
 ] as const
 
-type Label = typeof KNOWN_LABELS[number]
-
-interface LabeledBullet {
-  label: Label
-  value: string
-  indentSpaces: number
-}
-
-function tryParseLabeled(indent: number, bullet: string): LabeledBullet | { name: 'unlabeled'; value: string; indentSpaces: number } {
-  const m = bullet.match(/^([a-z][a-z0-9-]*)\s*:\s*(.*?)\s*$/i)
-  if (!m) return { name: 'unlabeled', value: bullet, indentSpaces: indent }
-  const label = m[1].toLowerCase()
-  const value = m[2]
-  if (!(KNOWN_LABELS as readonly string[]).includes(label)) {
-    return { name: 'unlabeled', value: bullet, indentSpaces: indent }
-  }
-  return { label: label as Label, value: value.trim(), indentSpaces: indent }
-}
-
-function parseBoolean(value: string): boolean {
-  const lower = value.trim().toLowerCase()
-  return lower === 'true' || lower === 'yes' || lower === '1'
-}
-
-function normaliseRruleBullet(label: 'recurrence' | 'rrule', value: string): string {
-  const upper = value.toUpperCase()
-  if (upper.startsWith('RRULE:')) return value
-  if (label === 'rrule' || label === 'recurrence') return `RRULE:${value}`
-  return value
+/** Bare rules get the RRULE: prefix; already-prefixed values pass through. */
+export function normaliseRrule(value: string): string {
+  return value.toUpperCase().startsWith('RRULE:') ? value : `RRULE:${value}`
 }
 
 /** Slugify a routine name for the on-disk filename. */
 export function slugifyRoutineName(name: string): string {
-  return (
-    name
-      .toLowerCase()
-      .trim()
-      .replace(/[^\p{Letter}\p{Number}\s-]+/gu, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 80) || 'routine'
-  )
+  return slugify(name, 'routine')
 }
 
 export function emptyRoutine(): ParsedRoutine {
@@ -128,120 +98,49 @@ export function emptyRoutine(): ParsedRoutine {
 }
 
 export function parseRoutineContent(content: string): ParsedRoutine {
+  const doc = parseRuleDocument(content, HEADER_RE, KNOWN_LABELS)
   const out = emptyRoutine()
-  let name = ''
-  const lines = content.split(/\r?\n/)
-  let i = 0
-  let inToolsList = false
-  for (; i < lines.length; i += 1) {
-    const line = lines[i]
-    if (!name) {
-      const h = line.match(HEADER_RE)
-      if (h) {
-        name = h[1].trim()
-        continue
-      }
-    }
-    if (line.match(SECTION_RE)) break
-    const bm = line.match(BULLET_RE)
-    if (!bm) {
-      inToolsList = false
-      continue
-    }
-    const indent = bm[1].length
-    const bullet = bm[2]
-    // Indented bullets continue the most recent list. Today the only list-
-    // bearing label is `tools:`.
-    if (inToolsList && indent >= 2) {
-      const value = bullet.trim()
-      if (value.length > 0) out.tools.push(value)
-      continue
-    }
-    inToolsList = false
-    const labeled = tryParseLabeled(indent, bullet)
-    if ('name' in labeled && labeled.name === 'unlabeled') {
-      out.extraBullets.push(labeled.value)
-      continue
-    }
-    const l = labeled as LabeledBullet
-    switch (l.label) {
+  out.name = doc.name
+  out.tools = doc.tools
+  out.extraBullets = doc.extraBullets
+  out.sections = doc.sections
+  for (const { label, value } of doc.labeled) {
+    switch (label) {
       case 'enabled':
-        out.enabled = parseBoolean(l.value)
+        out.enabled = parseBoolean(value)
         break
       case 'recurrence':
       case 'rrule':
-        out.recurrence.push(normaliseRruleBullet(l.label, l.value))
+        out.recurrence.push(normaliseRrule(value))
         break
       case 'fire-time':
-        out.fireTime = l.value
+        out.fireTime = value
         break
       case 'created':
-        out.createdAt = l.value
+        out.createdAt = value
         break
       case 'last-fired':
-        out.lastFiredAt = l.value
-        break
-      case 'tools':
-        // Either inline `tools: a, b, c` or the start of an indented sub-list.
-        if (l.value.length === 0) {
-          inToolsList = true
-        } else {
-          for (const t of l.value.split(',').map((s) => s.trim()).filter(Boolean)) {
-            out.tools.push(t)
-          }
-        }
+        out.lastFiredAt = value
         break
     }
   }
-  out.name = name
-
-  // Section walk.
-  let currentHeader: string | null = null
-  let buffer: string[] = []
-  const flush = (): void => {
-    if (!currentHeader) return
-    out.sections[currentHeader] = buffer.join('\n').trim()
-    buffer = []
-  }
-  for (; i < lines.length; i += 1) {
-    const line = lines[i]
-    const sm = line.match(SECTION_RE)
-    if (sm) {
-      flush()
-      currentHeader = sm[1].trim()
-      continue
-    }
-    if (currentHeader) buffer.push(line)
-  }
-  flush()
   return out
 }
 
 export function buildRoutineMarkdown(routine: ParsedRoutine): string {
   const name = routine.name.trim() || 'Untitled routine'
-  const lines: string[] = [`# Routine: ${name}`]
-  lines.push(`- enabled: ${routine.enabled ? 'true' : 'false'}`)
-  for (const r of routine.recurrence) lines.push(`- recurrence: ${r}`)
-  lines.push(`- fire-time: ${routine.fireTime}`)
-  if (routine.createdAt) lines.push(`- created: ${routine.createdAt}`)
-  if (routine.lastFiredAt) lines.push(`- last-fired: ${routine.lastFiredAt}`)
-  if (routine.tools.length > 0) {
-    lines.push(`- tools:`)
-    for (const t of routine.tools) lines.push(`  - ${t}`)
-  }
-  for (const extra of routine.extraBullets) lines.push(`- ${extra}`)
-
-  // Sections — Prompt first if present, then any others alphabetically.
-  const entries = Object.entries(routine.sections).filter(([, body]) => body.trim().length > 0)
-  entries.sort((a, b) => {
-    if (a[0] === 'Prompt') return -1
-    if (b[0] === 'Prompt') return 1
-    return a[0].localeCompare(b[0])
+  const metadata: string[] = [`- enabled: ${routine.enabled ? 'true' : 'false'}`]
+  for (const r of routine.recurrence) metadata.push(`- recurrence: ${r}`)
+  metadata.push(`- fire-time: ${routine.fireTime}`)
+  if (routine.createdAt) metadata.push(`- created: ${routine.createdAt}`)
+  if (routine.lastFiredAt) metadata.push(`- last-fired: ${routine.lastFiredAt}`)
+  return buildRuleDocument({
+    headerLine: `# Routine: ${name}`,
+    metadataBullets: metadata,
+    tools: routine.tools,
+    extraBullets: routine.extraBullets,
+    sections: routine.sections
   })
-  for (const [header, body] of entries) {
-    lines.push('', `## ${header}`, body.trim())
-  }
-  return lines.join('\n') + '\n'
 }
 
 /** Convenience: get the prompt body from a parsed routine. */
