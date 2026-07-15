@@ -47,10 +47,10 @@
   height: 14px;
 }
 
-/* ── Center FAB ── */
+/* ── FAB (fixed to the left edge of the view) ── */
 .fab {
   position: absolute;
-  left: calc(50% + var(--fab-offset-x, 0px));
+  left: 44px;
   top: -58px;
   transform: translateX(-50%);
   width: 72px;
@@ -58,8 +58,7 @@
   border-radius: 50%;
   border: 2px solid rgba(196, 149, 106, 0.5);
   padding: 0;
-  cursor: grab;
-  touch-action: none;
+  cursor: pointer;
   color: var(--d-paper);
   background: radial-gradient(
     circle at 50% 38%,
@@ -115,55 +114,6 @@
   border: 1px solid rgba(196, 149, 106, 0.35);
   animation: breath 1.4s ease-in-out infinite;
   pointer-events: none;
-}
-
-/* ── Settings satellite (Venn-overlap on bottom-right of FAB) ── */
-.settingsFab {
-  /* FAB is 72px @ top:-58px, centered at left:50%. Its center is at (50%, -22px).
-     Place the settings circle's center on the FAB edge at 45° toward whichever
-     side the cluster trails (default down-right; flips to down-left when
-     --fab-satellite-x is set to -26px) for a clean Venn-style overlap. */
-  position: absolute;
-  left: calc(50% + var(--fab-satellite-x, 26px) + var(--fab-offset-x, 0px));
-  top: 4px;
-  transform: translate(-50%, -50%);
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 2px solid rgba(196, 149, 106, 0.5);
-  padding: 0;
-  cursor: grab;
-  touch-action: none;
-  color: var(--d-paper);
-  background: radial-gradient(
-    circle at 50% 38%,
-    var(--d-sepia) 0%,
-    var(--d-sepia-deep) 60%,
-    var(--d-ink) 100%
-  );
-  box-shadow:
-    0 0 0 3px var(--d-ink),
-    0 0 18px rgba(122, 42, 32, 0.75),
-    inset 0 -5px 12px rgba(46, 36, 24, 0.7),
-    inset 0 5px 10px var(--d-sepia);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
-}
-
-.settingsFab:hover {
-  transform: translate(-50%, -50%) scale(1.08);
-  box-shadow:
-    0 0 0 3px var(--d-ink),
-    0 0 22px rgba(122, 42, 32, 0.95),
-    inset 0 -5px 12px rgba(46, 36, 24, 0.7),
-    inset 0 5px 10px var(--d-sepia);
-}
-
-.settingsFab:active {
-  transform: translate(-50%, -50%) scale(0.96);
 }
 
 /* ── Status row (fused) ── */

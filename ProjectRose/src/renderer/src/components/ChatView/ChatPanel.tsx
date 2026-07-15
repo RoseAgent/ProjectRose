@@ -282,7 +282,7 @@ export function ChatPanel(): JSX.Element {
       )}
 
       <ContextStatusBar />
-      <ChatInput notched={activeView === 'chat' && isChatFullWidth} />
+      <ChatInput />
       <CompressionToast />
       <TtsAutoPlayer />
     </div>

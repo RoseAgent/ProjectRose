@@ -4,7 +4,8 @@ import { useChat } from '../../stores/useChat'
 import type { SessionMeta } from '../../types/chatMessages'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
-import { useThemeStore } from '../../stores/useThemeStore'
+import { useViewStore } from '../../stores/useViewStore'
+import { useAppsDrawerStore } from '../../stores/useAppsDrawerStore'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { VoiceEnrollmentModal } from './VoiceEnrollmentModal'
 import styles from './SessionSidebar.module.css'
@@ -19,7 +20,6 @@ function formatDate(ts: number): string {
 export function SessionSidebar(): JSX.Element {
   const sessions = useChat((s) => s.sessions)
   const currentSessionId = useChat((s) => s.currentSessionId)
-  const messages = useChat((s) => s.messages)
   const searchQuery = useChat((s) => s.searchQuery)
   const setSearchQuery = useChat((s) => s.setSearchQuery)
   const newSession = useChat((s) => s.newSession)
@@ -27,10 +27,9 @@ export function SessionSidebar(): JSX.Element {
   const renameSession = useChat((s) => s.renameSession)
   const deleteSession = useChat((s) => s.deleteSession)
   const rootPath = useProjectStore((s) => s.rootPath)
-  const agentName = useSettingsStore((s) => s.agentName)
-  const hostMode = useSettingsStore((s) => s.hostMode)
-  const ollamaModelName = useSettingsStore((s) => s.ollamaModelName)
-  const theme = useThemeStore((s) => s.theme)
+  const setActiveView = useViewStore((s) => s.setActiveView)
+  const toggleDrawer = useAppsDrawerStore((s) => s.toggle)
+  const closeDrawer = useAppsDrawerStore((s) => s.close)
 
   const isActiveListening = useActiveListeningStore((s) => s.isActive)
   const activeListeningSetupComplete = useSettingsStore((s) => s.activeListeningSetupComplete)
@@ -47,12 +46,17 @@ export function SessionSidebar(): JSX.Element {
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const modelLabel =
-    hostMode === 'projectrose' ? 'ProjectRose · managed' : ollamaModelName || '—'
-  const contextCount = messages.length
-
   function handleNewSession(): void {
     newSession()
+  }
+
+  function handleApps(): void {
+    toggleDrawer()
+  }
+
+  function handleSettings(): void {
+    closeDrawer()
+    setActiveView('settings')
   }
 
   function handleSwitch(sess: SessionMeta): void {
@@ -98,23 +102,26 @@ export function SessionSidebar(): JSX.Element {
 
   return (
     <div className={styles.sidebar}>
-      {/* ── specimen card ── */}
-      <div className={styles.specimenCard}>
-        <div className={styles.specimenLabel}>SPECIMEN · AGENT</div>
-        <div className={styles.specimenName}>{agentName || 'Rose Agent'}</div>
-        <div className={styles.specimenSub}>Rosa × cogitans · v0.1</div>
-        <div className={styles.specimenProps}>
-          {[
-            ['MODEL',   modelLabel],
-            ['CONTEXT', contextCount > 0 ? `${contextCount} messages` : '—'],
-            ['THEME',   theme === 'herbarium' ? 'paper' : 'dark'],
-          ].map(([k, v]) => (
-            <div key={k} className={styles.specimenRow}>
-              <span className={styles.specimenKey}>{k}</span>
-              <span className={styles.specimenVal}>{v}</span>
-            </div>
-          ))}
-        </div>
+      {/* ── top actions ── */}
+      <div className={styles.topBtns}>
+        <button className={styles.newBtn} onClick={handleNewSession}>
+          <span>+ NEW SESSION</span>
+          <span className={styles.kbd}>⌘N</span>
+        </button>
+        <button
+          className={clsx(styles.activeListeningBtn, isActiveListening && styles.activeListeningBtnOn)}
+          onClick={handleActiveListening}
+        >
+          <span className={clsx(styles.dot, isActiveListening && styles.dotActive)} />
+          <span>{isActiveListening ? '● ACTIVE LISTENING' : '+ ACTIVE LISTENING'}</span>
+          {!isActiveListening && <span className={styles.kbd}>⌘⇧N</span>}
+        </button>
+        <button className={styles.newBtn} onClick={handleApps}>
+          <span>APPS</span>
+        </button>
+        <button className={styles.newBtn} onClick={handleSettings}>
+          <span>SETTINGS</span>
+        </button>
       </div>
 
       {/* ── sessions header ── */}
@@ -174,21 +181,6 @@ export function SessionSidebar(): JSX.Element {
         })}
       </div>
 
-      {/* ── bottom buttons ── */}
-      <div className={styles.bottomBtns}>
-        <button className={styles.newBtn} onClick={handleNewSession}>
-          <span>+ NEW SESSION</span>
-          <span className={styles.kbd}>⌘N</span>
-        </button>
-        <button
-          className={clsx(styles.activeListeningBtn, isActiveListening && styles.activeListeningBtnOn)}
-          onClick={handleActiveListening}
-        >
-          <span className={clsx(styles.dot, isActiveListening && styles.dotActive)} />
-          <span>{isActiveListening ? '● ACTIVE LISTENING' : '+ ACTIVE LISTENING'}</span>
-          {!isActiveListening && <span className={styles.kbd}>⌘⇧N</span>}
-        </button>
-      </div>
       {showEnrollment && (
         <VoiceEnrollmentModal onClose={() => setShowEnrollment(false)} />
       )}
