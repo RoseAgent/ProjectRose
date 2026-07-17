@@ -129,7 +129,13 @@ function partitionByCompression(
   return { compressed, live }
 }
 
-export function ChatPanel(): JSX.Element {
+// `primary` marks the single visible ChatPanel. Two instances stay mounted at
+// once (the editor/account rail and the chat-mode panel) so their scroll
+// survives view switches, but only the visible one may own the TTS/compression
+// singletons — otherwise TTS double-plays and toasts render twice. Both live
+// inside a positioned `.chatPanel`, so the singletons can't simply be hoisted
+// to the app root without breaking their absolute positioning.
+export function ChatPanel({ primary = true }: { primary?: boolean } = {}): JSX.Element {
   const messages = useChat((s) => s.messages)
   const isLoading = useChat((s) => s.isLoading)
   const snapshot = useChat((s) => s.snapshot)
@@ -278,8 +284,8 @@ export function ChatPanel(): JSX.Element {
 
       <ContextStatusBar />
       <ChatInput />
-      <CompressionToast />
-      <TtsAutoPlayer />
+      {primary && <CompressionToast />}
+      {primary && <TtsAutoPlayer />}
     </div>
   )
 }

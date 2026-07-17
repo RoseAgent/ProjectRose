@@ -46,6 +46,18 @@ function App(): JSX.Element {
   const initialExpandApplied = useRef(false)
   const initialMainViewApplied = useRef(false)
 
+  // Keep EditorView and ChatView mounted once they've been shown, then just
+  // toggle their visibility. Unmounting EditorView would kill the terminal's
+  // pty + xterm scrollback, and swapping ChatView in/out drops the chat scroll
+  // position — this preserves both across editor↔bloom switches. We lazy-mount
+  // (rather than mounting both on boot) so the editor's pty isn't spawned until
+  // the user actually visits the editor. 'chat' is the initial view.
+  const [viewMounted, setViewMounted] = useState({ editor: false, chat: true })
+  useEffect(() => {
+    if (activeView === 'editor') setViewMounted((m) => (m.editor ? m : { ...m, editor: true }))
+    else if (activeView === 'chat') setViewMounted((m) => (m.chat ? m : { ...m, chat: true }))
+  }, [activeView])
+
   // Bridge: when the agent invokes the `screenshot` tool, capture a frame from
   // the active share stream and send it back to main. The sessionId rides on
   // the request from main so the result can be routed back to the same
@@ -281,6 +293,10 @@ function App(): JSX.Element {
     return () => window.removeEventListener('keydown', handler)
   }, [rootPath, toggleTerminal])
 
+  // The editor/account chat rail is shown in editor and account views; in chat
+  // and settings it's hidden (chat has its own panel, settings has none).
+  const showChatRail = activeView === 'editor' || activeView === 'account'
+
   return (
     <div className={styles.app}>
       <div className={styles.titleBar} />
@@ -303,15 +319,32 @@ function App(): JSX.Element {
         </div>
       )}
       <main className={`${styles.mainContent} ${activeView === 'chat' ? styles.mainContentChat : ''} ${activeView === 'settings' ? styles.mainContentSettings : ''} ${activeView === 'editor' ? styles.mainContentEditor : ''} ${activeView === 'editor' && isChatFullWidth ? styles.mainContentEditorFullWidth : ''}`}>
-        {!(activeView === 'editor' && isChatFullWidth) && (
-          <div className={styles.viewArea}>
-            {activeView === 'editor' && <EditorView />}
-            {activeView === 'chat' && <ChatView />}
-            {activeView === 'settings' && <SettingsView />}
-            {activeView === 'account' && <AccountView />}
+        {/* EditorView + ChatView stay mounted once shown and are merely toggled
+            visible, so the terminal (pty + scrollback) and chat scroll survive
+            switching between editor and bloom. viewArea itself hides in editor
+            full-width so the chat panel can span the whole window. */}
+        <div
+          className={styles.viewArea}
+          style={activeView === 'editor' && isChatFullWidth ? { display: 'none' } : undefined}
+        >
+          <div className={styles.viewSlot} style={{ display: activeView === 'editor' ? 'flex' : 'none' }}>
+            {viewMounted.editor && <EditorView />}
           </div>
-        )}
-        {activeView !== 'chat' && activeView !== 'settings' && <ChatPanel />}
+          <div className={styles.viewSlot} style={{ display: activeView === 'chat' ? 'flex' : 'none' }}>
+            {viewMounted.chat && <ChatView />}
+          </div>
+          {activeView === 'settings' && <SettingsView />}
+          {activeView === 'account' && <AccountView />}
+        </div>
+        {/* Editor/account chat rail — a second ChatPanel instance kept mounted
+            (once the editor has been shown) so its scroll survives; only the
+            visible panel owns the TTS/compression singletons via `primary`. */}
+        <div
+          className={styles.chatPanelSlot}
+          style={{ display: showChatRail ? 'flex' : 'none' }}
+        >
+          {(viewMounted.editor || activeView === 'account') && <ChatPanel primary={showChatRail} />}
+        </div>
       </main>
       <AppsDrawer />
       <BottomDock />

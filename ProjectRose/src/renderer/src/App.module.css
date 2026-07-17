@@ -62,6 +62,28 @@
   min-width: 0;
 }
 
+/* EditorView and ChatView are kept mounted across view switches (so the
+   terminal + chat scroll survive) and only toggled visible. Each lives in a
+   slot that fills the viewArea; the inactive one is display:none via inline
+   style and drops out of flow entirely. */
+.viewSlot {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+/* The editor/account chat rail. A grid item in the second column; the child
+   ChatPanel fills it (height:100% + column stretch). Hidden via inline
+   display:none in chat/settings so it doesn't claim a grid track. */
+.chatPanelSlot {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* ── FAB-aware bottom shelf for split layouts ──
    The bottom-dock FAB is fixed at the left edge (spans ~[8px, 80px]) and
    protrudes ~60px above the dock, so only the left column ever needs to

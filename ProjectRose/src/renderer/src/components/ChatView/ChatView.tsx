@@ -16,6 +16,7 @@ export function ChatView(): JSX.Element {
   const rootPath = useProjectStore((s) => s.rootPath)
   useActiveListen({ enabled: isActive, projectPath: rootPath })
   const isChatFullWidth = useViewStore((s) => s.isChatFullWidth)
+  const activeView = useViewStore((s) => s.activeView)
   const externalView = useChat((s) => s.externalView)
   return (
     <div className={clsx(styles.chatView, isChatFullWidth && styles.chatViewFullWidth)}>
@@ -27,7 +28,10 @@ export function ChatView(): JSX.Element {
       ) : (
         <>
           {!isChatFullWidth && <BloomStage />}
-          <ChatPanel />
+          {/* ChatView stays mounted while the editor is showing, so only claim
+              the TTS/compression singletons when chat is actually the active
+              view (the editor rail owns them otherwise). */}
+          <ChatPanel primary={activeView === 'chat'} />
         </>
       )}
       <SessionPrepModal />
