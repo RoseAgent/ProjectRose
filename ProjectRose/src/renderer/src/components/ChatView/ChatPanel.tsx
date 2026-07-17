@@ -133,7 +133,6 @@ export function ChatPanel(): JSX.Element {
   const messages = useChat((s) => s.messages)
   const isLoading = useChat((s) => s.isLoading)
   const snapshot = useChat((s) => s.snapshot)
-  const loadSessions = useChat((s) => s.loadSessions)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const rootPath = useProjectStore((s) => s.rootPath)
   const mode = useActiveListeningStore((s) => s.mode)
@@ -176,10 +175,6 @@ export function ChatPanel(): JSX.Element {
       useStatusStore.getState().notify('Clipboard unavailable', { tone: 'error' })
     }
   }
-
-  useEffect(() => {
-    if (rootPath) loadSessions()
-  }, [rootPath, loadSessions])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -282,7 +277,7 @@ export function ChatPanel(): JSX.Element {
       )}
 
       <ContextStatusBar />
-      <ChatInput notched={activeView === 'chat' && isChatFullWidth} />
+      <ChatInput />
       <CompressionToast />
       <TtsAutoPlayer />
     </div>

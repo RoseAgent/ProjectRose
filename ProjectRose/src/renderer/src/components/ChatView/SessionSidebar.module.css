@@ -7,58 +7,14 @@
   background: var(--color-sidebar-bg);
 }
 
-/* ── specimen card ── */
-.specimenCard {
-  padding: 20px 20px 16px;
+/* ── top actions ── */
+.topBtns {
+  padding: 14px 16px;
   border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.specimenLabel {
-  font-family: var(--font-family-mono);
-  font-size: 9px;
-  color: var(--color-text-muted);
-  letter-spacing: 1.6px;
-  margin-bottom: 6px;
-}
-
-.specimenName {
-  font-family: var(--font-family-mono);
-  font-size: 18px;
-  color: var(--color-text-primary);
-  font-weight: 500;
-  line-height: 1;
-  margin-bottom: 4px;
-}
-
-.specimenSub {
-  font-family: var(--font-family-mono);
-  font-size: 10px;
-  color: var(--color-accent);
-  font-style: italic;
-  margin-bottom: 14px;
-}
-
-.specimenProps {
-  margin-top: 10px;
-}
-
-.specimenRow {
   display: flex;
-  justify-content: space-between;
-  padding: 4px 0;
-  border-bottom: 1px dotted var(--color-border);
-  font-family: var(--font-family-mono);
-  font-size: 10px;
-}
-
-.specimenKey {
-  color: var(--color-text-muted);
-  letter-spacing: 1px;
-}
-
-.specimenVal {
-  color: var(--color-text-primary);
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* ── section label ── */
@@ -231,16 +187,6 @@
   background: var(--color-button-hover-bg);
 }
 
-/* ── bottom buttons ── */
-.bottomBtns {
-  padding: 12px 16px;
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
 .newBtn {
   width: 100%;
   padding: 9px 12px;
@@ -320,4 +266,86 @@
   margin-left: auto;
   color: var(--color-text-muted);
   font-size: 9px;
+}
+
+/* ── workspace groups ── */
+.group {
+  margin-bottom: 6px;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-family-mono);
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+
+.groupHeader:hover {
+  background: var(--color-sidebar-item-hover);
+}
+
+.groupCaret {
+  font-size: 8px;
+  color: var(--color-text-muted);
+  width: 8px;
+  flex-shrink: 0;
+}
+
+.groupName {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.groupCount {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.groupMissing {
+  opacity: 0.5;
+}
+
+.missingChip {
+  font-size: 8px;
+  color: var(--color-warning, #c98a3a);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.badge {
+  font-family: var(--font-family-mono);
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid currentColor;
+  flex-shrink: 0;
+}
+
+.badgeRose {
+  color: var(--color-accent);
+}
+
+.badgeClaude {
+  color: #c58a5a;
+}
+
+.badgeCodex {
+  color: #5a9bc5;
 }

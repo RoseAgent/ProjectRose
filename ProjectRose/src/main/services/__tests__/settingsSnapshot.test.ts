@@ -115,6 +115,7 @@ describe('buildSettingsSnapshot', () => {
       'googleAuth',
       'googleCalendar',
       'imap',
+      'kimi',
       'ollama',
       'projectRose',
       'smtp'

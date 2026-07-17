@@ -1,4 +1,5 @@
 import { loadSession } from '../lib/session'
+import { loadKimiTokens } from '../lib/kimiSession'
 import type { AppSettings, ModelConfig } from './settingsService'
 
 const PROJECTROSE_MODEL: ModelConfig = {
@@ -6,11 +7,14 @@ const PROJECTROSE_MODEL: ModelConfig = {
   modelName: 'managed',
 }
 
+const DEFAULT_KIMI_MODEL = 'kimi-for-coding'
+
 /**
  * Pick the model to run a chat turn with.
  *
- * Two paths: signed in to ProjectRose → the managed account model; otherwise
- * the single Ollama model configured under Settings → Providers.
+ * Three paths: signed in to ProjectRose → the managed account model; signed
+ * in to Kimi → the Kimi Code model picked under Settings → Providers;
+ * otherwise the single Ollama model configured there.
  */
 export async function selectModel(_userMessage: string, settings: AppSettings): Promise<ModelConfig> {
   if (settings.hostMode === 'projectrose') {
@@ -19,6 +23,14 @@ export async function selectModel(_userMessage: string, settings: AppSettings): 
       throw new Error('Sign in to your ProjectRose account to use the managed AI endpoint.')
     }
     return PROJECTROSE_MODEL
+  }
+
+  if (settings.hostMode === 'kimi') {
+    const tokens = await loadKimiTokens()
+    if (!tokens) {
+      throw new Error('Sign in to your Kimi account in Settings → Providers → Kimi.')
+    }
+    return { provider: 'kimi', modelName: settings.kimiModelName || DEFAULT_KIMI_MODEL }
   }
 
   if (!settings.ollamaModelName) {
@@ -53,6 +65,9 @@ export function extractErrorMessage(err: unknown): string {
  */
 export function pickActiveModel(settings: AppSettings): ModelConfig | null {
   if (settings.hostMode === 'projectrose') return PROJECTROSE_MODEL
+  if (settings.hostMode === 'kimi') {
+    return { provider: 'kimi', modelName: settings.kimiModelName || DEFAULT_KIMI_MODEL }
+  }
   return settings.ollamaModelName
     ? { provider: 'ollama', modelName: settings.ollamaModelName }
     : null

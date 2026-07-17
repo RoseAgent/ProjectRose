@@ -3,7 +3,7 @@ import type { ToolExecutionOptions } from 'ai'
 import { z } from 'zod'
 import { randomUUID } from 'crypto'
 import { streamChat } from './llmClient'
-import { saveSubagentSession } from './sessionService'
+import { saveSubagentConversation } from './conversationStore'
 import type { AgentContext, SubagentCounter } from './agentRunner'
 import type { ModelConfig } from './settingsService'
 import { IPC } from '../../shared/ipcChannels'
@@ -81,11 +81,12 @@ export function buildSubagentTools(
       throw err
     }
 
-    await saveSubagentSession(ctx.rootPath, ctx.sessionId, idx, {
+    await saveSubagentConversation(ctx.rootPath, ctx.sessionId, idx, {
       id: ctx.sessionId,
       title: prompt.slice(0, 60),
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      workspacePath: ctx.rootPath,
       messages: [
         { role: 'user', content: prompt },
         { role: 'assistant', content: resultContent }

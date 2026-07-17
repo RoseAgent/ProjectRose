@@ -39,7 +39,10 @@ rendererLogger.warn = (msg, opts) => {
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ include: ['node-pty'] })],
+    // @ai-sdk/openai-compatible ships ESM-only (no CJS build), so it can't be
+    // externalized — the CJS main bundle would require() it and crash at load.
+    // Excluding it here makes Rollup inline it into the bundle instead.
+    plugins: [externalizeDepsPlugin({ include: ['node-pty'], exclude: ['@ai-sdk/openai-compatible'] })],
     define: mainProcessEnvDefines,
     build: {
       rollupOptions: {

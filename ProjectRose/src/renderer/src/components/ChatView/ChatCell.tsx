@@ -1,6 +1,7 @@
 import { useState, type MouseEvent } from 'react'
 import type { UserMessage, AssistantMessage, ThinkingMessage } from '../../types/chatMessages'
 import { useStatusStore } from '../../stores/useStatusStore'
+import { renderMessageContent } from './messageContent'
 import clsx from 'clsx'
 import styles from './ChatCell.module.css'
 
@@ -106,7 +107,7 @@ export function ChatCell({ message }: ChatCellProps): JSX.Element {
           {!isUser && (message as AssistantMessage).fallbackNotice && (
             <div className={styles.fallbackNotice}>{(message as AssistantMessage).fallbackNotice}</div>
           )}
-          {displayContent}
+          {renderMessageContent(displayContent)}
           {isStreaming && (
             <span className={styles.streamCursor} aria-hidden="true" />
           )}

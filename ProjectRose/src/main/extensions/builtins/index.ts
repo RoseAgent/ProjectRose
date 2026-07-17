@@ -5,12 +5,16 @@
 // `src/renderer/src/extensions/builtins/index.ts`; this module is the parallel
 // scaffolding for their main-process halves.
 //
-// When a Workspace opens, the renderer calls `window.api.extension.loadBuiltinMains(rootPath)`
-// which routes here. Each built-in with `provides.main: true` is asked to
-// `register(ctx)` with a context built via the same `buildContext()`
-// machinery dynamic extensions use, so manifest capability gating continues
-// to apply uniformly. A per-workspace cleanup is recorded so re-opening or
-// switching the workspace tears down the previous registration cleanly.
+// Built-in main modules are now always-on and owned by the main process
+// (ADR 0017): `startAlwaysOnRuntimes()` loads every Workspace with enabled
+// rules at boot, and `ensureRuntimeFor()` (via
+// `window.api.extension.ensureBuiltinMains`) brings one online on demand when a
+// Conversation binds a Workspace or a rule is saved. Each built-in with
+// `provides.main: true` is asked to `register(ctx)` with a context built via
+// the same `buildContext()` machinery dynamic extensions use, so manifest
+// capability gating continues to apply uniformly. `loadAllBuiltinMains` is
+// idempotent per (rootPath, id); `unloadAllBuiltinMains` remains for teardown
+// but is no longer called on Conversation switch — runtimes stay up.
 //
 // Adding a new built-in with a main module:
 //   1. Drop its main module into `src/main/extensions/builtins/<id>/main.ts`

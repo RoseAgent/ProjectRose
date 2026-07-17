@@ -11,11 +11,12 @@ interface SettingsState {
   activeListeningSetupComplete: boolean
   activeListeningDraftSeconds: number
   whisperModel: string
-  hostMode: 'projectrose' | 'self'
+  hostMode: 'projectrose' | 'kimi' | 'self'
   agentStartsExpanded: boolean
   lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
   ollamaModelName: string
+  kimiModelName: string
   extensions: Record<string, Record<string, unknown>>
   tts: TtsSettings
   loaded: boolean
@@ -42,6 +43,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModelName: '',
+  kimiModelName: 'kimi-for-coding',
   extensions: {},
   tts: DEFAULT_TTS_SETTINGS,
   loaded: false,

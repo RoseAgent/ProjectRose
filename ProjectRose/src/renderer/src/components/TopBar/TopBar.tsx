@@ -6,7 +6,7 @@ export function TopBar(): JSX.Element {
   const rootPath = useProjectStore((s) => s.rootPath)
   const projectName = rootPath
     ? rootPath.replace(/\\/g, '/').split('/').pop() || 'rose-editor'
-    : 'rose-editor'
+    : 'no workspace'
 
   return (
     <div className={styles.topBar}>

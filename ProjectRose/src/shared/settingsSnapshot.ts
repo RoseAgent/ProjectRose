@@ -49,9 +49,10 @@ export interface SettingsSnapshot {
       roseSpeechSpeakerId: number | null
     }
     provider: {
-      hostMode: 'projectrose' | 'self'
+      hostMode: 'projectrose' | 'kimi' | 'self'
       ollamaBaseUrl: string
       ollamaModelName: string
+      kimiModelName: string
     }
     google: {
       credentialsConfigured: boolean
@@ -89,6 +90,7 @@ export interface SettingsSnapshot {
   connections: {
     projectRose: ProjectRoseConnection
     ollama: OllamaConnection
+    kimi: ConnectionResult
     googleAuth: GoogleAuthConnection
     googleCalendar: ConnectionResult
     imap: ConnectionResult

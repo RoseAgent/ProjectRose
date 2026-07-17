@@ -59,6 +59,11 @@ export const IPC = {
   AUTH_CHANGED: 'auth:changed',
   AUTH_PAIRING_PENDING: 'auth:pairingPending',
 
+  // Kimi OAuth event broadcasts (main → renderer). Request channels are
+  // declared by services/kimiAuthService.ipc.ts.
+  KIMI_AUTH_CHANGED: 'kimiAuth:changed',
+  KIMI_AUTH_PENDING: 'kimiAuth:pending',
+
   // Active Listening — only the fire-and-forget and event-broadcast channels
   // live in the enum now; the eleven invoke channels are declared by
   // services/speech/activeSpeechService.ipc.ts.

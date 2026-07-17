@@ -1,6 +1,8 @@
 import { createOpenAI } from '@ai-sdk/openai'
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createOllama } from 'ai-sdk-ollama'
 import { loadSession } from '../lib/session'
+import { getKimiAccessToken, KIMI_API_BASE_URL, KIMI_USER_AGENT } from '../lib/kimiSession'
 import { WEB_BASE_URL } from '../lib/webConfig'
 import type { ModelConfig } from './settingsService'
 
@@ -148,6 +150,26 @@ export async function resolveModel(
         fetch: patchedFetch
       })
       return provider(model.modelName || 'llama3', { think: true })
+    }
+    case 'kimi': {
+      // Kimi Code (OAuth device flow) — OpenAI Chat Completions-compatible.
+      // The token is short-lived (~15 min); getKimiAccessToken refreshes it
+      // on the way in, so every resolve gets a live credential. The
+      // openai-compatible provider (not @ai-sdk/openai) is deliberate: it
+      // surfaces Kimi's `reasoning_content` deltas as reasoning parts, so
+      // kimi-k2-thinking streams thinking like the other providers do.
+      const token = await getKimiAccessToken()
+      if (!token) {
+        throw new Error('Sign in to your Kimi account in Settings → Providers → Kimi.')
+      }
+      const provider = createOpenAICompatible({
+        name: 'kimi',
+        baseURL: KIMI_API_BASE_URL,
+        apiKey: token,
+        // The Coding API 403s unless the request identifies as a coding agent.
+        headers: { 'User-Agent': KIMI_USER_AGENT }
+      })
+      return provider.chatModel(model.modelName || 'kimi-for-coding')
     }
     case 'projectrose':
     default: {

@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipcChannels'
 import type { FileNode, RecentProject, ToolMeta } from '../shared/types'
 import type { Message } from '../shared/roseModelTypes'
-import { sessionIpc } from '../main/services/sessionService.ipc'
+import { sessionIpc, externalIpc, workspacesIpc } from '../main/services/conversation.ipc'
 import { promptIpc } from '../main/services/promptService.ipc'
 import { skillIpc } from '../main/services/skillService.ipc'
 import { interactionLogIpc } from '../main/services/interactionLog.ipc'
@@ -14,6 +14,7 @@ import { roseSetupIpc } from '../main/services/roseSetupService.ipc'
 import { whisperIpc } from '../main/services/whisperService.ipc'
 import { updaterIpc } from '../main/services/updaterService.ipc'
 import { authIpc } from '../main/services/authService.ipc'
+import { kimiAuthIpc } from '../main/services/kimiAuthService.ipc'
 import { aiIpc } from '../main/services/aiService.ipc'
 import { activeSpeechIpc } from '../main/services/speech/activeSpeechService.ipc'
 import { extensionIpc } from '../main/services/extensionService.ipc'
@@ -335,8 +336,11 @@ const api = {
     }
   },
 
-  // Chat Sessions
+  // Chat Sessions (Conversations), read-only External Sessions, and the
+  // known-workspace registry for the New Conversation picker.
   session: sessionIpc.bindings,
+  external: externalIpc.bindings,
+  workspaces: workspacesIpc.bindings,
 
   // Tools + Project settings — the hard-coded channel strings ('tools:list',
   // 'project:getSettings', 'project:setSettings') that used to live here are
@@ -413,6 +417,25 @@ const api = {
       const handler = (_e: unknown, data: { url: string }): void => callback(data)
       ipcRenderer.on(IPC.AUTH_PAIRING_PENDING, handler)
       return () => { ipcRenderer.removeListener(IPC.AUTH_PAIRING_PENDING, handler) }
+    }
+  },
+
+  // Kimi OAuth (device flow) — request methods from the manifest; event
+  // subscriptions (onChanged, onPending) stay hand-written.
+  kimiAuth: {
+    login: kimiAuthIpc.bindings.login,
+    logout: kimiAuthIpc.bindings.logout,
+    cancel: kimiAuthIpc.bindings.cancel,
+    getStatus: kimiAuthIpc.bindings.getStatus,
+    onChanged: (callback: (data: { loggedIn: boolean }) => void): (() => void) => {
+      const handler = (_e: unknown, data: { loggedIn: boolean }): void => callback(data)
+      ipcRenderer.on(IPC.KIMI_AUTH_CHANGED, handler)
+      return () => { ipcRenderer.removeListener(IPC.KIMI_AUTH_CHANGED, handler) }
+    },
+    onPending: (callback: (data: { url: string; userCode: string }) => void): (() => void) => {
+      const handler = (_e: unknown, data: { url: string; userCode: string }): void => callback(data)
+      ipcRenderer.on(IPC.KIMI_AUTH_PENDING, handler)
+      return () => { ipcRenderer.removeListener(IPC.KIMI_AUTH_PENDING, handler) }
     }
   },
 

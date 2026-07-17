@@ -61,6 +61,18 @@ interface ProviderMeta {
 const PROVIDERS: ProviderMeta[] = [
   { kind: 'projectrose', spec: '00', name: 'ProjectRose',       latin: 'Rosa managed'    },
   { kind: 'ollama',      spec: '01', name: 'Ollama',            latin: 'Rosa localis'    },
+  { kind: 'kimi',        spec: '02', name: 'Kimi',              latin: 'Rosa lunaris'    },
+]
+
+// Kimi Code models. Which ones a given account can actually use depends on
+// the kimi.com membership tier — the API rejects models above the plan, so
+// we list the known set and let the server be the judge.
+const KIMI_MODEL_OPTIONS: Array<{ id: string; label: string }> = [
+  { id: 'kimi-for-coding',           label: 'Kimi for Coding — default'          },
+  { id: 'kimi-for-coding-highspeed', label: 'Kimi for Coding — high speed'       },
+  { id: 'kimi-k2-thinking',          label: 'Kimi K2 Thinking — deep reasoning'  },
+  { id: 'k3',                        label: 'K3'                                  },
+  { id: 'k3[1m]',                    label: 'K3 — 1M context'                     },
 ]
 
 // ─────────────────────────────────────────────────────────────
@@ -88,6 +100,14 @@ function ProviderGlyph({ kind, size = 28 }: { kind: string; size?: number }): JS
           <ellipse cx="21" cy="10" rx="3" ry="4" fill={c} stroke="none"/>
           <circle cx="13" cy="17" r="1" fill={c} stroke="none"/>
           <circle cx="19" cy="17" r="1" fill={c} stroke="none"/>
+        </svg>
+      )
+    case 'kimi':
+      // Crescent moon — nod to Moonshot AI, kept single-colour like the rest.
+      return (
+        <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
+          <path d="M21 5 A12 12 0 1 0 27 17 A9.5 9.5 0 0 1 21 5 Z" />
+          <circle cx="23.5" cy="8.5" r="1.2" fill={c} stroke="none" />
         </svg>
       )
     case 'google':
@@ -315,7 +335,7 @@ export function SettingsView(): JSX.Element {
   const {
     micDeviceId, userName, agentName, activeListeningDraftSeconds, whisperModel,
     agentStartsExpanded,
-    ollamaBaseUrl, ollamaModelName,
+    ollamaBaseUrl, ollamaModelName, kimiModelName,
     tts,
     update,
   } = useSettingsStore()
@@ -422,6 +442,51 @@ export function SettingsView(): JSX.Element {
 
   async function projectroseSignOut(): Promise<void> {
     try { await window.api.auth.logout() } catch { /* ignore */ }
+  }
+
+  // ── kimi account state ──
+  const [kimiAccount, setKimiAccount] = useState<{ loggedIn: boolean }>({ loggedIn: false })
+  const [kimiMode, setKimiMode] = useState<'idle' | 'pending'>('idle')
+  const [kimiPending, setKimiPending] = useState<{ url: string; userCode: string } | null>(null)
+  const [kimiError, setKimiError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    window.api.kimiAuth.getStatus().then((s) => { if (!cancelled) setKimiAccount({ loggedIn: s.loggedIn }) })
+    const offChanged = window.api.kimiAuth.onChanged((d) => {
+      setKimiAccount({ loggedIn: d.loggedIn })
+      setKimiMode('idle')
+      setKimiPending(null)
+      setKimiError('')
+    })
+    const offPending = window.api.kimiAuth.onPending((d) => {
+      setKimiPending(d)
+      setKimiMode('pending')
+      setKimiError('')
+    })
+    return () => { cancelled = true; offChanged(); offPending() }
+  }, [])
+
+  async function kimiSignIn(): Promise<void> {
+    setKimiError('')
+    setKimiMode('pending')
+    try {
+      await window.api.kimiAuth.login()
+    } catch (e) {
+      setKimiError(e instanceof Error ? e.message : 'Sign-in failed')
+      setKimiMode('idle')
+      setKimiPending(null)
+    }
+  }
+
+  async function kimiCancel(): Promise<void> {
+    try { await window.api.kimiAuth.cancel() } catch { /* ignore */ }
+    setKimiMode('idle')
+    setKimiPending(null)
+  }
+
+  async function kimiSignOut(): Promise<void> {
+    try { await window.api.kimiAuth.logout() } catch { /* ignore */ }
   }
 
   // ── google account state ──
@@ -854,6 +919,7 @@ export function SettingsView(): JSX.Element {
 
   function getProviderStatus(kind: string): ProviderStatus {
     if (kind === 'projectrose') return prAccount.loggedIn ? 'connected' : 'missing'
+    if (kind === 'kimi') return kimiAccount.loggedIn ? 'connected' : 'missing'
     if (testedProviders[kind] === 'connected') return 'connected'
     if (testedProviders[kind] === 'error') return 'error'
     const fields = getProviderFields(kind)
@@ -1404,9 +1470,13 @@ export function SettingsView(): JSX.Element {
                             ? prAccount.loggedIn
                               ? 'signed in'
                               : 'sign in to use the managed endpoint'
-                            : status === 'connected' || status === 'unverified'
-                              ? `${filledCount}/${totalFields} field${totalFields === 1 ? '' : 's'}`
-                              : `${totalFields} field${totalFields === 1 ? '' : 's'} required`}
+                            : p.kind === 'kimi'
+                              ? kimiAccount.loggedIn
+                                ? 'signed in'
+                                : 'sign in with your kimi.com account'
+                              : status === 'connected' || status === 'unverified'
+                                ? `${filledCount}/${totalFields} field${totalFields === 1 ? '' : 's'}`
+                                : `${totalFields} field${totalFields === 1 ? '' : 's'} required`}
                         </span>
                       </div>
                     </div>
@@ -1466,6 +1536,59 @@ export function SettingsView(): JSX.Element {
                           <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{prError}</p>
                         )}
                       </div>
+                    ) : p.kind === 'kimi' ? (
+                      <div style={{ padding: '12px 16px 4px' }}>
+                        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
+                          {kimiAccount.loggedIn
+                            ? 'Active — chats route through Kimi Code backed by your kimi.com subscription. Sign out to fall back to your other providers.'
+                            : 'Sign in with your kimi.com account to route chats through Kimi Code — no API keys needed.'}
+                        </p>
+                        {kimiAccount.loggedIn ? (
+                          <FieldRow label="MODEL" hint="availability depends on your kimi.com plan">
+                            <select
+                              className={styles.hSelect}
+                              value={kimiModelName || 'kimi-for-coding'}
+                              onChange={(e) => update({ kimiModelName: e.target.value })}
+                            >
+                              {kimiModelName && !KIMI_MODEL_OPTIONS.some((o) => o.id === kimiModelName) && (
+                                <option value={kimiModelName}>{kimiModelName}</option>
+                              )}
+                              {KIMI_MODEL_OPTIONS.map((o) => (
+                                <option key={o.id} value={o.id}>{o.label}</option>
+                              ))}
+                            </select>
+                          </FieldRow>
+                        ) : kimiMode === 'pending' ? (
+                          <div style={{ margin: '0 0 12px' }}>
+                            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 8px' }}>
+                              Browser opened — approve this device on kimi.com.
+                              {kimiPending?.url && (
+                                <>
+                                  {' '}
+                                  <button
+                                    type="button"
+                                    onClick={() => navigator.clipboard.writeText(kimiPending.url).catch(() => {})}
+                                    style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-accent)', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, fontFamily: 'inherit' }}
+                                  >
+                                    COPY LINK
+                                  </button>
+                                </>
+                              )}
+                            </p>
+                            {kimiPending?.userCode && (
+                              <p style={{ fontSize: 12, margin: 0, color: 'var(--color-text-primary)' }}>
+                                Confirmation code:{' '}
+                                <span style={{ fontFamily: 'inherit', letterSpacing: '0.15em', color: 'var(--color-accent)' }}>
+                                  {kimiPending.userCode}
+                                </span>
+                              </p>
+                            )}
+                          </div>
+                        ) : null}
+                        {kimiError && (
+                          <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{kimiError}</p>
+                        )}
+                      </div>
                     ) : (
                       <>
                         {fieldDefs.map((f) => (
@@ -1513,6 +1636,22 @@ export function SettingsView(): JSX.Element {
                           </button>
                         ) : (
                           <button type="button" className={styles.primaryBtn} style={{ width: '100%' }} onClick={projectroseSignIn}>
+                            SIGN IN
+                          </button>
+                        )}
+                      </div>
+                    ) : p.kind === 'kimi' ? (
+                      <div className={styles.providerCardFooter} style={{ justifyContent: 'stretch' }}>
+                        {kimiAccount.loggedIn ? (
+                          <button type="button" className={styles.ghostBtn} style={{ width: '100%' }} onClick={kimiSignOut}>
+                            SIGN OUT
+                          </button>
+                        ) : kimiMode === 'pending' ? (
+                          <button type="button" className={styles.ghostBtn} style={{ width: '100%' }} onClick={kimiCancel}>
+                            CANCEL
+                          </button>
+                        ) : (
+                          <button type="button" className={styles.primaryBtn} style={{ width: '100%' }} onClick={kimiSignIn}>
                             SIGN IN
                           </button>
                         )}
@@ -2018,11 +2157,6 @@ export function SettingsView(): JSX.Element {
               </button>
             )
           })}
-
-          <div className={styles.sidebarFooter}>
-            <div>SPECIMEN · CONFIG</div>
-            <div style={{ fontStyle: 'italic', opacity: 0.6 }}>secrets · keychain</div>
-          </div>
         </aside>
 
         {/* Main content */}

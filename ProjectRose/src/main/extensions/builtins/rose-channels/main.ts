@@ -63,15 +63,59 @@ export interface RemoteChannelInfo {
 interface State {
   rootPath: string
   ctx: ExtensionMainContext
-  runtime: RuntimeBundle
   unsubscribeEmail: (() => void) | null
   /** Prevent overlapping fires of the same rule (e.g. burst on same channel). */
   running: Set<string>
 }
 
-// Single global state map keyed by rootPath. Workspace switch tears down the
-// old entry; the renderer then re-triggers load against the new path.
+// One State per always-on Workspace (ADR 0017). Multiple can be live at once.
 const states = new Map<string, State>()
+
+// Discord/Slack bot tokens are agent-global (credentialsStore is not
+// workspace-scoped), so there is exactly ONE socket per platform shared across
+// every always-on Workspace. Each incoming message fans out to every
+// Workspace's rule matcher — a message matching rules in two Workspaces fires
+// both (correct fan-out, not a duplicate). Without this, N always-on
+// Workspaces would open N gateway connections on the same token.
+let sharedDiscord: DiscordRuntime | null = null
+let sharedSlack: SlackRuntime | null = null
+let discordConnecting: Promise<void> | null = null
+let slackConnecting: Promise<void> | null = null
+
+// A live view of the shared runtimes for the tools module — its handlers read
+// `.discord`/`.slack` at call time, so getters keep them current.
+const sharedRuntime: RuntimeBundle = {
+  get discord(): DiscordRuntime | null {
+    return sharedDiscord
+  },
+  get slack(): SlackRuntime | null {
+    return sharedSlack
+  }
+}
+
+function fanOut(source: ChannelSource, msg: {
+  identifier: string
+  identifierDisplay: string | null
+  messageId: string
+  author: string
+  body: string
+}): void {
+  for (const state of states.values()) {
+    void makeDispatcher(state, source)(
+      msg.identifier,
+      msg.identifierDisplay,
+      msg.messageId,
+      msg.author,
+      msg.body
+    )
+  }
+}
+
+function notifyAll(text: string): void {
+  for (const state of states.values()) {
+    state.ctx.notifyStatus(text, { tone: 'error', durationMs: 6000 })
+  }
+}
 
 export interface RunListEntry {
   filename: string
@@ -195,86 +239,79 @@ export async function runNow(
   return { ok: true }
 }
 
-export async function getStatus(rootPath: string): Promise<{
+// Connection status reflects the shared socket, independent of which Workspace
+// asks — the socket is agent-global.
+export async function getStatus(_rootPath: string): Promise<{
   discord: ConnectionStatus
   slack: ConnectionStatus
 }> {
-  const state = states.get(rootPath)
   return {
     discord: {
-      connected: state?.runtime.discord?.isConnected() ?? false,
-      identity: state?.runtime.discord?.botTag() ?? null
+      connected: sharedDiscord?.isConnected() ?? false,
+      identity: sharedDiscord?.botTag() ?? null
     },
     slack: {
-      connected: state?.runtime.slack?.isConnected() ?? false,
-      identity: state?.runtime.slack?.botName() ?? null
+      connected: sharedSlack?.isConnected() ?? false,
+      identity: sharedSlack?.botName() ?? null
     }
   }
 }
 
-export async function listDiscordChannels(rootPath: string): Promise<RemoteChannelInfo[]> {
-  const runtime = states.get(rootPath)?.runtime.discord
-  if (!runtime || !runtime.isConnected()) return []
-  return runtime.listChannels().map((c) => ({
+export async function listDiscordChannels(_rootPath: string): Promise<RemoteChannelInfo[]> {
+  if (!sharedDiscord || !sharedDiscord.isConnected()) return []
+  return sharedDiscord.listChannels().map((c) => ({
     id: c.id,
     displayLabel: c.displayLabel
   }))
 }
 
-export async function listSlackChannels(rootPath: string): Promise<RemoteChannelInfo[]> {
-  const runtime = states.get(rootPath)?.runtime.slack
-  if (!runtime || !runtime.isConnected()) return []
-  const channels = await runtime.listChannels()
+export async function listSlackChannels(_rootPath: string): Promise<RemoteChannelInfo[]> {
+  if (!sharedSlack || !sharedSlack.isConnected()) return []
+  const channels = await sharedSlack.listChannels()
   return channels.map((c) => ({ id: c.id, displayLabel: c.displayLabel }))
 }
 
 // ── Token plumbing — settings ────────────────────────────────────────────
 
 export async function setDiscordToken(
-  rootPath: string,
+  _rootPath: string,
   token: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     await storeSetDiscordToken(token)
-    const state = states.get(rootPath)
-    if (state) await reconnectDiscord(state)
+    await reconnectDiscord()
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
 
-export async function clearDiscord(rootPath: string): Promise<void> {
+export async function clearDiscord(_rootPath: string): Promise<void> {
   await storeSetDiscordToken(null)
-  const state = states.get(rootPath)
-  if (!state) return
-  if (state.runtime.discord) {
-    await state.runtime.discord.disconnect()
-    state.runtime.discord = null
+  if (sharedDiscord) {
+    await sharedDiscord.disconnect().catch(() => { /* ignore */ })
+    sharedDiscord = null
   }
 }
 
 export async function setSlackTokens(
-  rootPath: string,
+  _rootPath: string,
   args: { botToken: string; appToken: string }
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     await storeSetSlackTokens({ botToken: args.botToken, appToken: args.appToken })
-    const state = states.get(rootPath)
-    if (state) await reconnectSlack(state)
+    await reconnectSlack()
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
 
-export async function clearSlack(rootPath: string): Promise<void> {
+export async function clearSlack(_rootPath: string): Promise<void> {
   await storeSetSlackTokens({ botToken: null, appToken: null })
-  const state = states.get(rootPath)
-  if (!state) return
-  if (state.runtime.slack) {
-    await state.runtime.slack.disconnect()
-    state.runtime.slack = null
+  if (sharedSlack) {
+    await sharedSlack.disconnect().catch(() => { /* ignore */ })
+    sharedSlack = null
   }
 }
 
@@ -316,52 +353,86 @@ function makeDispatcher(state: State, source: ChannelSource) {
   }
 }
 
-async function reconnectDiscord(state: State): Promise<void> {
-  if (state.runtime.discord) {
-    await state.runtime.discord.disconnect().catch(() => { /* ignore */ })
-    state.runtime.discord = null
-  }
-  const secrets = await readChannelSecrets()
-  if (!secrets.discordBotToken) return
-  const dispatch = makeDispatcher(state, 'discord')
-  const runtime = createDiscordRuntime(secrets.discordBotToken, (msg: IncomingDiscordMessage) => {
-    void dispatch(msg.channelId, msg.channelDisplay, msg.messageId, msg.author, msg.body)
-  })
+// Connect the single shared Discord socket if it isn't already up. Idempotent
+// and concurrency-safe (one in-flight connect at a time).
+async function ensureDiscordConnected(): Promise<void> {
+  if (sharedDiscord?.isConnected()) return
+  if (discordConnecting) return discordConnecting
+  discordConnecting = (async () => {
+    const secrets = await readChannelSecrets()
+    if (!secrets.discordBotToken) return
+    const runtime = createDiscordRuntime(secrets.discordBotToken, (msg: IncomingDiscordMessage) => {
+      fanOut('discord', {
+        identifier: msg.channelId,
+        identifierDisplay: msg.channelDisplay,
+        messageId: msg.messageId,
+        author: msg.author,
+        body: msg.body
+      })
+    })
+    try {
+      await runtime.connect()
+      sharedDiscord = runtime
+    } catch (err) {
+      notifyAll(`Channels: Discord connection failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  })()
   try {
-    await runtime.connect()
-    state.runtime.discord = runtime
-  } catch (err) {
-    state.ctx.notifyStatus(
-      `Channels: Discord connection failed: ${err instanceof Error ? err.message : String(err)}`,
-      { tone: 'error', durationMs: 6000 }
-    )
+    await discordConnecting
+  } finally {
+    discordConnecting = null
   }
 }
 
-async function reconnectSlack(state: State): Promise<void> {
-  if (state.runtime.slack) {
-    await state.runtime.slack.disconnect().catch(() => { /* ignore */ })
-    state.runtime.slack = null
+// Rebuild the shared Discord socket (e.g. after a token change). Token is
+// agent-global, so this affects every always-on Workspace.
+async function reconnectDiscord(): Promise<void> {
+  if (sharedDiscord) {
+    await sharedDiscord.disconnect().catch(() => { /* ignore */ })
+    sharedDiscord = null
   }
-  const secrets = await readChannelSecrets()
-  if (!secrets.slackBotToken || !secrets.slackAppToken) return
-  const dispatch = makeDispatcher(state, 'slack')
-  const runtime = createSlackRuntime(
-    secrets.slackBotToken,
-    secrets.slackAppToken,
-    (msg: IncomingSlackMessage) => {
-      void dispatch(msg.channelId, msg.channelDisplay, msg.messageId, msg.author, msg.body)
-    }
-  )
-  try {
-    await runtime.connect()
-    state.runtime.slack = runtime
-  } catch (err) {
-    state.ctx.notifyStatus(
-      `Channels: Slack connection failed: ${err instanceof Error ? err.message : String(err)}`,
-      { tone: 'error', durationMs: 6000 }
+  await ensureDiscordConnected()
+}
+
+async function ensureSlackConnected(): Promise<void> {
+  if (sharedSlack?.isConnected()) return
+  if (slackConnecting) return slackConnecting
+  slackConnecting = (async () => {
+    const secrets = await readChannelSecrets()
+    if (!secrets.slackBotToken || !secrets.slackAppToken) return
+    const runtime = createSlackRuntime(
+      secrets.slackBotToken,
+      secrets.slackAppToken,
+      (msg: IncomingSlackMessage) => {
+        fanOut('slack', {
+          identifier: msg.channelId,
+          identifierDisplay: msg.channelDisplay,
+          messageId: msg.messageId,
+          author: msg.author,
+          body: msg.body
+        })
+      }
     )
+    try {
+      await runtime.connect()
+      sharedSlack = runtime
+    } catch (err) {
+      notifyAll(`Channels: Slack connection failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  })()
+  try {
+    await slackConnecting
+  } finally {
+    slackConnecting = null
   }
+}
+
+async function reconnectSlack(): Promise<void> {
+  if (sharedSlack) {
+    await sharedSlack.disconnect().catch(() => { /* ignore */ })
+    sharedSlack = null
+  }
+  await ensureSlackConnected()
 }
 
 // ── Registration entry ──────────────────────────────────────────────────
@@ -373,26 +444,27 @@ export function register(ctx: ExtensionMainContext): () => void {
   const state: State = {
     rootPath,
     ctx,
-    runtime: { discord: null, slack: null },
     unsubscribeEmail: null,
     running: new Set()
   }
   states.set(rootPath, state)
 
-  ctx.registerTools(buildChannelsTools(state.runtime))
+  // Tools post through the shared runtimes (agent-global sockets).
+  ctx.registerTools(buildChannelsTools(sharedRuntime))
 
-  // Email subscriber — always on. The emitter just doesn't fire until a
-  // transport is configured.
+  // Email subscriber — per-Workspace, always on. The emitter just doesn't fire
+  // until a transport is configured.
   const emailDispatch = makeDispatcher(state, 'email')
   state.unsubscribeEmail = subscribeToEmail((msg: IncomingEmailNotification) => {
     void emailDispatch(msg.fromAddress, null, msg.messageId, msg.authorDisplay, msg.body)
   })
 
-  // Bring up bot transports asynchronously so register() returns promptly.
+  // Ensure the shared bot transports are up (no-op if another Workspace already
+  // brought them online). Async so register() returns promptly.
   void (async () => {
     try {
-      await reconnectDiscord(state)
-      await reconnectSlack(state)
+      await ensureDiscordConnected()
+      await ensureSlackConnected()
     } catch (err) {
       console.error('[rose-channels] initial connect failed:', err)
     }
@@ -401,11 +473,14 @@ export function register(ctx: ExtensionMainContext): () => void {
   return () => {
     state.unsubscribeEmail?.()
     state.unsubscribeEmail = null
-    void state.runtime.discord?.disconnect().catch(() => { /* ignore */ })
-    void state.runtime.slack?.disconnect().catch(() => { /* ignore */ })
-    state.runtime.discord = null
-    state.runtime.slack = null
     state.running.clear()
     states.delete(rootPath)
+    // Tear the shared sockets down only when no Workspace needs them anymore.
+    if (states.size === 0) {
+      void sharedDiscord?.disconnect().catch(() => { /* ignore */ })
+      void sharedSlack?.disconnect().catch(() => { /* ignore */ })
+      sharedDiscord = null
+      sharedSlack = null
+    }
   }
 }

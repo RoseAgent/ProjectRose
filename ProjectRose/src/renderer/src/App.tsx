@@ -7,7 +7,7 @@ import { ChatPanel } from './components/ChatView/ChatPanel'
 import { SettingsView } from './components/SettingsView/SettingsView'
 import { AccountView } from './components/AccountView/AccountView'
 import { AppsDrawer } from './components/AppsDrawer/AppsDrawer'
-import { WelcomeView } from './components/WelcomeView/WelcomeView'
+import { WorkspacePickerModal } from './components/ChatView/WorkspacePickerModal'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
 import { BottomDock } from './components/BottomDock/BottomDock'
 import { UpdateToast } from './components/UpdateToast'
@@ -23,6 +23,7 @@ import { useStatusStore } from './stores/useStatusStore'
 import { useUpdaterStore } from './stores/useUpdaterStore'
 import { useAppsDrawerStore } from './stores/useAppsDrawerStore'
 import { useScreenWebcamShare } from './hooks/useScreenWebcamShare'
+import { useChat } from './stores/useChat'
 import styles from './App.module.css'
 
 function App(): JSX.Element {
@@ -32,9 +33,10 @@ function App(): JSX.Element {
   const openFile = useFileStore((s) => s.openFile)
   const saveActiveFile = useFileStore((s) => s.saveActiveFile)
   const createNewFile = useFileStore((s) => s.createNewFile)
-  const openFolder = useProjectStore((s) => s.openFolder)
   const refreshTree = useProjectStore((s) => s.refreshTree)
   const toggleTerminal = useViewStore((s) => s.toggleTerminal)
+  const workspacePickerOpen = useChat((s) => s.workspacePickerOpen)
+  const externalView = useChat((s) => s.externalView)
 
   const { load: loadSettings } = useSettingsStore()
   const settingsLoaded = useSettingsStore((s) => s.loaded)
@@ -85,28 +87,47 @@ function App(): JSX.Element {
     }
   }, [])
 
-  // Auto-bind hostMode to ProjectRose sign-in state. Signed in → managed
-  // endpoint becomes the default; signed out → fall back to whatever the user
-  // had configured. Reconciles on launch and on every auth change.
+  // Auto-bind hostMode to sign-in state. Precedence: ProjectRose sign-in →
+  // managed endpoint; else Kimi sign-in → Kimi Code; else fall back to
+  // self-hosted Ollama. Reconciles on launch and on every auth change, so
+  // signing out of one provider drops through to the next.
   useEffect(() => {
     if (!settingsLoaded) return
     let cancelled = false
-    const sync = (loggedIn: boolean): void => {
-      const desired: 'projectrose' | 'self' = loggedIn ? 'projectrose' : 'self'
+    const loggedIn = { pr: false, kimi: false }
+    const sync = (): void => {
+      const desired: 'projectrose' | 'kimi' | 'self' =
+        loggedIn.pr ? 'projectrose' : loggedIn.kimi ? 'kimi' : 'self'
       const current = useSettingsStore.getState().hostMode
       if (current !== desired) {
         useSettingsStore.getState().update({ hostMode: desired }).catch(() => {})
       }
     }
-    window.api.auth.getStatus().then((s) => { if (!cancelled) sync(s.loggedIn) }).catch(() => {})
-    const off = window.api.auth.onChanged((d) => sync(d.loggedIn))
-    return () => { cancelled = true; off() }
+    Promise.all([
+      window.api.auth.getStatus().catch(() => ({ loggedIn: false })),
+      window.api.kimiAuth.getStatus().catch(() => ({ loggedIn: false }))
+    ]).then(([pr, kimi]) => {
+      if (cancelled) return
+      loggedIn.pr = pr.loggedIn
+      loggedIn.kimi = kimi.loggedIn
+      sync()
+    })
+    const offPr = window.api.auth.onChanged((d) => { loggedIn.pr = d.loggedIn; sync() })
+    const offKimi = window.api.kimiAuth.onChanged((d) => { loggedIn.kimi = d.loggedIn; sync() })
+    return () => { cancelled = true; offPr(); offKimi() }
   }, [settingsLoaded])
 
   // Load dynamic (third-party) extensions whenever the project changes
   useEffect(() => {
     loadDynamicExtensions(rootPath ?? '').catch(console.error)
   }, [rootPath])
+
+  // Load the global grouped conversation list once on mount. This binds the
+  // most recent Rose conversation's Workspace and hydrates its timeline —
+  // there is no launch-time Workspace gate anymore (see ADR 0016).
+  useEffect(() => {
+    useChat.getState().loadAllConversations().catch(console.error)
+  }, [])
 
   // Load persisted settings on mount
   useEffect(() => { loadSettings() }, [loadSettings])
@@ -183,6 +204,13 @@ function App(): JSX.Element {
       setNeedsSetup(false)
       return
     }
+    // Don't scaffold a folder we're only viewing read-only (an external
+    // session's workspace) or one that's missing on disk — that would create
+    // .projectrose/ in a folder the user never chose for a Rose conversation.
+    if (externalView || useProjectStore.getState().workspaceMissing) {
+      setNeedsSetup(false)
+      return
+    }
     // The workspace scaffold (.projectrose/heartbeat/...) is workspace-scoped
     // and must exist regardless of whether the agent has been initialised.
     // Run it unconditionally; checkRoseMd only governs whether the SetupWizard
@@ -191,7 +219,7 @@ function App(): JSX.Element {
     window.api.checkRoseMd(rootPath).then((hasMd) => {
       setNeedsSetup(!hasMd)
     })
-  }, [rootPath])
+  }, [rootPath, externalView])
 
   // Poll the file tree every minute to catch external changes.
   useEffect(() => {
@@ -200,10 +228,11 @@ function App(): JSX.Element {
     return () => clearInterval(interval)
   }, [rootPath, refreshTree])
 
+  // File → Open Folder starts a fresh conversation bound to the chosen folder.
   const handleOpenFolder = useCallback(async () => {
     const path = await window.api.openFolderDialog()
-    if (path) openFolder(path)
-  }, [openFolder])
+    if (path) useChat.getState().startNewConversation(path)
+  }, [])
 
   const handleOpenFile = useCallback(async () => {
     const path = await window.api.openFileDialog()
@@ -252,27 +281,17 @@ function App(): JSX.Element {
     return () => window.removeEventListener('keydown', handler)
   }, [rootPath, toggleTerminal])
 
-  // Welcome screen when no project is open
-  if (!rootPath) {
-    return (
-      <div className={styles.app}>
-        <div className={styles.titleBar} />
-        <WelcomeView onOpenFolder={handleOpenFolder} />
-        <UpdateToast />
-      </div>
-    )
-  }
-
   return (
     <div className={styles.app}>
       <div className={styles.titleBar} />
       <TopBar />
-      {needsSetup && (
+      {needsSetup && rootPath && (
         <SetupWizard
           rootPath={rootPath}
           onComplete={() => { setNeedsSetup(false); refreshTree() }}
         />
       )}
+      {workspacePickerOpen && <WorkspacePickerModal />}
       {activeView === 'editor' && (
         <div className={styles.toolbar}>
           <FileActions
