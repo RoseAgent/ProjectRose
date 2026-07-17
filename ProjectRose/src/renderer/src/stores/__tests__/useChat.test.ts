@@ -44,9 +44,31 @@ interface ApiStub {
   session: {
     save: ReturnType<typeof vi.fn>
     load: ReturnType<typeof vi.fn>
-    list: ReturnType<typeof vi.fn>
+    listAll: ReturnType<typeof vi.fn>
     delete: ReturnType<typeof vi.fn>
   }
+  external: { getTranscript: ReturnType<typeof vi.fn> }
+  workspaces: { listKnown: ReturnType<typeof vi.fn> }
+  readDirectoryTree: ReturnType<typeof vi.fn>
+  addRecentProject: ReturnType<typeof vi.fn>
+  indexProject: ReturnType<typeof vi.fn>
+}
+
+// A single-group list holding the given conversations in `/proj`.
+function groupsWith(
+  items: Array<{ source: string; id: string; title: string; createdAt: number; updatedAt: number }>
+): unknown[] {
+  return [{ workspacePath: '/proj', name: 'proj', existsOnDisk: true, lastActivity: 0, items }]
+}
+
+function roseItem(id: string, title = 't'): {
+  source: string
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+} {
+  return { source: 'rose', id, title, createdAt: 0, updatedAt: 0 }
 }
 
 function makeApi(): ApiStub {
@@ -73,9 +95,14 @@ function makeApi(): ApiStub {
     session: {
       save: vi.fn(async () => {}),
       load: vi.fn(async () => null),
-      list: vi.fn(async () => []),
+      listAll: vi.fn(async () => ({ groups: [] })),
       delete: vi.fn(async () => {}),
     },
+    external: { getTranscript: vi.fn(async () => null) },
+    workspaces: { listKnown: vi.fn(async () => []) },
+    readDirectoryTree: vi.fn(async () => null),
+    addRecentProject: vi.fn(async () => []),
+    indexProject: vi.fn(async () => {}),
   }
 }
 
@@ -85,8 +112,10 @@ function resetStores(): void {
     inputValue: '',
     isRecording: false,
     searchQuery: '',
-    sessions: [],
+    groups: [],
     currentSessionId: null,
+    externalView: null,
+    workspacePickerOpen: false,
     snapshot: null,
     contextStatus: null,
     toastDismissed: null,
@@ -134,13 +163,14 @@ describe('useChat slice', () => {
       expect(useChat.getState().inputValue).toBe('draft text')
     })
 
-    it('holds sessions and currentSessionId on the slice', () => {
+    it('holds grouped conversations and currentSessionId on the slice', () => {
       useChat.setState({
-        sessions: [{ id: 's1', title: 't1', createdAt: 0, updatedAt: 0 }],
+        groups: groupsWith([roseItem('s1', 't1')]) as never,
         currentSessionId: 's1',
       })
       const slice = useChat.getState()
-      expect(slice.sessions).toHaveLength(1)
+      expect(slice.groups).toHaveLength(1)
+      expect(slice.groups[0].items).toHaveLength(1)
       expect(slice.currentSessionId).toBe('s1')
     })
 
@@ -185,12 +215,13 @@ describe('useChat slice', () => {
       expect(messages[0]).toMatchObject({ role: 'user', content: 'hello world' })
       expect(rootPath).toBe('/proj')
 
-      // A session was created and reflected onto the slice via the
-      // sessions-store subscription.
-      expect(useChat.getState().sessions).toHaveLength(1)
-      expect(useChat.getState().currentSessionId).toBe(
-        useChat.getState().sessions[0].id
-      )
+      // A conversation was created and grouped under its Workspace, carrying
+      // the active workspacePath.
+      const groups = useChat.getState().groups
+      expect(groups).toHaveLength(1)
+      expect(groups[0].workspacePath).toBe('/proj')
+      expect(groups[0].items).toHaveLength(1)
+      expect(useChat.getState().currentSessionId).toBe(groups[0].items[0].id)
 
       await vi.advanceTimersByTimeAsync(250)
       await promise
@@ -227,17 +258,20 @@ describe('useChat slice', () => {
       expect(api.aiCancelGeneration).toHaveBeenCalledWith('sess-y')
     })
 
-    it('newSession() resets the slice', () => {
+    it('startNewConversation() resets the slice for a fresh conversation', async () => {
       useChat.setState({
-        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        groups: groupsWith([roseItem('s1')]) as never,
         currentSessionId: 's1',
         messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
+        externalView: { source: 'claude-code', id: 'x', title: 'x', workspacePath: '/proj', entries: [] } as never,
       })
 
-      useChat.getState().newSession()
+      // Same workspace → bindWorkspace short-circuits (no readDirectoryTree).
+      await useChat.getState().startNewConversation('/proj')
 
       expect(useChat.getState().currentSessionId).toBeNull()
       expect(useChat.getState().messages).toEqual([])
+      expect(useChat.getState().externalView).toBeNull()
     })
 
     it('compressNow → refreshContextStatus → send substitutes the snapshot on the outgoing wire', async () => {
@@ -250,7 +284,7 @@ describe('useChat slice', () => {
           { id: 'u1', role: 'user', content: 'old', timestamp: 0 },
           { id: 'a1', role: 'assistant', content: 'old reply', timestamp: 0 },
         ],
-        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        groups: groupsWith([roseItem('s1')]) as never,
         currentSessionId: 's1',
       })
 
@@ -321,7 +355,7 @@ describe('useChat slice', () => {
           { id: 'u1', role: 'user', content: 'old', timestamp: 0 },
           { id: 'a1', role: 'assistant', content: 'old reply', timestamp: 0 },
         ],
-        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        groups: groupsWith([roseItem('s1')]) as never,
         currentSessionId: 's1',
       })
       api.aiCompressToolNoise.mockResolvedValueOnce({
@@ -347,7 +381,7 @@ describe('useChat slice', () => {
       const notify = captureNotify()
       useChat.setState({
         messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
-        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        groups: groupsWith([roseItem('s1')]) as never,
         currentSessionId: 's1',
       })
       api.aiCompressToolNoise.mockResolvedValueOnce({
@@ -370,7 +404,7 @@ describe('useChat slice', () => {
           { id: 'u1', role: 'user', content: 'old', timestamp: 0 },
           { id: 'a1', role: 'assistant', content: 'old reply', timestamp: 0 },
         ],
-        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        groups: groupsWith([roseItem('s1')]) as never,
         currentSessionId: 's1',
       })
       api.aiCompressToolNoise.mockResolvedValueOnce({ status: 'no-model' })
@@ -390,7 +424,7 @@ describe('useChat slice', () => {
           { id: 'u1', role: 'user', content: 'old', timestamp: 0 },
           { id: 'a1', role: 'assistant', content: 'old reply', timestamp: 0 },
         ],
-        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        groups: groupsWith([roseItem('s1')]) as never,
         currentSessionId: 's1',
       })
       api.aiCompressToolNoise.mockResolvedValueOnce({
@@ -407,6 +441,8 @@ describe('useChat slice', () => {
     })
 
     it('switchSession round-trips a persisted snapshot including compressedTurnCount', async () => {
+      // switchSession resolves the target's Workspace from the grouped list.
+      useChat.setState({ groups: groupsWith([roseItem('s2', 'persisted')]) as never })
       api.session.load.mockResolvedValueOnce({
         id: 's2',
         title: 'persisted',
@@ -503,9 +539,9 @@ describe('useChat slice', () => {
       expect(result).toBe('Error: The model returned an empty response.')
     })
 
-    it('clearForProjectSwitch() wipes the chat-related slice state', () => {
+    it('deleteSession() of the active conversation resets the timeline', async () => {
       useChat.setState({
-        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        groups: groupsWith([roseItem('s1')]) as never,
         currentSessionId: 's1',
         messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
         snapshot: {
@@ -517,9 +553,10 @@ describe('useChat slice', () => {
         },
       })
 
-      useChat.getState().clearForProjectSwitch()
+      await useChat.getState().deleteSession('s1')
 
-      expect(useChat.getState().sessions).toEqual([])
+      expect(api.session.delete).toHaveBeenCalledWith('s1')
+      expect(useChat.getState().groups).toEqual([]) // empty group pruned
       expect(useChat.getState().currentSessionId).toBeNull()
       expect(useChat.getState().messages).toEqual([])
       expect(useChat.getState().snapshot).toBeNull()

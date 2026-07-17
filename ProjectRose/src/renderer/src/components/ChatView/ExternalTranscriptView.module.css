@@ -1,0 +1,115 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.badge {
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid currentColor;
+  flex-shrink: 0;
+}
+
+.badgeClaude {
+  color: #c58a5a;
+}
+
+.badgeCodex {
+  color: #5a9bc5;
+}
+
+.headText {
+  min-width: 0;
+  flex: 1;
+}
+
+.headTitle {
+  font-family: var(--font-family-mono);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headPath {
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readonly {
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.emptyBody {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.truncated {
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 12px;
+  font-style: italic;
+}
+
+.footer {
+  flex-shrink: 0;
+  padding: 12px 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.startBtn {
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.startBtn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
+  background: var(--color-button-hover-bg);
+}
+
+.startBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

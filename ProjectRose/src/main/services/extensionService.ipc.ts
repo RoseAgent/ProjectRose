@@ -19,10 +19,9 @@ export const extensionIpc = defineIpc('extension', {
   disable: method<[rootPath: string, id: string], { ok: boolean }>(),
   loadRendererCode: method<[rootPath: string, id: string], LoadRendererResult>(),
   loadMainModule: method<[rootPath: string, id: string], { ok: boolean }>(),
-  // Per-workspace registration of the main modules shipped with built-in
-  // extensions (ADR 0010). Called by the renderer's loadDynamicExtensions
-  // bootstrap before any per-extension dynamic loads. See
-  // `src/main/extensions/builtins/index.ts`.
-  loadBuiltinMains: method<[rootPath: string], { ok: boolean }>(),
-  unloadBuiltinMains: method<[rootPath: string], { ok: boolean }>()
+  // Ensure a Workspace's built-in main modules (rose-routines / rose-channels)
+  // are running. Idempotent — the main process owns their lifecycle now and
+  // starts them always-on at boot; this is the on-demand bring-up when a
+  // Conversation binds a Workspace. See ADR 0017 and alwaysOnRuntimes.ts.
+  ensureBuiltinMains: method<[rootPath: string], { ok: boolean }>()
 })

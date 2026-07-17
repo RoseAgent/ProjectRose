@@ -7,8 +7,10 @@ import { registerSkillHandlers } from './skillHandlers'
 import { registerScreenHandlers } from './screenHandlers'
 import { registerTtsManifest } from './ttsHandlers'
 
-import { sessionIpc } from '../services/sessionService.ipc'
-import { listSessions, loadSession, saveSession, deleteSession } from '../services/sessionService'
+import { sessionIpc, externalIpc, workspacesIpc } from '../services/conversation.ipc'
+import { loadConversation, saveConversation, deleteConversation } from '../services/conversationStore'
+import { buildWorkspaceGroupedList, listKnownWorkspaces } from '../services/workspaceRegistry'
+import { getExternalTranscript } from '../services/externalSessions'
 
 import { promptIpc } from '../services/promptService.ipc'
 import {
@@ -82,10 +84,7 @@ import { buildAgentMd, buildInjectedSections } from '../services/agentMd'
 import { sessionRegistry } from '../services/sessionRegistry'
 
 import { extensionIpc } from '../services/extensionService.ipc'
-import {
-  loadAllBuiltinMains,
-  unloadAllBuiltinMains
-} from '../extensions/builtins'
+import { ensureRuntimeFor } from '../services/alwaysOnRuntimes'
 import { routinesIpc } from '../extensions/builtins/rose-routines/routinesService.ipc'
 import {
   listRoutines as routinesList,
@@ -233,10 +232,16 @@ export function registerAllHandlers(): void {
 // registerAllHandlers() — see main/index.ts.
 export function registerIpcManifests(): void {
   sessionIpc.register({
-    list: listSessions,
-    load: loadSession,
-    save: saveSession,
-    delete: deleteSession
+    listAll: buildWorkspaceGroupedList,
+    load: loadConversation,
+    save: saveConversation,
+    delete: deleteConversation
+  })
+  externalIpc.register({
+    getTranscript: getExternalTranscript
+  })
+  workspacesIpc.register({
+    listKnown: listKnownWorkspaces
   })
   promptIpc.register({
     readRose: readRosePrompt,
@@ -327,19 +332,22 @@ export function registerIpcManifests(): void {
     disable: disableExtension,
     loadRendererCode,
     loadMainModule,
-    loadBuiltinMains: async (rootPath: string) => {
-      await loadAllBuiltinMains(rootPath)
-      return { ok: true }
-    },
-    unloadBuiltinMains: async (rootPath: string) => {
-      unloadAllBuiltinMains(rootPath)
+    ensureBuiltinMains: async (rootPath: string) => {
+      await ensureRuntimeFor(rootPath)
       return { ok: true }
     }
   })
   routinesIpc.register({
     list: routinesList,
     read: routinesRead,
-    save: routinesSave,
+    // Saving a routine may be the first rule in a Workspace that had no
+    // runtime yet — bring it online so the new routine actually schedules
+    // without waiting for a restart (ADR 0017).
+    save: async (...args: Parameters<typeof routinesSave>) => {
+      const result = await routinesSave(...args)
+      await ensureRuntimeFor(args[0])
+      return result
+    },
     delete: routinesDelete,
     runNow: routinesRunNow,
     listRuns: routinesListRuns,
@@ -348,7 +356,11 @@ export function registerIpcManifests(): void {
   channelsIpc.register({
     list: channelsList,
     read: channelsRead,
-    save: channelsSave,
+    save: async (...args: Parameters<typeof channelsSave>) => {
+      const result = await channelsSave(...args)
+      await ensureRuntimeFor(args[0])
+      return result
+    },
     delete: channelsDelete,
     runNow: channelsRunNow,
     listRuns: channelsListRuns,
