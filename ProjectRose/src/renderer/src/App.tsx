@@ -85,22 +85,34 @@ function App(): JSX.Element {
     }
   }, [])
 
-  // Auto-bind hostMode to ProjectRose sign-in state. Signed in → managed
-  // endpoint becomes the default; signed out → fall back to whatever the user
-  // had configured. Reconciles on launch and on every auth change.
+  // Auto-bind hostMode to sign-in state. Precedence: ProjectRose sign-in →
+  // managed endpoint; else Kimi sign-in → Kimi Code; else fall back to
+  // self-hosted Ollama. Reconciles on launch and on every auth change, so
+  // signing out of one provider drops through to the next.
   useEffect(() => {
     if (!settingsLoaded) return
     let cancelled = false
-    const sync = (loggedIn: boolean): void => {
-      const desired: 'projectrose' | 'self' = loggedIn ? 'projectrose' : 'self'
+    const loggedIn = { pr: false, kimi: false }
+    const sync = (): void => {
+      const desired: 'projectrose' | 'kimi' | 'self' =
+        loggedIn.pr ? 'projectrose' : loggedIn.kimi ? 'kimi' : 'self'
       const current = useSettingsStore.getState().hostMode
       if (current !== desired) {
         useSettingsStore.getState().update({ hostMode: desired }).catch(() => {})
       }
     }
-    window.api.auth.getStatus().then((s) => { if (!cancelled) sync(s.loggedIn) }).catch(() => {})
-    const off = window.api.auth.onChanged((d) => sync(d.loggedIn))
-    return () => { cancelled = true; off() }
+    Promise.all([
+      window.api.auth.getStatus().catch(() => ({ loggedIn: false })),
+      window.api.kimiAuth.getStatus().catch(() => ({ loggedIn: false }))
+    ]).then(([pr, kimi]) => {
+      if (cancelled) return
+      loggedIn.pr = pr.loggedIn
+      loggedIn.kimi = kimi.loggedIn
+      sync()
+    })
+    const offPr = window.api.auth.onChanged((d) => { loggedIn.pr = d.loggedIn; sync() })
+    const offKimi = window.api.kimiAuth.onChanged((d) => { loggedIn.kimi = d.loggedIn; sync() })
+    return () => { cancelled = true; offPr(); offKimi() }
   }, [settingsLoaded])
 
   // Load dynamic (third-party) extensions whenever the project changes

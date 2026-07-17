@@ -9,6 +9,10 @@ const CLOUD_TABLE: Array<{ test: (model: string) => boolean; ctx: number }> = [
   { test: (m) => /^gpt-4/.test(m), ctx: 128_000 },
   { test: (m) => /^gpt-3\.5/.test(m), ctx: 16_000 },
   { test: (m) => /^o1/.test(m), ctx: 200_000 },
+  // Kimi Code models: K3 series carries a 1M window; the kimi-for-coding /
+  // kimi-k2.* aliases are 256K.
+  { test: (m) => /^k3/.test(m), ctx: 1_048_576 },
+  { test: (m) => /^kimi-/.test(m), ctx: 262_144 },
 ]
 
 const ollamaCache = new Map<string, number>()

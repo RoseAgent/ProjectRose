@@ -1,6 +1,6 @@
 {
   "name": "projectrose",
-  "version": "1.9.4",
+  "version": "2.0",
   "description": "ProjectRose - A code editor IDE with AI chat integration",
   "author": "RoseAgent",
   "repository": {
@@ -92,10 +92,13 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.53",
+    "@ai-sdk/openai-compatible": "^3.0.12",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@huggingface/transformers": "^4.2.0",
     "@monaco-editor/react": "^4.7.0",
+    "@slack/socket-mode": "^2.0.5",
+    "@slack/web-api": "^7.10.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",
     "@xterm/xterm": "^5.5.0",
@@ -103,8 +106,6 @@
     "ai-sdk-ollama": "^3.8.3",
     "better-sqlite3": "^12.9.0",
     "clsx": "^2.1.1",
-    "@slack/socket-mode": "^2.0.5",
-    "@slack/web-api": "^7.10.0",
     "discord.js": "^14.26.3",
     "electron-log": "^5.4.3",
     "electron-updater": "^6.8.3",

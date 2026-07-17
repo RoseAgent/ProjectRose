@@ -8,7 +8,7 @@ import { DEFAULT_TTS_SETTINGS, type TtsSettings } from '../../shared/tts'
 import { logInteraction } from './interactionLog'
 
 export interface ModelConfig {
-  provider: 'ollama' | 'projectrose'
+  provider: 'ollama' | 'projectrose' | 'kimi'
   modelName: string
 }
 
@@ -20,7 +20,7 @@ export interface AppSettings {
   activeListeningSetupComplete: boolean
   activeListeningDraftSeconds: number
   whisperModel: string
-  hostMode: 'projectrose' | 'self'
+  hostMode: 'projectrose' | 'kimi' | 'self'
   agentStartsExpanded: boolean
   lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
@@ -28,6 +28,9 @@ export interface AppSettings {
   // the user types one in Settings → Providers → Ollama. ProjectRose mode
   // ignores this and uses the inline 'managed' model in modelSelection.ts.
   ollamaModelName: string
+  // The Kimi Code model to run when hostMode === 'kimi'. The OAuth token pair
+  // is NOT here — it lives in userData/kimi-session.bin via safeStorage.
+  kimiModelName: string
   // Memory subsystem (host-level, agent-global at ~/.rose/memory/). The
   // diary scheduler reads enabled + time; the renderer Memory tab writes
   // them through the same settings:set IPC.
@@ -62,6 +65,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModelName: '',
+  kimiModelName: 'kimi-for-coding',
   memory: DEFAULT_MEMORY_SETTINGS,
   email: DEFAULT_EMAIL_SETTINGS,
   tts: DEFAULT_TTS_SETTINGS

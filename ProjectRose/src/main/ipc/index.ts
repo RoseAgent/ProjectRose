@@ -73,6 +73,9 @@ import {
 import { authIpc, loginViaAuthWindow } from '../services/authService.ipc'
 import { handleLogout, cancelPairing, getAuthStatus, fetchUsage } from '../services/authService'
 
+import { kimiAuthIpc } from '../services/kimiAuthService.ipc'
+import { kimiSignIn, kimiSignOut, cancelKimiSignIn, getKimiAuthStatus } from '../services/kimiAuthService'
+
 import { aiIpc } from '../services/aiService.ipc'
 import { chat, compressToolNoise, getContextStatus } from '../services/aiService'
 import { buildAgentMd, buildInjectedSections } from '../services/agentMd'
@@ -304,6 +307,12 @@ export function registerIpcManifests(): void {
     cancel: cancelPairing,
     getStatus: getAuthStatus,
     getUsage: fetchUsage
+  })
+  kimiAuthIpc.register({
+    login: kimiSignIn,
+    logout: kimiSignOut,
+    cancel: cancelKimiSignIn,
+    getStatus: getKimiAuthStatus
   })
   extensionIpc.register({
     list: listExtensions,

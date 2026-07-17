@@ -13,6 +13,7 @@ export const RELEASES: ReleaseEntry[] = [
     date: null,
     title: 'Manage routines from chat',
     highlights: [
+      'New Kimi provider — sign in with your kimi.com account under Settings → Providers → Kimi (browser-based OAuth, no API keys) and chats route through Kimi Code. Pick your model — Kimi for Coding, high-speed, K2 Thinking, or K3 — subject to your kimi.com plan; signing out falls back to your other providers',
       'The agent can now manage Routines for you — ask it in chat to create, edit, enable/disable, delete, or immediately run a routine, and to read a routine\'s run history and transcripts. Eight new routines_* tools, all toggleable under Settings → Tools'
     ]
   },

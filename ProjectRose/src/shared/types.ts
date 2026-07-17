@@ -27,7 +27,7 @@ export type BaseView = 'editor' | 'chat' | 'settings'
 export type ActiveView = BaseView | (string & Record<never, never>)
 
 export interface ModelConfig {
-  provider: 'ollama' | 'projectrose'
+  provider: 'ollama' | 'projectrose' | 'kimi'
   modelName: string
 }
 
