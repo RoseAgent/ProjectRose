@@ -24,6 +24,13 @@ export function agentExtensionsDir(): string {
   return join(agentHomePath(), 'extensions')
 }
 
+// Conversations live agent-global (not inside each Workspace) so the whole
+// history can be listed and grouped in one scan. Layout mirrors Claude Code:
+// <conversations>/<encoded-workspace>/<sessionId>/main.json.
+export function conversationsDir(): string {
+  return join(agentHomePath(), 'conversations')
+}
+
 export function agentExtensionInstallPath(extensionId: string): string {
   return join(agentExtensionsDir(), extensionId)
 }

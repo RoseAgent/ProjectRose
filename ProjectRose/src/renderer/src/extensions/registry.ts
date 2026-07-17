@@ -84,12 +84,12 @@ export async function loadDynamicExtensions(rootPath: string): Promise<void> {
     return
   }
 
-  // Load the main-process halves of built-in extensions that ship one. The
-  // renderer halves are statically registered in BUILTIN_EXTENSIONS, but
-  // anything that needs to run in main (schedulers, IPC handlers,
-  // capability-gated host hooks) registers here on every workspace open. See
-  // src/main/extensions/builtins/index.ts.
-  await window.api.extension.loadBuiltinMains(rootPath).catch(() => {})
+  // Built-in main modules (rose-routines / rose-channels) are now started by
+  // the main process — at boot for every Workspace with enabled rules, and on
+  // demand via ensureRuntimeFor when a Conversation binds a Workspace or a rule
+  // is saved (ADR 0017). The renderer no longer drives their lifecycle, so a
+  // Conversation switch never flaps their sockets/schedulers.
+  await window.api.extension.ensureBuiltinMains(rootPath).catch(() => {})
 
   const { installed } = await window.api.extension.list(rootPath)
 

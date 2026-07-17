@@ -1,0 +1,12 @@
+/* Slash-command highlighting for Claude Code messages (see messageContent.tsx). */
+.commandName {
+  font-family: var(--font-family-mono);
+  color: var(--color-accent);
+  background: var(--color-sidebar-item-active);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  padding: 0 5px;
+  font-size: 0.9em;
+  font-weight: 600;
+  white-space: nowrap;
+}

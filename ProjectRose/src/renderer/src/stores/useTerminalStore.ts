@@ -2,8 +2,13 @@ import { create } from 'zustand'
 
 interface TerminalState {
   sessionId: string | null
+  // A command to type into the terminal as soon as a session is ready. Set by
+  // "Open in Claude" (and consumed one-shot by TerminalPanel). Survives the
+  // dispose+respawn that re-roots the terminal at a new cwd.
+  pendingCommand: string | null
   initialize: (cwd?: string) => Promise<void>
   dispose: () => Promise<void>
+  setPendingCommand: (command: string | null) => void
 }
 
 // Bumped on every initialize/dispose so an in-flight spawn whose caller is
@@ -12,6 +17,9 @@ let generation = 0
 
 export const useTerminalStore = create<TerminalState>()((set, get) => ({
   sessionId: null,
+  pendingCommand: null,
+
+  setPendingCommand: (pendingCommand) => set({ pendingCommand }),
 
   initialize: async (cwd?: string) => {
     const myGen = ++generation

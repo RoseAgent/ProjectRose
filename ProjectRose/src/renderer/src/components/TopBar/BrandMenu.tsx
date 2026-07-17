@@ -13,18 +13,15 @@ interface BrandMenuProps {
 
 const CLOSE_DELAY_MS = 180
 
-async function switchToProject(path: string): Promise<void> {
-  const current = useProjectStore.getState().rootPath
-  if (path === current) return
-
+// Start a fresh Conversation bound to `path`. The active Workspace follows the
+// conversation (there is no standalone "switch project" anymore).
+async function newConversationIn(path: string): Promise<void> {
   useFileStore.setState({
     openFiles: [],
     activeFilePath: null,
     previousActiveFilePath: null
   })
-  useChat.getState().clearForProjectSwitch()
-
-  await useProjectStore.getState().openFolder(path)
+  await useChat.getState().startNewConversation(path)
 }
 
 export function BrandMenu({ projectName }: BrandMenuProps): JSX.Element {
@@ -91,15 +88,14 @@ export function BrandMenu({ projectName }: BrandMenuProps): JSX.Element {
   // Cleanup pending timer on unmount
   useEffect(() => () => cancelClose(), [])
 
-  const handleOpenProject = async (): Promise<void> => {
+  const handleNewConversation = (): void => {
     closeNow()
-    const path = await window.api.openFolderDialog()
-    if (path) await switchToProject(path)
+    useChat.getState().openWorkspacePicker()
   }
 
   const handleOpenRecent = async (path: string): Promise<void> => {
     closeNow()
-    await switchToProject(path)
+    await newConversationIn(path)
   }
 
   const handleExit = (): void => {
@@ -147,9 +143,9 @@ export function BrandMenu({ projectName }: BrandMenuProps): JSX.Element {
             className={styles.menuItem}
             role="menuitem"
             onMouseEnter={() => setRecentOpen(false)}
-            onClick={handleOpenProject}
+            onClick={handleNewConversation}
           >
-            Open Project
+            New Conversation…
           </button>
 
           <div
@@ -165,7 +161,7 @@ export function BrandMenu({ projectName }: BrandMenuProps): JSX.Element {
               onClick={() => setRecentOpen(true)}
               disabled={filteredRecents.length === 0}
             >
-              <span>Open Recent Project</span>
+              <span>New Conversation in Recent…</span>
               <span className={styles.subCaret}>{'▸'}</span>
             </button>
 

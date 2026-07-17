@@ -267,3 +267,85 @@
   color: var(--color-text-muted);
   font-size: 9px;
 }
+
+/* ── workspace groups ── */
+.group {
+  margin-bottom: 6px;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-family-mono);
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+
+.groupHeader:hover {
+  background: var(--color-sidebar-item-hover);
+}
+
+.groupCaret {
+  font-size: 8px;
+  color: var(--color-text-muted);
+  width: 8px;
+  flex-shrink: 0;
+}
+
+.groupName {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.groupCount {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.groupMissing {
+  opacity: 0.5;
+}
+
+.missingChip {
+  font-size: 8px;
+  color: var(--color-warning, #c98a3a);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.badge {
+  font-family: var(--font-family-mono);
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid currentColor;
+  flex-shrink: 0;
+}
+
+.badgeRose {
+  color: var(--color-accent);
+}
+
+.badgeClaude {
+  color: #c58a5a;
+}
+
+.badgeCodex {
+  color: #5a9bc5;
+}

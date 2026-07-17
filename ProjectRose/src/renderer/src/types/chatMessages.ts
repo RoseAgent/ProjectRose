@@ -65,6 +65,9 @@ export interface SessionMeta {
   title: string
   createdAt: number
   updatedAt: number
+  // Absolute path of the Workspace this Conversation is bound to. Every
+  // Conversation always has one — a Conversation drives its own Workspace.
+  workspacePath: string
 }
 
 export type CompressedApiMessage = { role: 'user' | 'assistant' | 'system'; content: string }

@@ -14,6 +14,8 @@ import { buildSubagentTools } from './services/subagentTools'
 import { buildSkillTools } from './services/skillService'
 import { ensureAgentRoseMd } from './services/roseSetupService'
 import { ensureAgentHome } from './lib/agentHome'
+import { migrateAllKnownWorkspaces } from './services/conversationStore'
+import { startAlwaysOnRuntimes } from './services/alwaysOnRuntimes'
 import { initMemorySubsystem } from './services/memory'
 import { startEmailSyncLoop } from './services/email/emailSyncLoop'
 import { IPC } from '../shared/ipcChannels'
@@ -70,6 +72,14 @@ app.whenReady().then(async () => {
   await ensureAgentHome().catch((err) => log.error('[main] ensureAgentHome', err))
   await ensureAgentRoseMd().catch((err) => log.error('[main] ensureAgentRoseMd', err))
 
+  // One-time, non-destructive move of legacy per-workspace conversations
+  // (<ws>/.projectrose/sessions/) into the agent-home store so the whole
+  // history can be listed and grouped by Workspace. Idempotent — a marker in
+  // each source dir short-circuits future sweeps. See ADR 0016.
+  await migrateAllKnownWorkspaces().catch((err) =>
+    log.error('[main] migrateAllKnownWorkspaces', err)
+  )
+
   // Register the projectrose:// scheme. electron-builder installs this for
   // packaged Windows/Linux builds via the `protocols` config and for Mac via
   // `extendInfo.CFBundleURLTypes`, but in dev mode nothing's installed it
@@ -109,6 +119,11 @@ app.whenReady().then(async () => {
   // built-ins (rose-channels) can react to arrivals. Idempotent; a no-op
   // while no transport is configured. See ADR 0011 amendment 2026-05-25.
   startEmailSyncLoop()
+
+  // Always-on extension runtimes (ADR 0017): start rose-routines / rose-channels
+  // for every known Workspace that has enabled rules on disk, independent of
+  // which Conversation (if any) is active. Non-blocking.
+  startAlwaysOnRuntimes().catch((err) => log.error('[main] startAlwaysOnRuntimes', err))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

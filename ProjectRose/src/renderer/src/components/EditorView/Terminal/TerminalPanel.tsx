@@ -140,12 +140,29 @@ export function TerminalPanel(): JSX.Element {
       }, 50)
     }
 
+    // One-shot: if a command was queued (e.g. "Open in Claude"), type it into
+    // the freshly-spawned shell once it's had a moment to print its prompt. The
+    // command is cleared only when it actually fires, and only if this session
+    // is still the active one — so a dispose+respawn that re-roots the terminal
+    // at a new cwd carries the command forward instead of dropping it.
+    let pendingTimer: ReturnType<typeof setTimeout> | null = null
+    const pending = useTerminalStore.getState().pendingCommand
+    if (pending) {
+      pendingTimer = setTimeout(() => {
+        if (useTerminalStore.getState().sessionId === sessionId) {
+          window.api.writeTerminal(sessionId, `${pending}\r`)
+          useTerminalStore.getState().setPendingCommand(null)
+        }
+      }, 400)
+    }
+
     cleanupRef.current = () => {
       inputDisposable.dispose()
       removeDataListener()
     }
 
     return () => {
+      if (pendingTimer) clearTimeout(pendingTimer)
       if (cleanupRef.current) {
         cleanupRef.current()
         cleanupRef.current = null

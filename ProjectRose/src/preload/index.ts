@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipcChannels'
 import type { FileNode, RecentProject, ToolMeta } from '../shared/types'
 import type { Message } from '../shared/roseModelTypes'
-import { sessionIpc } from '../main/services/sessionService.ipc'
+import { sessionIpc, externalIpc, workspacesIpc } from '../main/services/conversation.ipc'
 import { promptIpc } from '../main/services/promptService.ipc'
 import { skillIpc } from '../main/services/skillService.ipc'
 import { interactionLogIpc } from '../main/services/interactionLog.ipc'
@@ -336,8 +336,11 @@ const api = {
     }
   },
 
-  // Chat Sessions
+  // Chat Sessions (Conversations), read-only External Sessions, and the
+  // known-workspace registry for the New Conversation picker.
   session: sessionIpc.bindings,
+  external: externalIpc.bindings,
+  workspaces: workspacesIpc.bindings,
 
   // Tools + Project settings — the hard-coded channel strings ('tools:list',
   // 'project:getSettings', 'project:setSettings') that used to live here are

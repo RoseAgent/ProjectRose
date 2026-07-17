@@ -16,6 +16,8 @@ import { useProjectStore } from './useProjectStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useStatusStore } from './useStatusStore'
 import { useScreenWebcamShare } from '../hooks/useScreenWebcamShare'
+import type { WorkspaceGroup, ConversationListItem } from '@shared/conversationGroups'
+import type { ExternalSource, ExternalTranscript } from '@shared/externalSession'
 
 // Tool-step count is fixed at 50 because it's a property of the agentic loop
 // budget rather than the model.
@@ -159,12 +161,13 @@ function buildPayload(
   meta: SessionMeta,
   messages: ChatMessage[],
   snapshot: CompressionSnapshot | null
-): Parameters<typeof window.api.session.save>[1] {
-  const payload: Parameters<typeof window.api.session.save>[1] = {
+): Parameters<typeof window.api.session.save>[0] {
+  const payload: Parameters<typeof window.api.session.save>[0] = {
     id: meta.id,
     title: meta.title,
     createdAt: meta.createdAt,
     updatedAt: Date.now(),
+    workspacePath: meta.workspacePath,
     messages: messages as unknown[],
   }
   if (snapshot) {
@@ -179,11 +182,114 @@ function buildPayload(
   return payload
 }
 
-function persistSession(rootPath: string, meta: SessionMeta): void {
+// The Conversation carries its own workspacePath, so a single sessionId-keyed
+// save is enough — the store resolves the group directory.
+function persistSession(meta: SessionMeta): void {
   const state = useChat.getState()
-  window.api.session.save(rootPath, buildPayload(meta, state.messages, state.snapshot)).catch(() => {
+  window.api.session.save(buildPayload(meta, state.messages, state.snapshot)).catch(() => {
     /* persistence failures are non-fatal */
   })
+}
+
+// ── Grouped-list helpers (operate on the sidebar's WorkspaceGroup[]) ────────
+
+function basename(p: string): string {
+  const trimmed = p.replace(/[\\/]+$/, '')
+  const parts = trimmed.split(/[\\/]/)
+  return parts[parts.length - 1] || p
+}
+
+function samePath(a: string, b: string): boolean {
+  const na = a.replace(/[\\/]+$/, '')
+  const nb = b.replace(/[\\/]+$/, '')
+  // Renderer can't know the platform reliably; case-insensitive compare is safe
+  // for grouping (a false merge only affects display, never storage).
+  return na.toLowerCase() === nb.toLowerCase()
+}
+
+// Find a Rose conversation's meta across the grouped list.
+function findRoseMeta(groups: WorkspaceGroup[], id: string): SessionMeta | null {
+  for (const g of groups) {
+    const item = g.items.find((i) => i.source === 'rose' && i.id === id)
+    if (item) {
+      return {
+        id: item.id,
+        title: item.title,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        workspacePath: g.workspacePath,
+      }
+    }
+  }
+  return null
+}
+
+function findItem(
+  groups: WorkspaceGroup[],
+  id: string
+): { group: WorkspaceGroup; item: ConversationListItem } | null {
+  for (const g of groups) {
+    const item = g.items.find((i) => i.id === id)
+    if (item) return { group: g, item }
+  }
+  return null
+}
+
+function sortGroups(groups: WorkspaceGroup[]): WorkspaceGroup[] {
+  for (const g of groups) g.items.sort((a, b) => b.updatedAt - a.updatedAt)
+  return [...groups].sort((a, b) => b.lastActivity - a.lastActivity)
+}
+
+// Insert or update a Rose conversation item, creating its group if needed.
+function upsertRose(groups: WorkspaceGroup[], meta: SessionMeta): WorkspaceGroup[] {
+  const next = groups.map((g) => ({ ...g, items: [...g.items] }))
+  const item: ConversationListItem = {
+    source: 'rose',
+    id: meta.id,
+    title: meta.title,
+    createdAt: meta.createdAt,
+    updatedAt: meta.updatedAt,
+  }
+  let group = next.find((g) => !g.approximatePath && samePath(g.workspacePath, meta.workspacePath))
+  if (!group) {
+    group = {
+      workspacePath: meta.workspacePath,
+      name: basename(meta.workspacePath),
+      existsOnDisk: true,
+      lastActivity: meta.updatedAt,
+      items: [],
+    }
+    next.push(group)
+  }
+  const idx = group.items.findIndex((i) => i.source === 'rose' && i.id === meta.id)
+  if (idx >= 0) group.items[idx] = item
+  else group.items.push(item)
+  group.lastActivity = Math.max(group.lastActivity, meta.updatedAt)
+  return sortGroups(next)
+}
+
+function removeItemLocal(groups: WorkspaceGroup[], id: string): WorkspaceGroup[] {
+  const next = groups
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.id !== id) }))
+    .filter((g) => g.items.length > 0)
+  return sortGroups(next)
+}
+
+function renameItemLocal(groups: WorkspaceGroup[], id: string, title: string): WorkspaceGroup[] {
+  return groups.map((g) => ({
+    ...g,
+    items: g.items.map((i) => (i.id === id ? { ...i, title } : i)),
+  }))
+}
+
+function touchItemLocal(groups: WorkspaceGroup[], id: string): WorkspaceGroup[] {
+  const now = Date.now()
+  const next = groups.map((g) => {
+    const items = g.items.map((i) => (i.id === id ? { ...i, updatedAt: now } : i))
+    const lastActivity = items.reduce((m, i) => Math.max(m, i.updatedAt), 0)
+    return { ...g, items, lastActivity }
+  })
+  return sortGroups(next)
 }
 
 // Short, human-readable token count for status notifications: 1234 → "1.2K",
@@ -251,9 +357,13 @@ export interface UseChatSlice {
   isRecording: boolean
   searchQuery: string
 
-  // Sessions state
-  sessions: SessionMeta[]
+  // Sessions state — conversations grouped by Workspace (Rose + read-only
+  // external sessions interleaved), plus the read-only transcript currently
+  // being viewed (if any) and the New Conversation picker's open state.
+  groups: WorkspaceGroup[]
   currentSessionId: string | null
+  externalView: ExternalTranscript | null
+  workspacePickerOpen: boolean
 
   // Compression / context state
   snapshot: CompressionSnapshot | null
@@ -270,13 +380,16 @@ export interface UseChatSlice {
   setSearchQuery: (value: string) => void
   compressNow: (opts?: { full?: boolean }) => Promise<void>
   dismissCompressionToast: () => void
-  newSession: () => void
-  loadSessions: () => Promise<void>
+  loadAllConversations: () => Promise<void>
   switchSession: (id: string) => Promise<void>
+  openExternalSession: (source: ExternalSource, id: string) => Promise<void>
+  closeExternalSession: () => void
+  startNewConversation: (workspacePath: string) => Promise<void>
+  openWorkspacePicker: () => void
+  closeWorkspacePicker: () => void
   deleteSession: (id: string) => Promise<void>
   renameSession: (id: string, title: string) => Promise<void>
   refreshContextStatus: () => Promise<void>
-  clearForProjectSwitch: () => void
 
   // Internal-but-public mutators (used by IPC listeners and tests).
   // Components should not call these directly; they remain on the surface
@@ -305,7 +418,7 @@ export interface UseChatSlice {
   setMessages: (messages: ChatMessage[]) => void
 
   // Sessions mutators
-  setSessions: (sessions: SessionMeta[]) => void
+  setGroups: (groups: WorkspaceGroup[]) => void
   setCurrentSessionId: (id: string | null) => void
   upsertSession: (session: SessionMeta) => void
   removeSession: (id: string) => void
@@ -334,8 +447,10 @@ export const useChat = create<UseChatSlice>((set, get) => ({
   isRecording: false,
   searchQuery: '',
 
-  sessions: [],
+  groups: [],
   currentSessionId: null,
+  externalView: null,
+  workspacePickerOpen: false,
 
   ...initialCompression,
 
@@ -595,29 +710,13 @@ export const useChat = create<UseChatSlice>((set, get) => ({
   setSearchQuery: (searchQuery) => set({ searchQuery }),
 
   // ── Sessions mutators ─────────────────────────────────────────────────
-  setSessions: (sessions) => set({ sessions }),
+  setGroups: (groups) => set({ groups }),
   setCurrentSessionId: (currentSessionId) => set({ currentSessionId }),
-  upsertSession: (session) =>
-    set((s) => {
-      const exists = s.sessions.some((x) => x.id === session.id)
-      return {
-        sessions: exists
-          ? s.sessions.map((x) => (x.id === session.id ? session : x))
-          : [session, ...s.sessions],
-      }
-    }),
-  removeSession: (id) =>
-    set((s) => ({ sessions: s.sessions.filter((x) => x.id !== id) })),
+  upsertSession: (session) => set((s) => ({ groups: upsertRose(s.groups, session) })),
+  removeSession: (id) => set((s) => ({ groups: removeItemLocal(s.groups, id) })),
   renameSessionLocal: (id, title) =>
-    set((s) => ({
-      sessions: s.sessions.map((x) => (x.id === id ? { ...x, title } : x)),
-    })),
-  touchSession: (id) =>
-    set((s) => ({
-      sessions: s.sessions.map((x) =>
-        x.id === id ? { ...x, updatedAt: Date.now() } : x
-      ),
-    })),
+    set((s) => ({ groups: renameItemLocal(s.groups, id, title) })),
+  touchSession: (id) => set((s) => ({ groups: touchItemLocal(s.groups, id) })),
 
   // ── Compression mutators ──────────────────────────────────────────────
   setSnapshot: (snapshot) => set({ snapshot }),
@@ -630,8 +729,22 @@ export const useChat = create<UseChatSlice>((set, get) => ({
   send: async () => {
     const trimmed = get().inputValue.trim()
     if (!trimmed || get().isLoading) return
-    const rootPath = useProjectStore.getState().rootPath
-    if (!rootPath) return
+    const projectState = useProjectStore.getState()
+    const rootPath = projectState.rootPath
+    // No active Workspace → prompt the user to pick one instead of silently
+    // dropping the message (preserves ADR 0006's "no silent folder" spirit).
+    if (!rootPath) {
+      get().openWorkspacePicker()
+      return
+    }
+    if (projectState.workspaceMissing) {
+      useStatusStore
+        .getState()
+        .notify('Workspace folder not found — restore it or start a conversation elsewhere', {
+          tone: 'error',
+        })
+      return
+    }
 
     userCancelled = false
 
@@ -649,20 +762,24 @@ export const useChat = create<UseChatSlice>((set, get) => ({
     }
 
     let sessionId = get().currentSessionId
-    let sessionMeta = sessionId
-      ? get().sessions.find((s) => s.id === sessionId)
-      : undefined
+    let sessionMeta = sessionId ? findRoseMeta(get().groups, sessionId) : null
     if (!sessionId || !sessionMeta) {
       sessionId = newSessionId()
       const now = Date.now()
-      sessionMeta = { id: sessionId, title: trimmed.slice(0, 50), createdAt: now, updatedAt: now }
+      sessionMeta = {
+        id: sessionId,
+        title: trimmed.slice(0, 50),
+        createdAt: now,
+        updatedAt: now,
+        workspacePath: rootPath,
+      }
       get().upsertSession(sessionMeta)
       get().setCurrentSessionId(sessionId)
     }
 
     get().setInputValue('')
     get().startTurn(userMsg)
-    persistSession(rootPath, sessionMeta)
+    persistSession(sessionMeta)
 
     // Streaming listener wire-up with sessionId filtering: late events from
     // an abandoned session would otherwise land on the new session's timeline.
@@ -720,8 +837,8 @@ export const useChat = create<UseChatSlice>((set, get) => ({
           get().settleTurn({ modelDisplay: response.modelDisplay })
         }
         get().touchSession(sessionId)
-        const updatedMeta = get().sessions.find((s) => s.id === sessionId) ?? sessionMeta!
-        persistSession(rootPath, updatedMeta)
+        const updatedMeta = findRoseMeta(get().groups, sessionId) ?? sessionMeta!
+        persistSession(updatedMeta)
         // Refresh status after each settled turn so the toast can fire.
         get().refreshContextStatus().catch(() => { /* best-effort */ })
         if (response.modifiedFiles.length > 0) {
@@ -742,7 +859,7 @@ export const useChat = create<UseChatSlice>((set, get) => ({
           const errorContent = `Error: ${err instanceof Error ? err.message : 'Failed to get response'}`
           get().errorCleanup({ errorContent })
         }
-        persistSession(rootPath, sessionMeta!)
+        persistSession(sessionMeta!)
       }, POST_RESOLUTION_DEFER_MS)
     }
   },
@@ -795,8 +912,8 @@ export const useChat = create<UseChatSlice>((set, get) => ({
           compressedAt: Date.now(),
           compressedTurnCount: outcome.result.compressedTurnCount,
         })
-        const meta = get().sessions.find((s) => s.id === sessionId)
-        if (meta) persistSession(rootPath, meta)
+        const meta = findRoseMeta(get().groups, sessionId)
+        if (meta) persistSession(meta)
         await get().refreshContextStatus()
         const fresh = get().contextStatus
         get().setToastDismissed(
@@ -836,35 +953,64 @@ export const useChat = create<UseChatSlice>((set, get) => ({
     })
   },
 
-  newSession: () => {
+  openWorkspacePicker: () => set({ workspacePickerOpen: true }),
+  closeWorkspacePicker: () => set({ workspacePickerOpen: false }),
+
+  startNewConversation: async (workspacePath) => {
     clearDeferTimer()
-    set({ currentSessionId: null })
+    await useProjectStore.getState().bindWorkspace(workspacePath)
+    set({ currentSessionId: null, externalView: null, workspacePickerOpen: false })
     get().resetTimeline()
     get().resetCompression()
   },
 
-  loadSessions: async () => {
-    const rootPath = useProjectStore.getState().rootPath
-    if (!rootPath) return
-    const sessions = (await window.api.session.list(rootPath)) as SessionMeta[]
-    get().setSessions(sessions)
-    if (sessions.length > 0) {
-      await loadSessionIntoSlice(rootPath, sessions[0].id)
+  loadAllConversations: async () => {
+    const { groups } = await window.api.session.listAll()
+    get().setGroups(groups)
+    // Auto-select the most recent Rose conversation (never an external one),
+    // binding its Workspace before hydrating the timeline.
+    const mostRecentRose = groups
+      .flatMap((g) => g.items.filter((i) => i.source === 'rose').map((i) => ({ i, g })))
+      .sort((a, b) => b.i.updatedAt - a.i.updatedAt)[0]
+    if (mostRecentRose) {
+      await useProjectStore.getState().bindWorkspace(mostRecentRose.g.workspacePath)
+      await loadSessionIntoSlice(mostRecentRose.i.id)
       await get().refreshContextStatus().catch(() => { /* best-effort */ })
     }
   },
 
   switchSession: async (id) => {
-    const rootPath = useProjectStore.getState().rootPath
-    if (!rootPath) return
-    await loadSessionIntoSlice(rootPath, id)
+    const found = findItem(get().groups, id)
+    if (!found) return
+    if (found.item.source !== 'rose') {
+      await get().openExternalSession(found.item.source, id)
+      return
+    }
+    set({ externalView: null })
+    await useProjectStore.getState().bindWorkspace(found.group.workspacePath)
+    await loadSessionIntoSlice(id)
     await get().refreshContextStatus().catch(() => { /* best-effort */ })
   },
 
+  openExternalSession: async (source, id) => {
+    const transcript = await window.api.external.getTranscript(source, id)
+    if (!transcript) return
+    clearDeferTimer()
+    // View-only bind (no recents, no scaffold) so the file tree still follows
+    // the folder when it exists; the conversation viewer is read-only.
+    await useProjectStore
+      .getState()
+      .bindWorkspace(transcript.workspacePath, { viewOnly: true })
+      .catch(() => { /* folder may not exist — transcript still viewable */ })
+    get().resetTimeline()
+    get().resetCompression()
+    set({ externalView: transcript, currentSessionId: null })
+  },
+
+  closeExternalSession: () => set({ externalView: null }),
+
   deleteSession: async (id) => {
-    const rootPath = useProjectStore.getState().rootPath
-    if (!rootPath) return
-    await window.api.session.delete(rootPath, id)
+    await window.api.session.delete(id)
     const wasActive = get().currentSessionId === id
     get().removeSession(id)
     if (wasActive) {
@@ -875,11 +1021,9 @@ export const useChat = create<UseChatSlice>((set, get) => ({
   },
 
   renameSession: async (id, title) => {
-    const rootPath = useProjectStore.getState().rootPath
-    if (!rootPath) return
-    const loaded = await window.api.session.load(rootPath, id)
+    const loaded = await window.api.session.load(id)
     if (!loaded) return
-    await window.api.session.save(rootPath, { ...loaded, title, updatedAt: Date.now() })
+    await window.api.session.save({ ...loaded, title, updatedAt: Date.now() })
     get().renameSessionLocal(id, title)
   },
 
@@ -898,19 +1042,12 @@ export const useChat = create<UseChatSlice>((set, get) => ({
     )
     set({ contextStatus: status })
   },
-
-  clearForProjectSwitch: () => {
-    clearDeferTimer()
-    get().resetTimeline()
-    set({ sessions: [], currentSessionId: null })
-    get().resetCompression()
-  },
 }))
 
-// Load a session's messages + compression snapshot into the slice. Internal
-// helper used by `loadSessions` and `switchSession`.
-async function loadSessionIntoSlice(rootPath: string, sessionId: string): Promise<void> {
-  const loaded = await window.api.session.load(rootPath, sessionId)
+// Load a Conversation's messages + compression snapshot into the slice.
+// Internal helper used by `loadAllConversations` and `switchSession`.
+async function loadSessionIntoSlice(sessionId: string): Promise<void> {
+  const loaded = await window.api.session.load(sessionId)
   if (!loaded) return
   const hasFullSnapshot =
     !!loaded.compressedMessages &&
