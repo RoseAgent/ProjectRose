@@ -1,42 +1,37 @@
 import { loadSession } from '../lib/session'
-import { loadKimiTokens } from '../lib/kimiSession'
+import { loadKimiTokens, hasKimiApiKey } from '../lib/kimiSession'
 import type { AppSettings, ModelConfig } from './settingsService'
 
-const PROJECTROSE_MODEL: ModelConfig = {
-  provider: 'projectrose',
-  modelName: 'managed',
-}
-
-const DEFAULT_KIMI_MODEL = 'kimi-for-coding'
-
 /**
- * Pick the model to run a chat turn with.
- *
- * Three paths: signed in to ProjectRose → the managed account model; signed
- * in to Kimi → the Kimi Code model picked under Settings → Providers;
- * otherwise the single Ollama model configured there.
+ * Check that the credentials the given model needs are actually present,
+ * throwing an actionable error if not. The model itself is chosen by the user
+ * in the chat composer (per Conversation) — this only validates it's usable.
  */
-export async function selectModel(_userMessage: string, settings: AppSettings): Promise<ModelConfig> {
-  if (settings.hostMode === 'projectrose') {
+export async function validateModelCredentials(
+  model: ModelConfig,
+  settings: AppSettings
+): Promise<void> {
+  if (model.provider === 'projectrose') {
     const session = await loadSession()
     if (!session?.token) {
       throw new Error('Sign in to your ProjectRose account to use the managed AI endpoint.')
     }
-    return PROJECTROSE_MODEL
+    return
   }
 
-  if (settings.hostMode === 'kimi') {
-    const tokens = await loadKimiTokens()
-    if (!tokens) {
-      throw new Error('Sign in to your Kimi account in Settings → Providers → Kimi.')
+  if (model.provider === 'kimi') {
+    if (settings.kimiAuthMethod === 'apikey') {
+      if (!(await hasKimiApiKey())) {
+        throw new Error('Add your Moonshot API key in Settings → Providers → Kimi.')
+      }
+    } else {
+      const tokens = await loadKimiTokens()
+      if (!tokens) {
+        throw new Error('Sign in to your Kimi account in Settings → Providers → Kimi.')
+      }
     }
-    return { provider: 'kimi', modelName: settings.kimiModelName || DEFAULT_KIMI_MODEL }
   }
-
-  if (!settings.ollamaModelName) {
-    throw new Error('No Ollama model configured. Set one in Settings → Providers → Ollama.')
-  }
-  return { provider: 'ollama', modelName: settings.ollamaModelName }
+  // ollama needs no credentials.
 }
 
 /**
@@ -59,16 +54,10 @@ export function extractErrorMessage(err: unknown): string {
 }
 
 /**
- * Pick the active model from settings without making any decisions that need
- * a user message — used by context-status calls that compute a token-budget
- * guess up front. Returns null when nothing is configured.
+ * The fallback model for work that has no Conversation to read a choice from
+ * (background jobs, context-status estimates): the most recent pair the user
+ * picked in the chat composer. Null until they've ever picked one.
  */
 export function pickActiveModel(settings: AppSettings): ModelConfig | null {
-  if (settings.hostMode === 'projectrose') return PROJECTROSE_MODEL
-  if (settings.hostMode === 'kimi') {
-    return { provider: 'kimi', modelName: settings.kimiModelName || DEFAULT_KIMI_MODEL }
-  }
-  return settings.ollamaModelName
-    ? { provider: 'ollama', modelName: settings.ollamaModelName }
-    : null
+  return settings.lastModel ?? null
 }

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { useProjectStore } from './useProjectStore'
 import { useStatusStore } from './useStatusStore'
 import { DEFAULT_TTS_SETTINGS, type TtsSettings } from '@shared/tts'
+import type { ModelConfig } from '@shared/modelConfig'
 
 interface SettingsState {
   micDeviceId: string
@@ -11,12 +12,12 @@ interface SettingsState {
   activeListeningSetupComplete: boolean
   activeListeningDraftSeconds: number
   whisperModel: string
-  hostMode: 'projectrose' | 'kimi' | 'self'
-  agentStartsExpanded: boolean
   lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
-  ollamaModelName: string
-  kimiModelName: string
+  kimiAuthMethod: 'oauth' | 'apikey'
+  // Most recent composer pick — seeds the ModelPicker for new Conversations.
+  // Written by the picker, never by the Settings page.
+  lastModel: ModelConfig | null
   extensions: Record<string, Record<string, unknown>>
   tts: TtsSettings
   loaded: boolean
@@ -38,12 +39,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   activeListeningSetupComplete: false,
   activeListeningDraftSeconds: 8,
   whisperModel: 'Xenova/whisper-tiny.en',
-  hostMode: 'self',
-  agentStartsExpanded: false,
   lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
-  ollamaModelName: '',
-  kimiModelName: 'kimi-for-coding',
+  kimiAuthMethod: 'oauth',
+  lastModel: null,
   extensions: {},
   tts: DEFAULT_TTS_SETTINGS,
   loaded: false,
@@ -65,6 +64,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     const rootPath = useProjectStore.getState().rootPath ?? undefined
     const s = await window.api.setSettings(patch, rootPath)
     set({ ...s })
+    // lastModel is bookkeeping written on every composer pick — a "Settings
+    // saved" toast for it would be pure noise.
+    const keys = Object.keys(patch)
+    if (keys.length === 1 && keys[0] === 'lastModel') return
     if (saveNotifyTimer) clearTimeout(saveNotifyTimer)
     saveNotifyTimer = setTimeout(() => {
       useStatusStore.getState().notify('Settings saved', { tone: 'success' })

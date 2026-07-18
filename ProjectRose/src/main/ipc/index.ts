@@ -9,6 +9,8 @@ import { registerTtsManifest } from './ttsHandlers'
 
 import { sessionIpc, externalIpc, workspacesIpc } from '../services/conversation.ipc'
 import { loadConversation, saveConversation, deleteConversation } from '../services/conversationStore'
+import { reapConversationProcesses } from '../services/backgroundProcesses'
+import { clearConversationToolState } from '../services/conversationToolState'
 import { buildWorkspaceGroupedList, listKnownWorkspaces } from '../services/workspaceRegistry'
 import { getExternalTranscript } from '../services/externalSessions'
 
@@ -47,8 +49,23 @@ import {
   removeRecentProject
 } from '../services/recentProjects'
 
-import { settingsIpc, healthIpc } from '../services/settingsService.ipc'
+import { settingsIpc, healthIpc, searchIpc, type SearchProviderStatus } from '../services/settingsService.ipc'
 import { readSettings, applySettingsPatch, checkServicesHealth } from '../services/settingsService'
+import {
+  saveSearchCredentials,
+  clearSearchCredentials,
+  searchCredentialsConfigured
+} from '../services/search/searchCredentialsStore'
+import { dopplerIpc } from '../services/dopplerImport.ipc'
+import { dopplerPreview, dopplerApply } from '../services/dopplerImport'
+import {
+  dopplerSignIn,
+  dopplerSignOut,
+  cancelDopplerSignIn,
+  getDopplerAuthStatus,
+  dopplerListProjects,
+  dopplerListConfigs
+} from '../services/dopplerAuthService'
 
 import { projectSettingsIpc, toolsIpc } from '../services/projectSettingsService.ipc'
 import { readProjectSettings, writeProjectSettings, listTools } from '../services/projectSettingsService'
@@ -76,7 +93,14 @@ import { authIpc, loginViaAuthWindow } from '../services/authService.ipc'
 import { handleLogout, cancelPairing, getAuthStatus, fetchUsage } from '../services/authService'
 
 import { kimiAuthIpc } from '../services/kimiAuthService.ipc'
-import { kimiSignIn, kimiSignOut, cancelKimiSignIn, getKimiAuthStatus } from '../services/kimiAuthService'
+import {
+  kimiSignIn,
+  kimiSignOut,
+  cancelKimiSignIn,
+  getKimiAuthStatus,
+  kimiSaveApiKey,
+  kimiClearApiKey
+} from '../services/kimiAuthService'
 
 import { aiIpc } from '../services/aiService.ipc'
 import { chat, compressToolNoise, getContextStatus } from '../services/aiService'
@@ -228,6 +252,14 @@ export function registerAllHandlers(): void {
   registerScreenHandlers()
 }
 
+async function searchProviderStatus(): Promise<SearchProviderStatus> {
+  const settings = await readSettings()
+  return {
+    provider: settings.search?.provider ?? null,
+    keyStored: await searchCredentialsConfigured()
+  }
+}
+
 // Wires every typed-manifest service. Called once at startup alongside
 // registerAllHandlers() — see main/index.ts.
 export function registerIpcManifests(): void {
@@ -235,7 +267,13 @@ export function registerIpcManifests(): void {
     listAll: buildWorkspaceGroupedList,
     load: loadConversation,
     save: saveConversation,
-    delete: deleteConversation
+    // Deleting a Conversation also reaps its background processes and drops
+    // its per-conversation tool state (read-guard set, todos).
+    delete: async (sessionId: string) => {
+      await deleteConversation(sessionId)
+      reapConversationProcesses(sessionId)
+      clearConversationToolState(sessionId)
+    }
   })
   externalIpc.register({
     getTranscript: getExternalTranscript
@@ -282,6 +320,27 @@ export function registerIpcManifests(): void {
   healthIpc.register({
     checkAll: checkServicesHealth
   })
+  dopplerIpc.register({
+    preview: dopplerPreview,
+    apply: ({ access, targets }) => dopplerApply(access, targets),
+    login: dopplerSignIn,
+    logout: dopplerSignOut,
+    cancel: cancelDopplerSignIn,
+    getStatus: getDopplerAuthStatus,
+    listProjects: dopplerListProjects,
+    listConfigs: dopplerListConfigs
+  })
+  searchIpc.register({
+    getStatus: searchProviderStatus,
+    saveCredentials: async ({ provider, apiKey }) => {
+      await saveSearchCredentials(provider, apiKey)
+      return searchProviderStatus()
+    },
+    clearCredentials: async () => {
+      await clearSearchCredentials()
+      return searchProviderStatus()
+    }
+  })
   projectSettingsIpc.register({
     getSettings: readProjectSettings,
     setSettings: writeProjectSettings
@@ -317,7 +376,9 @@ export function registerIpcManifests(): void {
     login: kimiSignIn,
     logout: kimiSignOut,
     cancel: cancelKimiSignIn,
-    getStatus: getKimiAuthStatus
+    getStatus: getKimiAuthStatus,
+    saveApiKey: ({ apiKey }) => kimiSaveApiKey(apiKey),
+    clearApiKey: kimiClearApiKey
   })
   extensionIpc.register({
     list: listExtensions,
@@ -467,10 +528,11 @@ export function registerIpcManifests(): void {
     deleteMessage: emailDelete
   })
   aiIpc.register({
-    chat: ({ messages, rootPath, sessionId }) => chat(messages, rootPath, sessionId),
-    contextStatus: ({ rootPath, messages, compression }) =>
-      getContextStatus(rootPath, messages, compression),
-    compressToolNoise: ({ rootPath, messages, full }) => compressToolNoise(rootPath, messages, full),
+    chat: ({ messages, rootPath, sessionId, model }) => chat(messages, rootPath, sessionId, model),
+    contextStatus: ({ rootPath, messages, compression, model }) =>
+      getContextStatus(rootPath, messages, compression, model),
+    compressToolNoise: ({ rootPath, messages, full, model }) =>
+      compressToolNoise(rootPath, messages, full, model),
     getSystemPrompt: buildAgentMd,
     // No-op when the session is gone — see comments on aiHandlers' originals
     // for why we don't fall back to "cancel the most recent".

@@ -7,7 +7,7 @@ import type { ApiShapeMessage, CompressionResult, CompressionOutcome } from './c
 import { getContextLength } from './contextLengthRegistry'
 import { estimateTokens } from './tokenCounter'
 import { readSettings } from './settingsService'
-import type { AppSettings } from './settingsService'
+import type { AppSettings, ModelConfig } from './settingsService'
 import type { Message } from '../../shared/roseModelTypes'
 import { ChatSession } from './chatSession'
 import type { ChatResponse } from './chatSession'
@@ -37,11 +37,16 @@ function notifyRenderer(channel: string, payload: unknown): void {
  * `session.run()`. The `finally` block both unregisters and disposes so
  * the registry never carries stale handles past a completed turn.
  */
-export async function chat(messages: Message[], rootPath: string, sessionId: string): Promise<ChatResponse> {
+export async function chat(
+  messages: Message[],
+  rootPath: string,
+  sessionId: string,
+  model?: ModelConfig
+): Promise<ChatResponse> {
   const session = new ChatSession({ sessionId, rootPath })
   sessionRegistry.register(session)
   try {
-    return await session.run({ messages, notify: notifyRenderer })
+    return await session.run({ messages, model, notify: notifyRenderer })
   } finally {
     sessionRegistry.unregister(session.sessionId)
     session.dispose()
@@ -308,10 +313,13 @@ export interface ContextStatusCompression {
 export async function getContextStatus(
   rootPath: string,
   messages: Array<Record<string, unknown>>,
-  compression: ContextStatusCompression | null
+  compression: ContextStatusCompression | null,
+  // The Conversation's composer pick; falls back to the last-used model for
+  // callers that don't have one.
+  conversationModel?: ModelConfig
 ): Promise<ContextStatus> {
   const settings: AppSettings = await readSettings(rootPath)
-  const model = pickActiveModel(settings)
+  const model = conversationModel ?? pickActiveModel(settings)
   const contextLength = model
     ? await getContextLength(model.provider, model.modelName, settings.ollamaBaseUrl)
     : 8192
@@ -351,10 +359,11 @@ export async function compressToolNoise(
   // When true, fold the entire conversation into the summary (keep 0 recent
   // turns verbatim). The default keeps the recent turns, matching the
   // auto-suggested compression.
-  full = false
+  full = false,
+  conversationModel?: ModelConfig
 ): Promise<CompressionOutcome> {
   const settings = await readSettings(rootPath)
-  const model = pickActiveModel(settings)
+  const model = conversationModel ?? pickActiveModel(settings)
   if (!model) return { status: 'no-model' }
   return compressTurnsForContext(
     messages,

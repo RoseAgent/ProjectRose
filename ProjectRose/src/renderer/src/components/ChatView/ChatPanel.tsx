@@ -11,6 +11,7 @@ import type {
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useProviderStore } from '../../stores/useProviderStore'
 import { useStatusStore } from '../../stores/useStatusStore'
 import { useViewStore } from '../../stores/useViewStore'
 import { ChatCell } from './ChatCell'
@@ -22,6 +23,7 @@ import { ChatInput } from './ChatInput'
 import { CompressionToast } from './CompressionToast'
 import { CompressedTurns } from './CompressedTurns'
 import { ContextStatusBar } from './ContextStatusBar'
+import { TodoChecklist } from './TodoChecklist'
 import { TranscriptView } from './TranscriptView'
 import { TtsAutoPlayer } from './TtsAutoPlayer'
 import type { CompressionSnapshot } from '../../types/chatMessages'
@@ -146,9 +148,12 @@ export function ChatPanel({ primary = true }: { primary?: boolean } = {}): JSX.E
   const setMode = useActiveListeningStore((s) => s.setMode)
 
   const settingsLoaded = useSettingsStore((s) => s.loaded)
-  const hostMode = useSettingsStore((s) => s.hostMode)
+  const kimiAuthMethod = useSettingsStore((s) => s.kimiAuthMethod)
   const ollamaBaseUrl = useSettingsStore((s) => s.ollamaBaseUrl)
-  const ollamaModelName = useSettingsStore((s) => s.ollamaModelName)
+  const providersLoaded = useProviderStore((s) => s.loaded)
+  const prLoggedIn = useProviderStore((s) => s.prLoggedIn)
+  const kimiOauth = useProviderStore((s) => s.kimiOauth)
+  const kimiKey = useProviderStore((s) => s.kimiKey)
   const setActiveView = useViewStore((s) => s.setActiveView)
   const setSettingsTarget = useViewStore((s) => s.setSettingsTarget)
   const activeView = useViewStore((s) => s.activeView)
@@ -156,15 +161,12 @@ export function ChatPanel({ primary = true }: { primary?: boolean } = {}): JSX.E
   const toggleChatFullWidth = useViewStore((s) => s.toggleChatFullWidth)
   const showExpandToggle = activeView === 'chat'
 
-  // hostMode === 'self' means the user is using their own provider (Ollama
-  // only, since projectrose is the managed path). Without an Ollama base URL
-  // or a model, chatting can't go anywhere.
-  const hasAnyProvider = !!ollamaBaseUrl
+  // With no provider available at all (not signed in to ProjectRose or Kimi,
+  // no Ollama URL configured) the composer picker is empty and chatting can't
+  // go anywhere. Model choice itself lives in the picker, not Settings.
+  const kimiAvailable = kimiAuthMethod === 'apikey' ? kimiKey : kimiOauth
   const setupNeeded =
-    settingsLoaded &&
-    hostMode === 'self' &&
-    (!hasAnyProvider || !ollamaModelName)
-  const setupKind: 'provider' | 'model' = !hasAnyProvider ? 'provider' : 'model'
+    settingsLoaded && providersLoaded && !prLoggedIn && !kimiAvailable && !ollamaBaseUrl
 
   const openAgentSettings = (): void => {
     setSettingsTarget('providers')
@@ -247,9 +249,8 @@ export function ChatPanel({ primary = true }: { primary?: boolean } = {}): JSX.E
           <div className={styles.setupBannerText}>
             <div className={styles.setupBannerTitle}>SETUP REQUIRED</div>
             <div className={styles.setupBannerDesc}>
-              {setupKind === 'provider'
-                ? 'Add a provider (API key or local Ollama URL) and at least one model before chatting.'
-                : 'Add at least one model to your provider before chatting.'}
+              Sign in to a provider (ProjectRose or Kimi) or add a local Ollama URL before
+              chatting — then pick a model from the composer below.
             </div>
             <button type="button" className={styles.setupBannerBtn} onClick={openAgentSettings}>
               OPEN PROVIDER SETTINGS →
@@ -282,6 +283,7 @@ export function ChatPanel({ primary = true }: { primary?: boolean } = {}): JSX.E
         <TranscriptView />
       )}
 
+      <TodoChecklist />
       <ContextStatusBar />
       <ChatInput />
       {primary && <CompressionToast />}

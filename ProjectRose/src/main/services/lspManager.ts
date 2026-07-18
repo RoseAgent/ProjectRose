@@ -1,4 +1,5 @@
 import { spawn, ChildProcess } from 'child_process'
+import { existsSync } from 'fs'
 import { pathToFileURL } from 'url'
 import { BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
@@ -17,6 +18,19 @@ interface LspServer {
   buffer: Buffer
   nextId: number
   pending: Map<number, PendingRequest>
+  // Tail of the child's stderr, kept for failure diagnostics.
+  stderrTail: string
+}
+
+// Reject every in-flight request — called when the child errors or exits so
+// callers (initialize included) fail immediately with the real cause instead
+// of masking it behind their own timeout.
+function failAllPending(server: LspServer, reason: Error): void {
+  for (const p of server.pending.values()) {
+    clearTimeout(p.timer)
+    p.reject(reason)
+  }
+  server.pending.clear()
 }
 
 const servers = new Map<ServerName, LspServer>()
@@ -90,6 +104,12 @@ function spawnServer(name: ServerName, rootPath: string): LspServer {
     throw new Error(`LSP binary not found for '${name}'. Run npm install.`)
   }
 
+  // A Conversation can bind a Workspace whose folder no longer exists; spawn
+  // with a missing cwd dies instantly on Windows. Fail with the real reason.
+  if (!existsSync(rootPath)) {
+    throw new Error(`workspace folder does not exist: ${rootPath}`)
+  }
+
   // Use Electron's own binary as the Node runtime instead of relying on a
   // system `node` on PATH. When launched from Finder on macOS, the app gets
   // a minimal PATH (`/usr/bin:/bin:/usr/sbin:/sbin`) and `spawn('node')`
@@ -98,19 +118,27 @@ function spawnServer(name: ServerName, rootPath: string): LspServer {
   // running their JS.
   const proc = spawn(process.execPath, [script, '--stdio'], {
     cwd: rootPath,
-    stdio: ['pipe', 'pipe', 'ignore'],
+    stdio: ['pipe', 'pipe', 'pipe'],
     env: withAugmentedPath({ ...process.env, ELECTRON_RUN_AS_NODE: '1' })
   })
 
-  const server: LspServer = { proc, buffer: Buffer.alloc(0), nextId: 1, pending: new Map() }
+  const server: LspServer = { proc, buffer: Buffer.alloc(0), nextId: 1, pending: new Map(), stderrTail: '' }
 
   proc.stdin?.on('error', () => { /* suppress EPIPE on shutdown */ })
 
+  // Keep the tail of stderr so a dying server reports *why* it died instead
+  // of the generic initialize timeout that used to mask everything.
+  proc.stderr?.on('data', (chunk: Buffer) => {
+    server.stderrTail = (server.stderrTail + chunk.toString('utf-8')).slice(-2000)
+  })
+
   // spawn() reports failures asynchronously through 'error'. Without a
   // listener the error bubbles up as an uncaughtException, which Electron
-  // surfaces to the user as a modal dialog. Keep it as a log line.
+  // surfaces to the user as a modal dialog. Keep it as a log line — and fail
+  // any in-flight request (initialize included) immediately.
   proc.on('error', (err) => {
     console.error(`[lsp] ${name} child process error:`, err)
+    failAllPending(server, new Error(`${name} language server failed to spawn: ${err.message}`))
     servers.delete(name)
   })
 
@@ -119,7 +147,19 @@ function spawnServer(name: ServerName, rootPath: string): LspServer {
     for (const msg of drainMessages(server)) dispatch(name, msg)
   })
 
-  proc.on('exit', () => servers.delete(name))
+  proc.on('exit', (code, signal) => {
+    if (server.pending.size > 0) {
+      const stderr = server.stderrTail.trim()
+      failAllPending(
+        server,
+        new Error(
+          `${name} language server exited (code ${code}${signal ? `, signal ${signal}` : ''})` +
+            (stderr ? `\n[stderr] ${stderr}` : '')
+        )
+      )
+    }
+    servers.delete(name)
+  })
 
   return server
 }

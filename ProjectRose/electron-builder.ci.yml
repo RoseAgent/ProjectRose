@@ -1,6 +1,11 @@
 appId: com.projectrose.app
 productName: ProjectRose
 icon: build/icon
+asarUnpack:
+  - '**/node_modules/node-pty/**'
+  - '**/node_modules/better-sqlite3/**'
+  - '**/node_modules/@ffmpeg-installer/**'
+  - '**/node_modules/@vscode/ripgrep*/**'
 directories:
   output: release
 win:

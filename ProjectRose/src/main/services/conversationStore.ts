@@ -9,6 +9,7 @@ import {
   readWorkspaceMeta,
   WORKSPACE_META_FILE
 } from '../lib/workspaceEncoding'
+import type { ModelConfig } from '../../shared/modelConfig'
 
 // Snapshot of the "compressed view" the renderer sends to the LLM in place of
 // the leading portion of its api-shape messages. Persisted alongside the raw
@@ -34,6 +35,10 @@ export interface ConversationMeta {
   updatedAt: number
   // Absolute path of the Workspace this conversation is bound to.
   workspacePath: string
+  // The provider+model pair the user picked for this Conversation in the
+  // chat composer. Absent on pre-picker conversations — the composer falls
+  // back to the last-used pair.
+  model?: ModelConfig
 }
 
 export interface Conversation extends ConversationMeta, Partial<CompressedSnapshot> {

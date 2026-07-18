@@ -7,9 +7,10 @@ vi.mock('../settingsService', () => ({
   readSettings: vi.fn(async () => ({
     userName: 'tester',
     agentName: 'rose',
-    hostMode: 'self',
     ollamaBaseUrl: '',
-    ollamaModelName: 'fake',
+    // The composer's last-used pick — run() falls back to this when the
+    // caller passes no explicit model.
+    lastModel: { provider: 'ollama', modelName: 'fake' },
   })),
 }))
 vi.mock('../projectSettingsService', () => ({
@@ -33,10 +34,7 @@ vi.mock('../modelSelection', async () => {
   )
   return {
     ...actual,
-    selectModel: vi.fn(async () => ({
-      provider: 'ollama',
-      modelName: 'fake',
-    })),
+    validateModelCredentials: vi.fn(async () => {}),
   }
 })
 
@@ -72,6 +70,42 @@ describe('ChatSession.run', () => {
     expect(response.modifiedFiles).toEqual([])
     expect(response.modelDisplay).toBe('fake')
     expect(runOnce).toHaveBeenCalledTimes(1)
+  })
+
+  it('prefers an explicit per-conversation model over the lastModel fallback', async () => {
+    const runOnce: RunOnceFn = vi.fn(async () => ({
+      content: 'ok',
+      inputTokens: 0,
+      outputTokens: 0,
+      finalMessages: [],
+    }))
+    const session = new ChatSession({ sessionId: 's1', rootPath: '/proj' })
+    const response = await session.run({
+      messages: [{ role: 'user', content: 'hi' }],
+      model: { provider: 'kimi', modelName: 'kimi-k2-thinking' },
+      runOnce,
+    })
+    expect(response.modelDisplay).toBe('kimi-k2-thinking')
+  })
+
+  it('throws when no model is passed and no lastModel is stored', async () => {
+    const { readSettings } = await import('../settingsService')
+    vi.mocked(readSettings).mockResolvedValueOnce({
+      userName: 'tester',
+      agentName: 'rose',
+      ollamaBaseUrl: '',
+    } as never)
+    const runOnce: RunOnceFn = vi.fn(async () => ({
+      content: '',
+      inputTokens: 0,
+      outputTokens: 0,
+      finalMessages: [],
+    }))
+    const session = new ChatSession({ sessionId: 's1', rootPath: '/proj' })
+    await expect(
+      session.run({ messages: [{ role: 'user', content: 'hi' }], runOnce })
+    ).rejects.toThrow(/No model selected/)
+    expect(runOnce).not.toHaveBeenCalled()
   })
 
   it('iterates the injection loop until no extension injection is produced', async () => {

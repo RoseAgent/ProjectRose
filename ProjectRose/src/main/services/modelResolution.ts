@@ -2,7 +2,14 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createOllama } from 'ai-sdk-ollama'
 import { loadSession } from '../lib/session'
-import { getKimiAccessToken, KIMI_API_BASE_URL, KIMI_USER_AGENT } from '../lib/kimiSession'
+import {
+  getKimiAccessToken,
+  loadKimiApiKey,
+  KIMI_API_BASE_URL,
+  KIMI_PLATFORM_BASE_URL,
+  KIMI_USER_AGENT
+} from '../lib/kimiSession'
+import { readSettings } from './settingsService'
 import { WEB_BASE_URL } from '../lib/webConfig'
 import type { ModelConfig } from './settingsService'
 
@@ -152,12 +159,30 @@ export async function resolveModel(
       return provider(model.modelName || 'llama3', { think: true })
     }
     case 'kimi': {
-      // Kimi Code (OAuth device flow) — OpenAI Chat Completions-compatible.
+      // Two auth methods (AppSettings.kimiAuthMethod):
+      //  - 'oauth'  → Kimi Coding API via the kimi.com device-flow token.
+      //  - 'apikey' → Moonshot open platform via a BYO sk-… key.
+      // Both are OpenAI Chat Completions-compatible. The openai-compatible
+      // provider (not @ai-sdk/openai) is deliberate: it surfaces Kimi's
+      // `reasoning_content` deltas as reasoning parts, so the thinking
+      // models stream thinking like the other providers do.
+      const { kimiAuthMethod } = await readSettings()
+      if (kimiAuthMethod === 'apikey') {
+        const apiKey = await loadKimiApiKey()
+        if (!apiKey) {
+          throw new Error('Add your Moonshot API key in Settings → Providers → Kimi.')
+        }
+        const provider = createOpenAICompatible({
+          name: 'kimi',
+          baseURL: KIMI_PLATFORM_BASE_URL,
+          apiKey
+        })
+        // Platform model ids differ from the Coding API's aliases — default
+        // to the platform's thinking model, not 'kimi-for-coding'.
+        return provider.chatModel(model.modelName || 'kimi-k2-thinking')
+      }
       // The token is short-lived (~15 min); getKimiAccessToken refreshes it
-      // on the way in, so every resolve gets a live credential. The
-      // openai-compatible provider (not @ai-sdk/openai) is deliberate: it
-      // surfaces Kimi's `reasoning_content` deltas as reasoning parts, so
-      // kimi-k2-thinking streams thinking like the other providers do.
+      // on the way in, so every resolve gets a live credential.
       const token = await getKimiAccessToken()
       if (!token) {
         throw new Error('Sign in to your Kimi account in Settings → Providers → Kimi.')

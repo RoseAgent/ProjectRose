@@ -14,11 +14,12 @@
 import { readSettings } from './settingsService'
 import { readProjectSettings } from './projectSettingsService'
 import { getAuthStatus, fetchUsage } from './authService'
-import { getKimiAccessToken, loadKimiTokens } from '../lib/kimiSession'
+import { getKimiAccessToken, loadKimiTokens, hasKimiApiKey } from '../lib/kimiSession'
 import { buildAuthedClient, googleAuthGetStatus } from './google/googleAuth'
 import { googleCalendarGetStatus } from './memory/googleCalendar'
 import { hasImapPasswords } from './email/imapCredentialsStore'
 import { verifyImapConnection, verifySmtpConnection } from './email/imapTransport'
+import { testSearchProvider } from './toolHandlers'
 import type {
   ConnectionResult,
   GoogleAuthConnection,
@@ -47,8 +48,7 @@ async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   }
 }
 
-async function checkProjectRose(hostMode: string): Promise<ProjectRoseConnection> {
-  if (hostMode !== 'projectrose') return { status: 'not-configured' }
+async function checkProjectRose(): Promise<ProjectRoseConnection> {
   const auth = await getAuthStatus().catch(() => null)
   if (!auth?.loggedIn) return { status: 'not-configured' }
   try {
@@ -62,8 +62,7 @@ async function checkProjectRose(hostMode: string): Promise<ProjectRoseConnection
   }
 }
 
-async function checkOllama(hostMode: string, baseUrl: string): Promise<OllamaConnection> {
-  if (hostMode !== 'self') return { status: 'not-configured' }
+async function checkOllama(baseUrl: string): Promise<OllamaConnection> {
   const trimmed = baseUrl.trim()
   if (!trimmed) return { status: 'not-configured', detail: 'ollamaBaseUrl is empty' }
   const url = trimmed.replace(/\/+$/, '') + '/api/tags'
@@ -82,8 +81,13 @@ async function checkOllama(hostMode: string, baseUrl: string): Promise<OllamaCon
   }
 }
 
-async function checkKimi(hostMode: string): Promise<ConnectionResult> {
-  if (hostMode !== 'kimi') return { status: 'not-configured' }
+async function checkKimi(authMethod: 'oauth' | 'apikey'): Promise<ConnectionResult> {
+  if (authMethod === 'apikey') {
+    const stored = await hasKimiApiKey().catch(() => false)
+    return stored
+      ? { status: 'ok', detail: 'Moonshot API key stored' }
+      : { status: 'not-configured', detail: 'no Moonshot API key stored' }
+  }
   const tokens = await loadKimiTokens().catch(() => null)
   if (!tokens) return { status: 'not-configured', detail: 'not signed in' }
   try {
@@ -169,8 +173,7 @@ export async function buildSettingsSnapshot(rootPath: string): Promise<SettingsS
     identity: {
       userName: settings.userName,
       agentName: settings.agentName,
-      lastMainView: settings.lastMainView,
-      agentStartsExpanded: settings.agentStartsExpanded
+      lastMainView: settings.lastMainView
     },
     speech: {
       micDeviceId: settings.micDeviceId,
@@ -185,12 +188,14 @@ export async function buildSettingsSnapshot(rootPath: string): Promise<SettingsS
       roseSpeechSpeakerId: settings.roseSpeechSpeakerId
     },
     provider: {
-      hostMode: settings.hostMode,
+      lastModel: settings.lastModel ?? null,
       ollamaBaseUrl: settings.ollamaBaseUrl,
-      ollamaModelName: settings.ollamaModelName,
-      kimiModelName: settings.kimiModelName
+      kimiAuthMethod: settings.kimiAuthMethod ?? 'oauth'
     },
     google: googleConfig,
+    search: {
+      provider: settings.search?.provider ?? null
+    },
     memory: {
       diary: {
         enabled: settings.memory.diaryEnabled,
@@ -247,18 +252,19 @@ export async function buildSettingsSnapshot(rootPath: string): Promise<SettingsS
   // Each individual check already swallows its own errors and returns a
   // ConnectionResult, but allSettled is the belt to the suspenders in case a
   // checker throws unexpectedly.
-  const [projectRose, ollama, kimi, googleAuth, googleCalendar, imap, smtp] = await Promise.all([
-    checkProjectRose(settings.hostMode).catch((err) => ({ status: `failed: ${shortError(err)}` } as ProjectRoseConnection)),
-    checkOllama(settings.hostMode, settings.ollamaBaseUrl).catch((err) => ({ status: `failed: ${shortError(err)}` } as OllamaConnection)),
-    checkKimi(settings.hostMode).catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
+  const [projectRose, ollama, kimi, googleAuth, googleCalendar, imap, smtp, search] = await Promise.all([
+    checkProjectRose().catch((err) => ({ status: `failed: ${shortError(err)}` } as ProjectRoseConnection)),
+    checkOllama(settings.ollamaBaseUrl).catch((err) => ({ status: `failed: ${shortError(err)}` } as OllamaConnection)),
+    checkKimi(settings.kimiAuthMethod ?? 'oauth').catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
     checkGoogleAuth().catch((err) => ({ status: `failed: ${shortError(err)}` } as GoogleAuthConnection)),
     checkGoogleCalendar().catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
     checkImap(settings.email.transport).catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
-    checkSmtp(settings.email.transport).catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult))
+    checkSmtp(settings.email.transport).catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
+    withTimeout(testSearchProvider(), CONNECTION_TIMEOUT_MS).catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult))
   ])
 
   return {
     configuration,
-    connections: { projectRose, ollama, kimi, googleAuth, googleCalendar, imap, smtp }
+    connections: { projectRose, ollama, kimi, googleAuth, googleCalendar, imap, smtp, search }
   }
 }

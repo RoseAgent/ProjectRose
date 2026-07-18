@@ -3,7 +3,7 @@ import { useProjectStore } from '../../../stores/useProjectStore'
 import { useFileStore } from '../../../stores/useFileStore'
 import { FileTreeNode } from './FileTreeNode'
 import { ContextMenu } from './ContextMenu'
-import { joinPath } from '../../../utils/pathUtils'
+import { joinPath, basename } from '../../../utils/pathUtils'
 import type { FileNode } from '../../../../../shared/types'
 import styles from './FileTree.module.css'
 
@@ -26,6 +26,8 @@ interface NewEntryState {
 export function FileTree({ onFileClick }: FileTreeProps): JSX.Element {
   const fileTree = useProjectStore((s) => s.fileTree)
   const refreshTree = useProjectStore((s) => s.refreshTree)
+  const rootPath = useProjectStore((s) => s.rootPath)
+  const workspaceMissing = useProjectStore((s) => s.workspaceMissing)
   const openFiles = useFileStore((s) => s.openFiles)
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
@@ -103,10 +105,28 @@ export function FileTree({ onFileClick }: FileTreeProps): JSX.Element {
     }
   }
 
+  // The Explorer is rooted at the active conversation's Workspace — surface the
+  // folder name (full path on hover) so it's clear which project you're in.
+  const header = (
+    <div
+      className={styles.header}
+      title={rootPath ?? undefined}
+    >
+      {rootPath ? basename(rootPath) : 'Explorer'}
+    </div>
+  )
+
   if (!fileTree) {
     return (
       <div className={styles.fileTree}>
-        <div className={styles.empty}>Open a folder to get started</div>
+        {header}
+        <div className={styles.empty}>
+          {workspaceMissing
+            ? 'Workspace folder not found on disk'
+            : rootPath
+              ? 'This folder is empty'
+              : 'No workspace — start a conversation to pick one'}
+        </div>
       </div>
     )
   }
@@ -122,7 +142,7 @@ export function FileTree({ onFileClick }: FileTreeProps): JSX.Element {
         }
       }}
     >
-      <div className={styles.header}>Explorer</div>
+      {header}
 
       {newEntry && (
         <div className={styles.node} style={{ paddingLeft: '12px' }}>

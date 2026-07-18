@@ -42,6 +42,8 @@ export const IPC = {
   AI_ASK_USER: 'ai:askUser',
   AI_INJECTED_MESSAGE: 'ai:injectedMessage',
   AI_CAPTURE_SCREENSHOT: 'ai:captureScreenshot',
+  // Full todo list broadcast whenever the agent calls todo_write.
+  AI_TODOS_UPDATED: 'ai:todosUpdated',
 
   LSP_PY_TO_SERVER: 'lsp:py:toServer',
   LSP_PY_FROM_SERVER: 'lsp:py:fromServer',
@@ -63,6 +65,11 @@ export const IPC = {
   // declared by services/kimiAuthService.ipc.ts.
   KIMI_AUTH_CHANGED: 'kimiAuth:changed',
   KIMI_AUTH_PENDING: 'kimiAuth:pending',
+
+  // Doppler CLI-flow auth broadcasts (main → renderer). Request channels are
+  // declared by services/dopplerImport.ipc.ts.
+  DOPPLER_AUTH_CHANGED: 'dopplerAuth:changed',
+  DOPPLER_AUTH_PENDING: 'dopplerAuth:pending',
 
   // Active Listening — only the fire-and-forget and event-broadcast channels
   // live in the enum now; the eleven invoke channels are declared by

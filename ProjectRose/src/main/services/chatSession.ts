@@ -14,7 +14,7 @@ import type { StreamResult } from './llmClient'
 import type { AgentContext, SubagentCounter } from './agentRunner'
 import type { SubagentTurnContext, ToolSourceName } from './toolRegistry'
 import { buildAgentMd } from './agentMd'
-import { selectModel } from './modelSelection'
+import { pickActiveModel, validateModelCredentials } from './modelSelection'
 import { logAssistantMessage, logUserMessage } from './memory/conversationLog'
 import { logInteraction } from './interactionLog'
 
@@ -206,6 +206,13 @@ export class ChatSession {
      * ROSE.md, environment data, and per-extension prompt overrides.
      */
     systemPrompt?: string
+    /**
+     * The Conversation's provider+model pair, chosen in the chat composer.
+     * Omitted by background callers (subagent parents pass their own model
+     * downstream; one-shot runs have no Conversation) — those fall back to
+     * settings.lastModel, the user's most recent composer pick.
+     */
+    model?: ModelConfig
     notify?: NotifyFn
     runOnce?: RunOnceFn
   }): Promise<ChatResponse> {
@@ -230,7 +237,13 @@ export class ChatSession {
       void logUserMessage({ sessionId, rootPath, content: userMessage })
       logInteraction('chat.message-sent')
     }
-    const selectedModel = await selectModel(userMessage, settings)
+    const selectedModel = args.model ?? pickActiveModel(settings)
+    if (!selectedModel) {
+      throw new Error(
+        'No model selected — pick one in the chat composer, or configure a provider in Settings.'
+      )
+    }
+    await validateModelCredentials(selectedModel, settings)
     const modelDisplay = selectedModel.modelName
     // Only main chat notifies the renderer about model selection. Subagent
     // and one-shot sessions are background work — their model events should

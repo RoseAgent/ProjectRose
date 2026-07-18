@@ -2,6 +2,7 @@ import { defineIpc, method } from '../../shared/ipc/defineIpc'
 import type { Message } from '../../shared/roseModelTypes'
 import type { ChatResponse, ContextStatus, ContextStatusCompression, CompressionOutcome } from './aiService'
 import type { ScreenshotResult } from './chatSession'
+import type { ModelConfig } from '../../shared/modelConfig'
 
 // Request channels only. The ten event-broadcast channels (AI_TOKEN /
 // AI_THINKING / AI_TOOL_CALL_{START,END} / AI_FILE_MODIFIED /
@@ -10,7 +11,7 @@ import type { ScreenshotResult } from './chatSession'
 // via webContents.send, which the manifest doesn't cover.
 export const aiIpc = defineIpc('ai', {
   chat: method<
-    [payload: { messages: Message[]; rootPath: string; sessionId: string }],
+    [payload: { messages: Message[]; rootPath: string; sessionId: string; model?: ModelConfig }],
     ChatResponse
   >(),
   contextStatus: method<
@@ -18,11 +19,17 @@ export const aiIpc = defineIpc('ai', {
       rootPath: string
       messages: Array<Record<string, unknown>>
       compression: ContextStatusCompression | null
+      model?: ModelConfig
     }],
     ContextStatus
   >(),
   compressToolNoise: method<
-    [payload: { rootPath: string; messages: Array<Record<string, unknown>>; full?: boolean }],
+    [payload: {
+      rootPath: string
+      messages: Array<Record<string, unknown>>
+      full?: boolean
+      model?: ModelConfig
+    }],
     CompressionOutcome
   >(),
   getSystemPrompt: method<[rootPath: string], string>(),

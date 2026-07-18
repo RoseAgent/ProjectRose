@@ -27,7 +27,9 @@ export const useViewStore = create<ViewState>()((set, get) => ({
   sidebarWidth: 240,
   terminalHeight: 200,
   isTerminalVisible: true,
-  isChatFullWidth: false,
+  // The app boots into the chat view, which is always full screen on entry
+  // (see setActiveView) — seed the flag to match.
+  isChatFullWidth: true,
   settingsTarget: null,
   setActiveView: (view) => {
     if (get().activeView !== view) {
@@ -36,6 +38,21 @@ export const useViewStore = create<ViewState>()((set, get) => ({
       } else {
         logInteraction('extension.opened', view)
       }
+    }
+    // The full-width flag follows the view rather than surviving switches:
+    // - Entering the editor collapses an expanded chat. App.tsx hides the
+    //   whole editor pane while `activeView === 'editor' && isChatFullWidth`,
+    //   and the collapse toggle only renders in chat view — a stale expanded
+    //   flag would leave the user on a full-screen chat with no way back.
+    // - Returning to the bloom (chat) view always re-expands to full screen;
+    //   the header toggle still collapses it to reveal the BloomStage.
+    if (view === 'editor') {
+      set({ activeView: view, isChatFullWidth: false })
+      return
+    }
+    if (view === 'chat') {
+      set({ activeView: view, isChatFullWidth: true })
+      return
     }
     set({ activeView: view })
   },

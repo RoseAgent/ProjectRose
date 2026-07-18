@@ -15,9 +15,16 @@ import type {
 import { useProjectStore } from './useProjectStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useStatusStore } from './useStatusStore'
+import { useViewStore } from './useViewStore'
+import { useTerminalStore } from './useTerminalStore'
 import { useScreenWebcamShare } from '../hooks/useScreenWebcamShare'
 import type { WorkspaceGroup, ConversationListItem } from '@shared/conversationGroups'
+import type { TodoItem } from '@shared/todos'
 import type { ExternalSource, ExternalTranscript } from '@shared/externalSession'
+import type { ModelConfig } from '@shared/modelConfig'
+import type { PickerChoice } from '../components/ChatView/modelPickerOptions'
+import { toChatMessages } from '../utils/externalTranscript'
+import { buildResumeCommand } from '../utils/externalResume'
 
 // Tool-step count is fixed at 50 because it's a property of the agentic loop
 // budget rather than the model.
@@ -157,6 +164,15 @@ function sanitizeLoadedMessages(messages: ChatMessage[]): ChatMessage[] {
 
 // ── Persistence helpers (formerly in services/chatPersistence.ts) ──────────
 
+// The Rose model the composer is effectively set to: an explicit rose pick,
+// else the last-used pair from settings. Undefined while a CLI (Claude/Codex)
+// choice is selected or nothing is available.
+function currentRoseModel(): ModelConfig | undefined {
+  const choice = useChat.getState().composerChoice
+  if (choice) return choice.kind === 'rose' ? choice.model : undefined
+  return useSettingsStore.getState().lastModel ?? undefined
+}
+
 function buildPayload(
   meta: SessionMeta,
   messages: ChatMessage[],
@@ -170,6 +186,10 @@ function buildPayload(
     workspacePath: meta.workspacePath,
     messages: messages as unknown[],
   }
+  // Pin the conversation to the composer's current Rose model so it reloads
+  // with the same pick.
+  const model = meta.model ?? currentRoseModel()
+  if (model) payload.model = model
   if (snapshot) {
     payload.compressedMessages = snapshot.compressedMessages
     payload.compressedFromCount = snapshot.compressedFromCount
@@ -357,6 +377,10 @@ export interface UseChatSlice {
   isRecording: boolean
   searchQuery: string
 
+  // Agent todo list for the current Conversation (todo_write tool). In-memory
+  // mirror of the main process state — cleared when the session changes.
+  todos: TodoItem[]
+
   // Sessions state — conversations grouped by Workspace (Rose + read-only
   // external sessions interleaved), plus the read-only transcript currently
   // being viewed (if any) and the New Conversation picker's open state.
@@ -364,6 +388,11 @@ export interface UseChatSlice {
   currentSessionId: string | null
   externalView: ExternalTranscript | null
   workspacePickerOpen: boolean
+
+  // The composer's provider+model selection for the current view. Null means
+  // "no explicit pick" — sends fall back to settings.lastModel. External
+  // sessions seed this with their CLI's Default option.
+  composerChoice: PickerChoice | null
 
   // Compression / context state
   snapshot: CompressionSnapshot | null
@@ -374,6 +403,7 @@ export interface UseChatSlice {
   // Public actions
   send: () => Promise<void>
   cancel: () => Promise<void>
+  setComposerChoice: (choice: PickerChoice) => void
   answerAskUser: (questionId: string, answer: string) => Promise<void>
   setInputValue: (value: string) => void
   setIsRecording: (value: boolean) => void
@@ -446,11 +476,13 @@ export const useChat = create<UseChatSlice>((set, get) => ({
   inputValue: '',
   isRecording: false,
   searchQuery: '',
+  todos: [],
 
   groups: [],
   currentSessionId: null,
   externalView: null,
   workspacePickerOpen: false,
+  composerChoice: null,
 
   ...initialCompression,
 
@@ -711,7 +743,10 @@ export const useChat = create<UseChatSlice>((set, get) => ({
 
   // ── Sessions mutators ─────────────────────────────────────────────────
   setGroups: (groups) => set({ groups }),
-  setCurrentSessionId: (currentSessionId) => set({ currentSessionId }),
+  // Switching Conversations drops the previous one's todo checklist — the
+  // list is per-Conversation and in-memory on both sides of the IPC.
+  setCurrentSessionId: (currentSessionId) =>
+    set((s) => (s.currentSessionId === currentSessionId ? { currentSessionId } : { currentSessionId, todos: [] })),
   upsertSession: (session) => set((s) => ({ groups: upsertRose(s.groups, session) })),
   removeSession: (id) => set((s) => ({ groups: removeItemLocal(s.groups, id) })),
   renameSessionLocal: (id, title) =>
@@ -726,9 +761,45 @@ export const useChat = create<UseChatSlice>((set, get) => ({
   resetCompression: () => set({ ...initialCompression }),
 
   // ── High-level actions ────────────────────────────────────────────────
+  setComposerChoice: (choice) => {
+    set({ composerChoice: choice })
+    if (choice.kind !== 'rose') return
+    // Remember the pick globally (new-conversation default + background
+    // fallback) and pin it onto the active conversation immediately.
+    useSettingsStore.getState().update({ lastModel: choice.model }).catch(() => {})
+    const id = get().currentSessionId
+    if (id) {
+      const meta = findRoseMeta(get().groups, id)
+      if (meta) persistSession(meta)
+    }
+  },
+
   send: async () => {
     const trimmed = get().inputValue.trim()
-    if (!trimmed || get().isLoading) return
+    if (get().isLoading) return
+
+    // External-session composer routes. A CLI choice resumes the session in
+    // the integrated terminal (empty input allowed — it resumes without a
+    // first prompt); a Rose choice forks the transcript into a brand-new Rose
+    // conversation and falls through to the normal send below.
+    const ext = get().externalView
+    if (ext) {
+      const choice =
+        get().composerChoice ??
+        ((): PickerChoice | null => {
+          const last = useSettingsStore.getState().lastModel
+          return last ? { kind: 'rose', model: last } : null
+        })()
+      if (choice?.kind === 'cli') {
+        await resumeExternalInTerminal(ext, choice.modelFlag, trimmed)
+        return
+      }
+      if (!trimmed || !choice) return
+      const adopted = await adoptExternalAsRose(ext, choice.model, trimmed)
+      if (!adopted) return
+    }
+
+    if (!trimmed) return
     const projectState = useProjectStore.getState()
     const rootPath = projectState.rootPath
     // No active Workspace → prompt the user to pick one instead of silently
@@ -797,6 +868,7 @@ export const useChat = create<UseChatSlice>((set, get) => ({
     const cleanupInjected = window.api.onAiInjectedMessage(forThisTurn((d) => get().appendInjectedMessage(d)))
     const cleanupModelSelected = window.api.onAiModelSelected(forThisTurn((d) => get().modelSelected(d)))
     const cleanupStreamReset = window.api.onAiStreamReset(forThisTurn((d) => get().streamReset(d)))
+    const cleanupTodos = window.api.onAiTodosUpdated(forThisTurn((d) => set({ todos: d.todos })))
 
     const cleanup = (): void => {
       cleanupToken()
@@ -807,6 +879,7 @@ export const useChat = create<UseChatSlice>((set, get) => ({
       cleanupInjected()
       cleanupModelSelected()
       cleanupStreamReset()
+      cleanupTodos()
     }
 
     try {
@@ -816,7 +889,8 @@ export const useChat = create<UseChatSlice>((set, get) => ({
           { role: 'user', content: trimmed, attachments: userMsg.attachments },
         ] as Parameters<typeof window.api.aiChat>[0],
         rootPath,
-        sessionId
+        sessionId,
+        currentRoseModel()
       )
 
       clearDeferTimer()
@@ -829,7 +903,7 @@ export const useChat = create<UseChatSlice>((set, get) => ({
           lastMessageId: lastMsg?.id,
           userMsg,
           hasAttachment: (userMsg.attachments?.length ?? 0) > 0,
-          isManaged: useSettingsStore.getState().hostMode === 'projectrose',
+          isManaged: currentRoseModel()?.provider === 'projectrose',
         })
         if (emptyError) {
           get().errorCleanup({ errorContent: emptyError })
@@ -896,7 +970,8 @@ export const useChat = create<UseChatSlice>((set, get) => ({
       const outcome = await window.api.aiCompressToolNoise(
         rootPath,
         messages as unknown as Array<Record<string, unknown>>,
-        opts?.full
+        opts?.full,
+        currentRoseModel()
       )
       // Guard against a null/undefined result: reading `outcome.status` on it
       // would throw, and without the catch below the failure was invisible.
@@ -959,7 +1034,13 @@ export const useChat = create<UseChatSlice>((set, get) => ({
   startNewConversation: async (workspacePath) => {
     clearDeferTimer()
     await useProjectStore.getState().bindWorkspace(workspacePath)
-    set({ currentSessionId: null, externalView: null, workspacePickerOpen: false })
+    set({
+      currentSessionId: null,
+      externalView: null,
+      workspacePickerOpen: false,
+      // Fresh conversations start from the last-used pick (fallback).
+      composerChoice: null,
+    })
     get().resetTimeline()
     get().resetCompression()
   },
@@ -1004,10 +1085,19 @@ export const useChat = create<UseChatSlice>((set, get) => ({
       .catch(() => { /* folder may not exist — transcript still viewable */ })
     get().resetTimeline()
     get().resetCompression()
-    set({ externalView: transcript, currentSessionId: null })
+    set({
+      externalView: transcript,
+      currentSessionId: null,
+      // Default to resuming with the session's own CLI.
+      composerChoice: {
+        kind: 'cli',
+        cli: source === 'claude-code' ? 'claude' : 'codex',
+        modelFlag: null,
+      },
+    })
   },
 
-  closeExternalSession: () => set({ externalView: null }),
+  closeExternalSession: () => set({ externalView: null, composerChoice: null }),
 
   deleteSession: async (id) => {
     await window.api.session.delete(id)
@@ -1017,6 +1107,7 @@ export const useChat = create<UseChatSlice>((set, get) => ({
       get().setCurrentSessionId(null)
       get().resetTimeline()
       get().resetCompression()
+      set({ composerChoice: null })
     }
   },
 
@@ -1038,7 +1129,8 @@ export const useChat = create<UseChatSlice>((set, get) => ({
     const status = await window.api.aiContextStatus(
       rootPath,
       messages as unknown as Array<Record<string, unknown>>,
-      get().snapshot
+      get().snapshot,
+      currentRoseModel()
     )
     set({ contextStatus: status })
   },
@@ -1073,6 +1165,94 @@ async function loadSessionIntoSlice(sessionId: string): Promise<void> {
   )
   useChat.getState().setContextStatus(null)
   useChat.getState().setToastDismissed(null)
+  // Restore the conversation's pinned model; null falls back to last-used.
+  useChat.setState({
+    composerChoice: loaded.model ? { kind: 'rose', model: loaded.model as ModelConfig } : null,
+  })
+}
+
+// ── External-session send routes ───────────────────────────────────────────
+
+// Resume the external session with its own CLI in the integrated terminal.
+// Mirrors the old "Open in Claude" button flow: bind the workspace, drop into
+// editor view with the terminal showing, and queue the resume command to run
+// once the shell is ready. The typed message (if any) rides along as the
+// CLI's first prompt.
+async function resumeExternalInTerminal(
+  ext: ExternalTranscript,
+  modelFlag: string | null,
+  message: string
+): Promise<void> {
+  await useProjectStore.getState().bindWorkspace(ext.workspacePath)
+  if (useProjectStore.getState().workspaceMissing) {
+    useStatusStore
+      .getState()
+      .notify('Workspace folder not found — can’t resume this session', { tone: 'error' })
+    return
+  }
+  const cmd = buildResumeCommand({
+    source: ext.source,
+    sessionId: ext.id,
+    modelFlag,
+    message,
+    platform: window.api.platform,
+  })
+  useChat.getState().setInputValue('')
+  useChat.getState().closeExternalSession()
+  // Collapse chat full-width too — otherwise the editor pane (which hosts the
+  // terminal) is hidden and only the full-width chat shows. Editor view gates
+  // EditorView on `!(activeView === 'editor' && isChatFullWidth)`.
+  useViewStore.setState({ isTerminalVisible: true, isChatFullWidth: false })
+  useViewStore.getState().setActiveView('editor')
+  useTerminalStore.getState().setPendingCommand(cmd)
+  // Re-root the terminal at this workspace (dispose+respawn) so the resume
+  // runs in the right directory even if a terminal was already open.
+  await useTerminalStore.getState().initialize(ext.workspacePath)
+}
+
+// Fork an external transcript into a brand-new Rose conversation: convert the
+// entries into ChatMessages, seed and persist the conversation, and leave the
+// slice ready for the normal send flow to append the typed message. The
+// external session on disk is never touched. Returns false when the
+// workspace folder is gone (nothing to run tools against).
+async function adoptExternalAsRose(
+  ext: ExternalTranscript,
+  model: ModelConfig,
+  firstPrompt: string
+): Promise<boolean> {
+  // Full bind (recents + scaffold) — this is now a real Rose conversation.
+  await useProjectStore.getState().bindWorkspace(ext.workspacePath)
+  if (useProjectStore.getState().workspaceMissing) {
+    useStatusStore
+      .getState()
+      .notify('Workspace folder not found — can’t continue this session here', { tone: 'error' })
+    return false
+  }
+  clearDeferTimer()
+  const history = toChatMessages(ext.entries)
+  const id = newSessionId()
+  const now = Date.now()
+  const meta: SessionMeta = {
+    id,
+    title: (ext.title || firstPrompt).slice(0, 50),
+    createdAt: now,
+    updatedAt: now,
+    workspacePath: ext.workspacePath,
+    model,
+  }
+  useChat.setState({
+    ...emptyTimeline,
+    messages: history,
+    externalView: null,
+    snapshot: null,
+    contextStatus: null,
+    toastDismissed: null,
+    composerChoice: { kind: 'rose', model },
+  })
+  useChat.getState().upsertSession(meta)
+  useChat.getState().setCurrentSessionId(id)
+  persistSession(meta)
+  return true
 }
 
 /**

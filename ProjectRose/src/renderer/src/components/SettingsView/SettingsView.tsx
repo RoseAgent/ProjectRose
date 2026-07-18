@@ -64,16 +64,31 @@ const PROVIDERS: ProviderMeta[] = [
   { kind: 'kimi',        spec: '02', name: 'Kimi',              latin: 'Rosa lunaris'    },
 ]
 
-// Kimi Code models. Which ones a given account can actually use depends on
-// the kimi.com membership tier — the API rejects models above the plan, so
-// we list the known set and let the server be the judge.
-const KIMI_MODEL_OPTIONS: Array<{ id: string; label: string }> = [
-  { id: 'kimi-for-coding',           label: 'Kimi for Coding — default'          },
-  { id: 'kimi-for-coding-highspeed', label: 'Kimi for Coding — high speed'       },
-  { id: 'kimi-k2-thinking',          label: 'Kimi K2 Thinking — deep reasoning'  },
-  { id: 'k3',                        label: 'K3'                                  },
-  { id: 'k3[1m]',                    label: 'K3 — 1M context'                     },
+// Doppler import — recognized secret names and where each one lands. Shown
+// as the reference table in the Plate III card; detection itself lives in
+// main (dopplerImport.ts) and accepts a few aliases per row.
+const DOPPLER_KEY_ROWS: Array<{ secret: string; importsTo: string }> = [
+  { secret: 'BRAVE_API_KEY',                        importsTo: 'Web Search — Brave' },
+  { secret: 'TAVILY_API_KEY',                       importsTo: 'Web Search — Tavily' },
+  { secret: 'BROWSERBASE_API_KEY',                  importsTo: 'Web Search — Browserbase' },
+  { secret: 'MOONSHOT_API_KEY',                     importsTo: 'Kimi — platform API key' },
+  { secret: 'GOOGLE_OAUTH_CLIENT_ID + _SECRET',     importsTo: 'Google — OAuth pair' },
 ]
+
+const dopplerTd: React.CSSProperties = {
+  padding: '5px 10px',
+  border: '1px solid var(--color-bg-secondary)',
+  fontSize: 11,
+  textAlign: 'left',
+  verticalAlign: 'baseline',
+}
+const dopplerTh: React.CSSProperties = {
+  ...dopplerTd,
+  color: 'var(--color-text-muted)',
+  letterSpacing: 0.6,
+  fontWeight: 600,
+  fontSize: 10,
+}
 
 // ─────────────────────────────────────────────────────────────
 // Pure components
@@ -117,6 +132,22 @@ function ProviderGlyph({ kind, size = 28 }: { kind: string; size?: number }): JS
       return (
         <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.8">
           <path d="M22 12 A8 8 0 1 0 24 18 L16 18" strokeLinecap="round"/>
+        </svg>
+      )
+    case 'search':
+      // Magnifier — the BYO web-search provider card.
+      return (
+        <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.8">
+          <circle cx="14" cy="14" r="8" />
+          <path d="M20 20 L27 27" strokeLinecap="round" />
+        </svg>
+      )
+    case 'doppler':
+      // Droplet into a tray — secrets flowing in from Doppler.
+      return (
+        <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.8">
+          <path d="M16 4 C20 10 22 13 22 16.5 A6 6 0 0 1 10 16.5 C10 13 12 10 16 4 Z" />
+          <path d="M6 26 H26" strokeLinecap="round" />
         </svg>
       )
     default:
@@ -334,8 +365,7 @@ function UsageBar({ usage, loading, error, onRefresh }: {
 export function SettingsView(): JSX.Element {
   const {
     micDeviceId, userName, agentName, activeListeningDraftSeconds, whisperModel,
-    agentStartsExpanded,
-    ollamaBaseUrl, ollamaModelName, kimiModelName,
+    ollamaBaseUrl, kimiAuthMethod,
     tts,
     update,
   } = useSettingsStore()
@@ -445,16 +475,25 @@ export function SettingsView(): JSX.Element {
   }
 
   // ── kimi account state ──
-  const [kimiAccount, setKimiAccount] = useState<{ loggedIn: boolean }>({ loggedIn: false })
+  const [kimiAccount, setKimiAccount] = useState<{ loggedIn: boolean; apiKeyStored: boolean }>({
+    loggedIn: false,
+    apiKeyStored: false,
+  })
   const [kimiMode, setKimiMode] = useState<'idle' | 'pending'>('idle')
   const [kimiPending, setKimiPending] = useState<{ url: string; userCode: string } | null>(null)
   const [kimiError, setKimiError] = useState('')
+  // BYO Moonshot API key draft — write-only across IPC, so the field starts
+  // blank on every load (same pattern as the Google client secret).
+  const [kimiKeyDraft, setKimiKeyDraft] = useState('')
+  const [kimiKeyBusy, setKimiKeyBusy] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    window.api.kimiAuth.getStatus().then((s) => { if (!cancelled) setKimiAccount({ loggedIn: s.loggedIn }) })
+    window.api.kimiAuth.getStatus().then((s) => {
+      if (!cancelled) setKimiAccount({ loggedIn: s.loggedIn, apiKeyStored: s.apiKeyStored })
+    })
     const offChanged = window.api.kimiAuth.onChanged((d) => {
-      setKimiAccount({ loggedIn: d.loggedIn })
+      setKimiAccount({ loggedIn: d.loggedIn, apiKeyStored: d.apiKeyStored })
       setKimiMode('idle')
       setKimiPending(null)
       setKimiError('')
@@ -487,6 +526,41 @@ export function SettingsView(): JSX.Element {
 
   async function kimiSignOut(): Promise<void> {
     try { await window.api.kimiAuth.logout() } catch { /* ignore */ }
+  }
+
+  // Flip auth method. Model choice lives in the chat composer's ModelPicker,
+  // which reads the option table matching the active method.
+  function kimiSetAuthMethod(method: 'oauth' | 'apikey'): void {
+    void update({ kimiAuthMethod: method })
+  }
+
+  async function kimiSaveApiKey(): Promise<void> {
+    const apiKey = kimiKeyDraft.trim()
+    if (!apiKey) {
+      setKimiError('An API key is required.')
+      return
+    }
+    setKimiKeyBusy(true)
+    setKimiError('')
+    try {
+      const s = await window.api.kimiAuth.saveApiKey({ apiKey })
+      setKimiAccount({ loggedIn: s.loggedIn, apiKeyStored: s.apiKeyStored })
+      setKimiKeyDraft('')
+    } catch (e) {
+      setKimiError(e instanceof Error ? e.message : 'Could not save the API key')
+    } finally { setKimiKeyBusy(false) }
+  }
+
+  async function kimiClearApiKey(): Promise<void> {
+    setKimiKeyBusy(true)
+    setKimiError('')
+    try {
+      const s = await window.api.kimiAuth.clearApiKey()
+      setKimiAccount({ loggedIn: s.loggedIn, apiKeyStored: s.apiKeyStored })
+      setKimiKeyDraft('')
+    } catch (e) {
+      setKimiError(e instanceof Error ? e.message : 'Could not clear the API key')
+    } finally { setKimiKeyBusy(false) }
   }
 
   // ── google account state ──
@@ -560,6 +634,223 @@ export function SettingsView(): JSX.Element {
     } catch (e) {
       setGoogleError(e instanceof Error ? e.message : 'Could not clear credentials')
     } finally { setGoogleBusy(null) }
+  }
+
+  // ── BYO web-search provider (search_web tool) ──
+  // Same shape as the Google BYO pair: the provider choice is readable, the
+  // API key is write-only (safeStorage) so the field starts blank every load.
+  const [searchStatus, setSearchStatus] = useState<{ provider: 'brave' | 'tavily' | 'browserbase' | null; keyStored: boolean } | null>(null)
+  const [searchProviderDraft, setSearchProviderDraft] = useState<'brave' | 'tavily' | 'browserbase'>('brave')
+  const [searchKeyDraft, setSearchKeyDraft] = useState('')
+  const [searchBusy, setSearchBusy] = useState<string | null>(null)
+  const [searchError, setSearchError] = useState<string | null>(null)
+
+  const refreshSearchStatus = useCallback(async () => {
+    const s = await window.api.searchProvider.getStatus()
+    setSearchStatus(s)
+    if (s.provider) setSearchProviderDraft(s.provider)
+  }, [])
+
+  useEffect(() => { void refreshSearchStatus() }, [refreshSearchStatus])
+
+  async function searchSaveCredentials(): Promise<void> {
+    const apiKey = searchKeyDraft.trim()
+    if (!apiKey) {
+      setSearchError('An API key is required.')
+      return
+    }
+    setSearchBusy('Saving…')
+    setSearchError(null)
+    try {
+      const s = await window.api.searchProvider.saveCredentials({ provider: searchProviderDraft, apiKey })
+      setSearchStatus(s)
+      setSearchKeyDraft('')
+    } catch (e) {
+      setSearchError(e instanceof Error ? e.message : 'Could not save the API key')
+    } finally { setSearchBusy(null) }
+  }
+
+  async function searchClearCredentials(): Promise<void> {
+    setSearchBusy('Clearing…')
+    setSearchError(null)
+    try {
+      const s = await window.api.searchProvider.clearCredentials()
+      setSearchStatus(s)
+      setSearchKeyDraft('')
+    } catch (e) {
+      setSearchError(e instanceof Error ? e.message : 'Could not clear the API key')
+    } finally { setSearchBusy(null) }
+  }
+
+  // ── Doppler import ──
+  // One-shot: token is held in renderer state only for the fetch/apply calls
+  // and never persisted anywhere. Preview values arrive masked.
+  interface DopplerCandidate {
+    target: 'search-brave' | 'search-tavily' | 'search-browserbase' | 'kimi-apikey' | 'google-oauth'
+    label: string
+    secretName: string
+    maskedValue: string
+  }
+  // The search targets all write to the same single-provider slot, so at most
+  // one may be selected at a time.
+  const DOPPLER_SEARCH_TARGETS = ['search-brave', 'search-tavily', 'search-browserbase']
+  const [dopplerToken, setDopplerToken] = useState('')
+  const [dopplerProject, setDopplerProject] = useState('')
+  const [dopplerConfig, setDopplerConfig] = useState('')
+  const [dopplerBusy, setDopplerBusy] = useState<'fetch' | 'apply' | null>(null)
+  const [dopplerError, setDopplerError] = useState('')
+  const [dopplerFound, setDopplerFound] = useState<{ candidates: DopplerCandidate[]; totalSecrets: number } | null>(null)
+  const [dopplerSelected, setDopplerSelected] = useState<Set<string>>(new Set())
+  const [dopplerApplied, setDopplerApplied] = useState<string[]>([])
+
+  // Sign-in state for the Doppler device flow (same shape as the Kimi flow).
+  const [dopplerAuthed, setDopplerAuthed] = useState(false)
+  const [dopplerAuthMode, setDopplerAuthMode] = useState<'idle' | 'pending'>('idle')
+  const [dopplerPendingAuth, setDopplerPendingAuth] = useState<{ url: string; userCode: string } | null>(null)
+  // Workplace-scoped tokens need an explicit project + config; enumerated
+  // after sign-in so the user picks from dropdowns instead of typing slugs.
+  const [dopplerProjects, setDopplerProjects] = useState<string[]>([])
+  const [dopplerConfigs, setDopplerConfigs] = useState<string[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    window.api.doppler.getStatus().then((s) => { if (!cancelled) setDopplerAuthed(s.loggedIn) }).catch(() => {})
+    const offChanged = window.api.doppler.onChanged((d) => {
+      setDopplerAuthed(d.loggedIn)
+      setDopplerAuthMode('idle')
+      setDopplerPendingAuth(null)
+      setDopplerError('')
+      if (!d.loggedIn) {
+        setDopplerProjects([])
+        setDopplerConfigs([])
+        setDopplerProject('')
+        setDopplerConfig('')
+      }
+    })
+    const offPending = window.api.doppler.onPending((d) => {
+      setDopplerPendingAuth(d)
+      setDopplerAuthMode('pending')
+      setDopplerError('')
+    })
+    return () => { cancelled = true; offChanged(); offPending() }
+  }, [])
+
+  // Signed in → enumerate projects; project picked → enumerate its configs.
+  useEffect(() => {
+    if (!dopplerAuthed) return
+    let cancelled = false
+    window.api.doppler.listProjects()
+      .then((projects) => { if (!cancelled) setDopplerProjects(projects) })
+      .catch((e) => { if (!cancelled) setDopplerError(e instanceof Error ? e.message : 'Could not list Doppler projects') })
+    return () => { cancelled = true }
+  }, [dopplerAuthed])
+
+  useEffect(() => {
+    if (!dopplerAuthed || !dopplerProject) {
+      setDopplerConfigs([])
+      return
+    }
+    let cancelled = false
+    window.api.doppler.listConfigs(dopplerProject)
+      .then((configs) => {
+        if (cancelled) return
+        setDopplerConfigs(configs)
+        if (configs.length > 0 && !configs.includes(dopplerConfig)) setDopplerConfig(configs[0])
+      })
+      .catch((e) => { if (!cancelled) setDopplerError(e instanceof Error ? e.message : 'Could not list Doppler configs') })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dopplerAuthed, dopplerProject])
+
+  async function dopplerLogin(): Promise<void> {
+    setDopplerError('')
+    setDopplerAuthMode('pending')
+    try {
+      await window.api.doppler.login()
+    } catch (e) {
+      setDopplerError(e instanceof Error ? e.message : 'Sign-in failed')
+      setDopplerAuthMode('idle')
+      setDopplerPendingAuth(null)
+    }
+  }
+
+  async function dopplerCancelLogin(): Promise<void> {
+    try { await window.api.doppler.cancel() } catch { /* ignore */ }
+    setDopplerAuthMode('idle')
+    setDopplerPendingAuth(null)
+  }
+
+  async function dopplerLogout(): Promise<void> {
+    try { await window.api.doppler.logout() } catch { /* ignore */ }
+  }
+
+  function dopplerAccess(): { token?: string; project?: string; config?: string } {
+    return {
+      // A typed token always wins; otherwise the stored sign-in token is
+      // used main-side and we only send the project/config scope.
+      ...(dopplerToken.trim() ? { token: dopplerToken.trim() } : {}),
+      ...(dopplerProject.trim() ? { project: dopplerProject.trim() } : {}),
+      ...(dopplerConfig.trim() ? { config: dopplerConfig.trim() } : {})
+    }
+  }
+
+  const dopplerCanFetch = dopplerToken.trim().length > 0 ||
+    (dopplerAuthed && dopplerProject.trim().length > 0 && dopplerConfig.trim().length > 0)
+
+  async function dopplerFetch(): Promise<void> {
+    setDopplerBusy('fetch')
+    setDopplerError('')
+    setDopplerApplied([])
+    try {
+      const preview = await window.api.doppler.preview(dopplerAccess())
+      setDopplerFound(preview)
+      // Pre-select everything usable; when several search providers are
+      // present only one can be active — keep the first found (Brave >
+      // Tavily > Browserbase) and let the user flip it.
+      const initial = new Set(preview.candidates.map((c) => c.target as string))
+      const searchHits = DOPPLER_SEARCH_TARGETS.filter((t) => initial.has(t))
+      for (const t of searchHits.slice(1)) initial.delete(t)
+      setDopplerSelected(initial)
+    } catch (e) {
+      setDopplerFound(null)
+      setDopplerError(e instanceof Error ? e.message : 'Could not fetch secrets from Doppler')
+    } finally { setDopplerBusy(null) }
+  }
+
+  function dopplerToggle(target: string): void {
+    setDopplerSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(target)) {
+        next.delete(target)
+      } else {
+        if (DOPPLER_SEARCH_TARGETS.includes(target)) {
+          for (const t of DOPPLER_SEARCH_TARGETS) next.delete(t)
+        }
+        next.add(target)
+      }
+      return next
+    })
+  }
+
+  async function dopplerImport(): Promise<void> {
+    setDopplerBusy('apply')
+    setDopplerError('')
+    try {
+      const result = await window.api.doppler.apply({
+        access: dopplerAccess(),
+        targets: [...dopplerSelected] as DopplerCandidate['target'][]
+      })
+      setDopplerApplied(result.applied.map((a) => a.detail))
+      setDopplerFound(null)
+      setDopplerSelected(new Set())
+      // Imported credentials land in the other cards — refresh their status.
+      void refreshSearchStatus()
+      void refreshGoogleStatus()
+      window.api.kimiAuth.getStatus().then((s) => setKimiAccount({ loggedIn: s.loggedIn, apiKeyStored: s.apiKeyStored })).catch(() => {})
+      void useSettingsStore.getState().load()
+    } catch (e) {
+      setDopplerError(e instanceof Error ? e.message : 'Import failed')
+    } finally { setDopplerBusy(null) }
   }
 
   // ── whisper model install modal ──
@@ -919,7 +1210,11 @@ export function SettingsView(): JSX.Element {
 
   function getProviderStatus(kind: string): ProviderStatus {
     if (kind === 'projectrose') return prAccount.loggedIn ? 'connected' : 'missing'
-    if (kind === 'kimi') return kimiAccount.loggedIn ? 'connected' : 'missing'
+    if (kind === 'kimi') {
+      return kimiAuthMethod === 'apikey'
+        ? kimiAccount.apiKeyStored ? 'connected' : 'missing'
+        : kimiAccount.loggedIn ? 'connected' : 'missing'
+    }
     if (testedProviders[kind] === 'connected') return 'connected'
     if (testedProviders[kind] === 'error') return 'error'
     const fields = getProviderFields(kind)
@@ -1381,21 +1676,6 @@ export function SettingsView(): JSX.Element {
           )}
         </section>
 
-        <section className={styles.section} style={{ paddingTop: 16 }}>
-          <div className={styles.sectionTitle}>Agent View</div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Start expanded</div>
-              <div className={styles.settingDesc}>
-                Open the agent view in full-width mode when the app launches. When off, the agent opens in the default split layout.
-              </div>
-            </div>
-            <HToggle
-              on={agentStartsExpanded}
-              onChange={(v) => update({ agentStartsExpanded: v })}
-            />
-          </div>
-        </section>
       </>
     )
   }
@@ -1471,9 +1751,13 @@ export function SettingsView(): JSX.Element {
                               ? 'signed in'
                               : 'sign in to use the managed endpoint'
                             : p.kind === 'kimi'
-                              ? kimiAccount.loggedIn
-                                ? 'signed in'
-                                : 'sign in with your kimi.com account'
+                              ? kimiAuthMethod === 'apikey'
+                                ? kimiAccount.apiKeyStored
+                                  ? 'API key saved'
+                                  : 'add a Moonshot API key'
+                                : kimiAccount.loggedIn
+                                  ? 'signed in'
+                                  : 'sign in with your kimi.com account'
                               : status === 'connected' || status === 'unverified'
                                 ? `${filledCount}/${totalFields} field${totalFields === 1 ? '' : 's'}`
                                 : `${totalFields} field${totalFields === 1 ? '' : 's'} required`}
@@ -1495,8 +1779,8 @@ export function SettingsView(): JSX.Element {
                       <div style={{ padding: '12px 16px 4px' }}>
                         <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
                           {prAccount.loggedIn
-                            ? 'Active — chats route through the managed endpoint while you’re signed in. Sign out to fall back to your other providers.'
-                            : 'Sign in to route chats through the managed ProjectRose endpoint backed by your subscription — no API keys needed.'}
+                            ? 'Signed in — pick ProjectRose from the model picker in the chat composer to use the managed endpoint.'
+                            : 'Sign in to make the managed ProjectRose endpoint (backed by your subscription) available in the chat composer — no API keys needed.'}
                         </p>
                         {prAccount.loggedIn ? (
                           <>
@@ -1538,27 +1822,41 @@ export function SettingsView(): JSX.Element {
                       </div>
                     ) : p.kind === 'kimi' ? (
                       <div style={{ padding: '12px 16px 4px' }}>
-                        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
-                          {kimiAccount.loggedIn
-                            ? 'Active — chats route through Kimi Code backed by your kimi.com subscription. Sign out to fall back to your other providers.'
-                            : 'Sign in with your kimi.com account to route chats through Kimi Code — no API keys needed.'}
-                        </p>
-                        {kimiAccount.loggedIn ? (
-                          <FieldRow label="MODEL" hint="availability depends on your kimi.com plan">
-                            <select
-                              className={styles.hSelect}
-                              value={kimiModelName || 'kimi-for-coding'}
-                              onChange={(e) => update({ kimiModelName: e.target.value })}
+                        {/* Auth-method toggle: kimi.com OAuth vs BYO Moonshot API key */}
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                          {([
+                            { id: 'oauth' as const, label: 'KIMI.COM ACCOUNT' },
+                            { id: 'apikey' as const, label: 'API KEY' },
+                          ]).map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              className={kimiAuthMethod === m.id ? styles.primaryBtn : styles.ghostBtn}
+                              style={{ flex: 1, fontSize: 10 }}
+                              onClick={() => kimiSetAuthMethod(m.id)}
                             >
-                              {kimiModelName && !KIMI_MODEL_OPTIONS.some((o) => o.id === kimiModelName) && (
-                                <option value={kimiModelName}>{kimiModelName}</option>
-                              )}
-                              {KIMI_MODEL_OPTIONS.map((o) => (
-                                <option key={o.id} value={o.id}>{o.label}</option>
-                              ))}
-                            </select>
+                              {m.label}
+                            </button>
+                          ))}
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
+                          {kimiAuthMethod === 'apikey'
+                            ? kimiAccount.apiKeyStored
+                              ? 'API key saved — pick a Kimi model from the model picker in the chat composer (billed against your Moonshot key).'
+                              : 'Paste a Moonshot platform API key (platform.moonshot.ai) to make the pay-as-you-go Kimi models available in the chat composer — no kimi.com subscription needed.'
+                            : kimiAccount.loggedIn
+                              ? 'Signed in — pick a Kimi Code model from the model picker in the chat composer (backed by your kimi.com subscription).'
+                              : 'Sign in with your kimi.com account to make Kimi Code available in the chat composer — no API keys needed.'}
+                        </p>
+                        {kimiAuthMethod === 'apikey' ? (
+                          <FieldRow label="API KEY" hint="stored in system keychain">
+                            <KeyInput
+                              value={kimiKeyDraft}
+                              placeholder={kimiAccount.apiKeyStored ? '••••••••  (key saved — paste to replace)' : 'sk-…'}
+                              onChange={setKimiKeyDraft}
+                            />
                           </FieldRow>
-                        ) : kimiMode === 'pending' ? (
+                        ) : kimiAccount.loggedIn ? null : kimiMode === 'pending' ? (
                           <div style={{ margin: '0 0 12px' }}>
                             <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 8px' }}>
                               Browser opened — approve this device on kimi.com.
@@ -1602,25 +1900,9 @@ export function SettingsView(): JSX.Element {
                           </FieldRow>
                         ))}
                         {p.kind === 'ollama' && (
-                          <FieldRow label="MODEL NAME" hint="exact tag pulled via `ollama pull`">
-                            {(() => {
-                              const options = ollamaModels['__ollama_provider__'] ?? []
-                              return (
-                                <select
-                                  className={styles.hSelect}
-                                  value={ollamaModelName}
-                                  onChange={(e) => update({ ollamaModelName: e.target.value })}
-                                  onFocus={() => fetchOllamaModels('__ollama_provider__', ollamaBaseUrl)}
-                                >
-                                  {!ollamaModelName && <option value="" disabled>Select a model</option>}
-                                  {ollamaModelName && !options.includes(ollamaModelName) && (
-                                    <option value={ollamaModelName}>{ollamaModelName}</option>
-                                  )}
-                                  {options.map((m) => <option key={m} value={m}>{m}</option>)}
-                                </select>
-                              )
-                            })()}
-                          </FieldRow>
+                          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '12px 16px 4px' }}>
+                            Installed models appear in the model picker in the chat composer.
+                          </p>
                         )}
                       </>
                     )}
@@ -1642,7 +1924,29 @@ export function SettingsView(): JSX.Element {
                       </div>
                     ) : p.kind === 'kimi' ? (
                       <div className={styles.providerCardFooter} style={{ justifyContent: 'stretch' }}>
-                        {kimiAccount.loggedIn ? (
+                        {kimiAuthMethod === 'apikey' ? (
+                          <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                            <button
+                              type="button"
+                              className={styles.ghostBtn}
+                              style={{ flex: 1 }}
+                              onClick={kimiClearApiKey}
+                              disabled={!kimiAccount.apiKeyStored || kimiKeyBusy}
+                              title="Wipes the saved Moonshot API key."
+                            >
+                              CLEAR
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.primaryBtn}
+                              style={{ flex: 2 }}
+                              onClick={kimiSaveApiKey}
+                              disabled={kimiKeyDraft.trim().length === 0 || kimiKeyBusy}
+                            >
+                              {kimiKeyBusy ? 'SAVING…' : 'SAVE KEY'}
+                            </button>
+                          </div>
+                        ) : kimiAccount.loggedIn ? (
                           <button type="button" className={styles.ghostBtn} style={{ width: '100%' }} onClick={kimiSignOut}>
                             SIGN OUT
                           </button>
@@ -1915,6 +2219,382 @@ export function SettingsView(): JSX.Element {
                           {googleBusy ?? 'SIGN IN WITH GOOGLE'}
                         </button>
                       )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          <div className={styles.sectionGap} />
+
+          {(() => {
+            const kind = 'search'
+            const isExpanded = expandedProvider === kind
+            const provider = searchStatus?.provider ?? null
+            const keyStored = searchStatus?.keyStored ?? false
+            const configured = provider !== null && keyStored
+            const status: ProviderStatus = configured ? 'connected' : provider ? 'unverified' : 'missing'
+            return (
+              <div className={styles.providerCard}>
+                <button
+                  type="button"
+                  onClick={() => setExpandedProvider(isExpanded ? null : kind)}
+                  className={styles.providerCardHeader}
+                  style={{
+                    borderBottom: isExpanded ? '1px solid var(--color-bg-secondary)' : 'none',
+                    background: isExpanded ? 'var(--color-bg-primary)' : 'transparent',
+                  }}
+                >
+                  <div className={styles.providerCardHeaderInner}>
+                    <div className={styles.providerGlyphBox}>
+                      <span className={styles.providerSpecNum}>№S1</span>
+                      <ProviderGlyph kind={kind} size={28} />
+                    </div>
+                    <div className={styles.providerNameBlock}>
+                      <div className={styles.providerNameRow}>
+                        <span className={styles.providerName}>Web Search</span>
+                        <span className={styles.providerLatin}>Rosa quaerens</span>
+                      </div>
+                      <div className={styles.providerStatusRow}>
+                        <StatusBadge state={status} />
+                        <span className={styles.providerFieldInfo}>
+                          {configured
+                            ? `search_web via ${provider === 'brave' ? 'Brave Search' : provider === 'tavily' ? 'Tavily' : 'Browserbase'}`
+                            : 'add an API key to enable the search_web tool'}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={styles.providerCaret}
+                      style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                    >
+                      ▸
+                    </span>
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className={`${styles.providerCardBody} ${styles.drawerIn}`}>
+                    <div style={{ padding: '12px 16px 4px' }}>
+                      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
+                        The agent&apos;s search_web tool calls this provider directly from your
+                        machine — no ProjectRose account needed. Get a key at{' '}
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>
+                          {searchProviderDraft === 'brave'
+                            ? 'brave.com/search/api'
+                            : searchProviderDraft === 'tavily'
+                              ? 'tavily.com'
+                              : 'browserbase.com'}
+                        </span>
+                        .
+                      </p>
+                      {searchError && (
+                        <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{searchError}</p>
+                      )}
+                      <FieldRow label="PROVIDER" hint="determines which API the key belongs to">
+                        <select
+                          className={styles.hSelect}
+                          value={searchProviderDraft}
+                          onChange={(e) => setSearchProviderDraft(e.target.value as 'brave' | 'tavily' | 'browserbase')}
+                        >
+                          <option value="brave">Brave Search</option>
+                          <option value="tavily">Tavily</option>
+                          <option value="browserbase">Browserbase</option>
+                        </select>
+                      </FieldRow>
+                      <FieldRow label="API KEY" hint="stored in system keychain">
+                        <KeyInput
+                          value={searchKeyDraft}
+                          placeholder={
+                            searchProviderDraft === 'brave' ? 'BSA…' : searchProviderDraft === 'tavily' ? 'tvly-…' : 'bb_…'
+                          }
+                          onChange={setSearchKeyDraft}
+                        />
+                      </FieldRow>
+                    </div>
+                    <div className={styles.providerCardFooter} style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        className={styles.ghostBtn}
+                        style={{ flex: 1 }}
+                        onClick={searchClearCredentials}
+                        disabled={(!provider && !keyStored) || searchBusy !== null}
+                        title="Wipes the saved provider choice and API key."
+                      >
+                        CLEAR
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.primaryBtn}
+                        style={{ flex: 2 }}
+                        onClick={searchSaveCredentials}
+                        disabled={searchKeyDraft.trim().length === 0 || searchBusy !== null}
+                      >
+                        {searchBusy ?? 'SAVE'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+        </div>
+
+        {/* ══ PLATE III · DOPPLER IMPORT ══ */}
+        <div className={styles.plateSection}>
+          <SectionHeader
+            n="III"
+            title="Doppler Import"
+            sub="Pull API keys from a Doppler config into the providers and accounts above."
+          />
+          <div className={styles.sectionGap} />
+
+          {(() => {
+            const kind = 'doppler'
+            const isExpanded = expandedProvider === kind
+            const hasResults = dopplerApplied.length > 0
+            const status: ProviderStatus = hasResults || dopplerAuthed ? 'connected' : 'missing'
+            return (
+              <div className={styles.providerCard}>
+                <button
+                  type="button"
+                  onClick={() => setExpandedProvider(isExpanded ? null : kind)}
+                  className={styles.providerCardHeader}
+                  style={{
+                    borderBottom: isExpanded ? '1px solid var(--color-bg-secondary)' : 'none',
+                    background: isExpanded ? 'var(--color-bg-primary)' : 'transparent',
+                  }}
+                >
+                  <div className={styles.providerCardHeaderInner}>
+                    <div className={styles.providerGlyphBox}>
+                      <span className={styles.providerSpecNum}>№D1</span>
+                      <ProviderGlyph kind={kind} size={28} />
+                    </div>
+                    <div className={styles.providerNameBlock}>
+                      <div className={styles.providerNameRow}>
+                        <span className={styles.providerName}>Doppler Import</span>
+                        <span className={styles.providerLatin}>Rosa importata</span>
+                      </div>
+                      <div className={styles.providerStatusRow}>
+                        <StatusBadge state={status} />
+                        <span className={styles.providerFieldInfo}>
+                          {hasResults
+                            ? `imported ${dopplerApplied.length} credential${dopplerApplied.length === 1 ? '' : 's'} this session`
+                            : dopplerAuthed
+                              ? 'signed in — pull API keys from a config'
+                              : 'sign in or paste a token to pull API keys'}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={styles.providerCaret}
+                      style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                    >
+                      ▸
+                    </span>
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className={`${styles.providerCardBody} ${styles.drawerIn}`}>
+                    <div style={{ padding: '12px 16px 4px' }}>
+                      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
+                        Fetch a Doppler config and import any recognized API keys into the
+                        providers above. Sign in keeps an encrypted Doppler token in your system
+                        keychain; a pasted token is used for the import only and never saved.
+                      </p>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', margin: '0 0 14px' }}>
+                        <thead>
+                          <tr>
+                            <th style={dopplerTh}>DOPPLER SECRET</th>
+                            <th style={dopplerTh}>IMPORTS TO</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {DOPPLER_KEY_ROWS.map((row) => (
+                            <tr key={row.secret}>
+                              <td style={{ ...dopplerTd, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-primary)' }}>
+                                {row.secret}
+                              </td>
+                              <td style={{ ...dopplerTd, color: 'var(--color-text-muted)' }}>{row.importsTo}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {dopplerError && (
+                        <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{dopplerError}</p>
+                      )}
+                      {dopplerApplied.length > 0 && (
+                        <div style={{ fontSize: 11, color: 'var(--color-saved)', lineHeight: 1.7, margin: '0 0 12px' }}>
+                          {dopplerApplied.map((d) => <div key={d}>✓ {d}</div>)}
+                        </div>
+                      )}
+                      {dopplerAuthed ? (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 12px' }}>
+                            <span style={{ fontSize: 12, color: 'var(--color-saved)' }}>● Signed in to Doppler</span>
+                            <button
+                              type="button"
+                              onClick={dopplerLogout}
+                              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: 11, letterSpacing: 0.6, fontFamily: 'inherit', textDecoration: 'underline' }}
+                            >
+                              SIGN OUT
+                            </button>
+                          </div>
+                          <FieldRow label="PROJECT" hint="Doppler project to pull from">
+                            <select
+                              className={styles.hSelect}
+                              value={dopplerProject}
+                              onChange={(e) => setDopplerProject(e.target.value)}
+                            >
+                              {!dopplerProject && <option value="" disabled>Select a project</option>}
+                              {dopplerProjects.map((p) => <option key={p} value={p}>{p}</option>)}
+                            </select>
+                          </FieldRow>
+                          <FieldRow label="CONFIG" hint="environment config within the project">
+                            <select
+                              className={styles.hSelect}
+                              value={dopplerConfig}
+                              onChange={(e) => setDopplerConfig(e.target.value)}
+                              disabled={!dopplerProject}
+                            >
+                              {!dopplerConfig && <option value="" disabled>Select a config</option>}
+                              {dopplerConfigs.map((c) => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </FieldRow>
+                        </>
+                      ) : dopplerAuthMode === 'pending' ? (
+                        <div style={{ margin: '0 0 12px' }}>
+                          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 8px' }}>
+                            Browser opened — enter the code below in the Doppler dashboard to authorize.
+                            {dopplerPendingAuth?.url && (
+                              <>
+                                {' '}
+                                <button
+                                  type="button"
+                                  onClick={() => navigator.clipboard.writeText(dopplerPendingAuth.url).catch(() => {})}
+                                  style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-accent)', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, fontFamily: 'inherit' }}
+                                >
+                                  COPY LINK
+                                </button>
+                              </>
+                            )}
+                          </p>
+                          {dopplerPendingAuth?.userCode && (
+                            <p style={{ fontSize: 12, margin: '0 0 8px', color: 'var(--color-text-primary)' }}>
+                              Auth code:{' '}
+                              <button
+                                type="button"
+                                onClick={() => navigator.clipboard.writeText(dopplerPendingAuth.userCode).catch(() => {})}
+                                title="Click to copy"
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, letterSpacing: '0.1em', color: 'var(--color-accent)', textDecoration: 'underline' }}
+                              >
+                                {dopplerPendingAuth.userCode}
+                              </button>
+                            </p>
+                          )}
+                          <button type="button" className={styles.ghostBtn} onClick={dopplerCancelLogin}>
+                            CANCEL SIGN-IN
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className={styles.primaryBtn}
+                            style={{ width: '100%', marginBottom: 12 }}
+                            onClick={dopplerLogin}
+                          >
+                            SIGN IN WITH DOPPLER
+                          </button>
+                          <p style={{ fontSize: 10, color: 'var(--color-text-muted)', letterSpacing: 0.6, margin: '0 0 10px', textAlign: 'center' }}>
+                            — OR PASTE A TOKEN —
+                          </p>
+                          <FieldRow label="DOPPLER TOKEN" hint="service token (dp.st.…) or personal token">
+                            <KeyInput value={dopplerToken} placeholder="dp.st.…" onChange={setDopplerToken} />
+                          </FieldRow>
+                          <FieldRow label="PROJECT" hint="only needed for personal tokens">
+                            <KeyInput value={dopplerProject} placeholder="project (optional)" onChange={setDopplerProject} type="text" />
+                          </FieldRow>
+                          <FieldRow label="CONFIG" hint="only needed for personal tokens">
+                            <KeyInput value={dopplerConfig} placeholder="config (optional)" onChange={setDopplerConfig} type="text" />
+                          </FieldRow>
+                        </>
+                      )}
+                      {dopplerFound && (
+                        <div style={{ margin: '12px 0 4px' }}>
+                          {dopplerFound.candidates.length === 0 ? (
+                            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: 0 }}>
+                              No recognizable API keys among {dopplerFound.totalSecrets} secret{dopplerFound.totalSecrets === 1 ? '' : 's'} in this config.
+                            </p>
+                          ) : (
+                            <>
+                              <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: '0 0 8px', letterSpacing: 0.6 }}>
+                                FOUND {dopplerFound.candidates.length} OF {dopplerFound.totalSecrets} SECRETS USABLE — SELECT WHAT TO IMPORT
+                              </p>
+                              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ ...dopplerTh, width: 28 }} aria-label="Import" />
+                                    <th style={dopplerTh}>DESTINATION</th>
+                                    <th style={dopplerTh}>DOPPLER SECRET</th>
+                                    <th style={dopplerTh}>VALUE</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {dopplerFound.candidates.map((c) => (
+                                    <tr
+                                      key={c.target}
+                                      onClick={() => dopplerToggle(c.target)}
+                                      style={{ cursor: 'pointer', background: dopplerSelected.has(c.target) ? 'var(--color-bg-primary)' : 'transparent' }}
+                                    >
+                                      <td style={{ ...dopplerTd, textAlign: 'center' }}>
+                                        <input
+                                          type="checkbox"
+                                          checked={dopplerSelected.has(c.target)}
+                                          onChange={() => dopplerToggle(c.target)}
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      </td>
+                                      <td style={{ ...dopplerTd, color: 'var(--color-text-primary)' }}>{c.label}</td>
+                                      <td style={{ ...dopplerTd, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-muted)' }}>
+                                        {c.secretName}
+                                      </td>
+                                      <td style={{ ...dopplerTd, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-muted)' }}>
+                                        {c.maskedValue}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className={styles.providerCardFooter} style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        className={styles.ghostBtn}
+                        style={{ flex: 1 }}
+                        onClick={dopplerFetch}
+                        disabled={!dopplerCanFetch || dopplerBusy !== null}
+                      >
+                        {dopplerBusy === 'fetch' ? 'FETCHING…' : dopplerFound ? '↻ RE-FETCH' : 'FETCH SECRETS'}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.primaryBtn}
+                        style={{ flex: 2 }}
+                        onClick={dopplerImport}
+                        disabled={!dopplerFound || dopplerSelected.size === 0 || dopplerBusy !== null}
+                      >
+                        {dopplerBusy === 'apply'
+                          ? 'IMPORTING…'
+                          : `IMPORT${dopplerSelected.size > 0 ? ` ${dopplerSelected.size} SELECTED` : ''}`}
+                      </button>
                     </div>
                   </div>
                 )}

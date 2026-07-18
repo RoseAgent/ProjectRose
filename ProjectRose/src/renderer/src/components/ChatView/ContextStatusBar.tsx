@@ -1,15 +1,20 @@
 import { useChat, COMPRESSION_THRESHOLD_PCT } from '../../stores/useChat'
+import { ModelPicker } from './ModelPicker'
 import styles from './ContextStatusBar.module.css'
 
-export function ContextStatusBar(): JSX.Element | null {
+/**
+ * The composer status row: ModelPicker on the left, context/tool-call
+ * metrics plus the COMPRESS action on the right. The metrics only exist for
+ * Rose conversations with an active context estimate; the picker always
+ * renders (it's how external sessions choose Claude/Codex vs a Rose model).
+ */
+export function ContextStatusBar(): JSX.Element {
   const status = useChat((s) => s.contextStatus)
   const isCompressing = useChat((s) => s.isCompressing)
   const compressNow = useChat((s) => s.compressNow)
 
-  if (!status) return null
-
-  const pct = Math.max(0, Math.min(100, Math.round(status.percentUsed * 100)))
-  const high = status.percentUsed >= COMPRESSION_THRESHOLD_PCT
+  const pct = status ? Math.max(0, Math.min(100, Math.round(status.percentUsed * 100))) : 0
+  const high = status ? status.percentUsed >= COMPRESSION_THRESHOLD_PCT : false
 
   // The manual button compresses the entire conversation (keep 0 recent turns
   // verbatim), unlike the auto-suggested toast which keeps the recent turns.
@@ -19,20 +24,26 @@ export function ContextStatusBar(): JSX.Element | null {
 
   return (
     <div className={styles.bar}>
-      <span className={`${styles.metric} ${high ? styles.metricHigh : ''}`}>{pct}% context</span>
-      <span className={styles.sep}>·</span>
-      <span className={styles.tools}>
-        {status.totalToolSteps} tool {status.totalToolSteps === 1 ? 'call' : 'calls'}
-      </span>
-      <button
-        type="button"
-        className={styles.btn}
-        onClick={handleCompress}
-        disabled={isCompressing}
-        title="Summarise the whole conversation to free up context"
-      >
-        {isCompressing ? 'COMPRESSING…' : 'COMPRESS'}
-      </button>
+      <ModelPicker />
+      {status && (
+        <>
+          <span className={styles.sep}>·</span>
+          <span className={`${styles.metric} ${high ? styles.metricHigh : ''}`}>{pct}% context</span>
+          <span className={styles.sep}>·</span>
+          <span className={styles.tools}>
+            {status.totalToolSteps} tool {status.totalToolSteps === 1 ? 'call' : 'calls'}
+          </span>
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={handleCompress}
+            disabled={isCompressing}
+            title="Summarise the whole conversation to free up context"
+          >
+            {isCompressing ? 'COMPRESSING…' : 'COMPRESS'}
+          </button>
+        </>
+      )}
     </div>
   )
 }

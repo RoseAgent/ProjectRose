@@ -12,25 +12,17 @@ const EXPLORE_SYSTEM_PROMPT =
   'You are a read-only code explorer. Answer questions by reading files, listing directories, and grepping. ' +
   'Never write files, edit files, or run commands. Return a concise, factual summary of your findings.'
 
-const EXPLORE_DISABLED_TOOLS = ['write_file', 'edit_file', 'run_command', 'ask_user']
-
-function decomposeExploreQueries(topic: string): string[] {
-  const keywords = topic
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]/g, ' ')
-    .split(' ')
-    .filter((w) => w.length > 4)
-    .slice(0, 3)
-
-  const queries: string[] = [
-    `List the top-level project structure and explore the directories most likely relevant to: ${topic}`,
-    `Grep for type names, function names, and identifiers related to: ${topic}. Read the most relevant files and summarise how they work.`,
-    ...keywords.map(
-      (kw) => `Search all source files for "${kw}" and explain every usage that is relevant to: ${topic}`
-    )
-  ]
-  return queries.slice(0, 5)
-}
+const EXPLORE_DISABLED_TOOLS = [
+  'write_file',
+  'edit_file',
+  'delete_file',
+  'move_file',
+  'run_command',
+  'read_process_output',
+  'kill_process',
+  'todo_write',
+  'ask_user'
+]
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildSubagentTools(
@@ -138,18 +130,22 @@ export function buildSubagentTools(
 
   const explore = tool({
     description:
-      'Explore the codebase to answer a question or investigate a topic. ' +
-      'Automatically decomposes the topic into 3–5 parallel read-only sub-queries, ' +
-      'runs them concurrently, then returns a combined report of all findings. ' +
-      'Sub-explorers cannot write files or run commands.',
+      'Explore the codebase with read-only workers to answer a question or investigate a topic. ' +
+      'You write the queries: pass one focused query for a simple question, or up to 5 for a broad ' +
+      'investigation — they run concurrently and the combined findings are returned. Make each query ' +
+      'self-contained and explicit about what to look for. Explorers cannot write files or run commands.',
     inputSchema: z.object({
-      topic: z.string().describe('The question or topic to explore, e.g. "How does session persistence work?"')
+      queries: z
+        .array(z.string())
+        .min(1)
+        .max(5)
+        .describe('1–5 self-contained exploration queries, e.g. "Find where sessions are persisted and summarise the save/load flow"')
     }),
     execute: async (input, options: ToolExecutionOptions) => {
       const id = options.toolCallId
-      const subQueries = decomposeExploreQueries(input.topic)
+      const subQueries = input.queries
 
-      ctx.notify(IPC.AI_TOOL_CALL_START, { sessionId: ctx.sessionId, id, name: 'explore', params: { topic: input.topic, queries: subQueries.length } })
+      ctx.notify(IPC.AI_TOOL_CALL_START, { sessionId: ctx.sessionId, id, name: 'explore', params: { queries: subQueries.length } })
 
       let combined = ''
       try {

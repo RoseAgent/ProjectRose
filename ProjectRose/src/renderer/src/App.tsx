@@ -19,6 +19,7 @@ import { useFileStore } from './stores/useFileStore'
 import { useProjectStore } from './stores/useProjectStore'
 import { useIndexingStore } from './stores/useIndexingStore'
 import { useSettingsStore } from './stores/useSettingsStore'
+import { useProviderStore } from './stores/useProviderStore'
 import { useStatusStore } from './stores/useStatusStore'
 import { useUpdaterStore } from './stores/useUpdaterStore'
 import { useAppsDrawerStore } from './stores/useAppsDrawerStore'
@@ -40,10 +41,8 @@ function App(): JSX.Element {
 
   const { load: loadSettings } = useSettingsStore()
   const settingsLoaded = useSettingsStore((s) => s.loaded)
-  const agentStartsExpanded = useSettingsStore((s) => s.agentStartsExpanded)
   const isChatFullWidth = useViewStore((s) => s.isChatFullWidth)
   const [needsSetup, setNeedsSetup] = useState(false)
-  const initialExpandApplied = useRef(false)
   const initialMainViewApplied = useRef(false)
 
   // Keep EditorView and ChatView mounted once they've been shown, then just
@@ -99,35 +98,10 @@ function App(): JSX.Element {
     }
   }, [])
 
-  // Auto-bind hostMode to sign-in state. Precedence: ProjectRose sign-in →
-  // managed endpoint; else Kimi sign-in → Kimi Code; else fall back to
-  // self-hosted Ollama. Reconciles on launch and on every auth change, so
-  // signing out of one provider drops through to the next.
-  useEffect(() => {
-    if (!settingsLoaded) return
-    let cancelled = false
-    const loggedIn = { pr: false, kimi: false }
-    const sync = (): void => {
-      const desired: 'projectrose' | 'kimi' | 'self' =
-        loggedIn.pr ? 'projectrose' : loggedIn.kimi ? 'kimi' : 'self'
-      const current = useSettingsStore.getState().hostMode
-      if (current !== desired) {
-        useSettingsStore.getState().update({ hostMode: desired }).catch(() => {})
-      }
-    }
-    Promise.all([
-      window.api.auth.getStatus().catch(() => ({ loggedIn: false })),
-      window.api.kimiAuth.getStatus().catch(() => ({ loggedIn: false }))
-    ]).then(([pr, kimi]) => {
-      if (cancelled) return
-      loggedIn.pr = pr.loggedIn
-      loggedIn.kimi = kimi.loggedIn
-      sync()
-    })
-    const offPr = window.api.auth.onChanged((d) => { loggedIn.pr = d.loggedIn; sync() })
-    const offKimi = window.api.kimiAuth.onChanged((d) => { loggedIn.kimi = d.loggedIn; sync() })
-    return () => { cancelled = true; offPr(); offKimi() }
-  }, [settingsLoaded])
+  // Track live provider availability (sign-in state) for the chat composer's
+  // ModelPicker. There is no global provider setting to reconcile anymore —
+  // each Conversation carries its own composer pick.
+  useEffect(() => useProviderStore.getState().init(), [])
 
   // Load dynamic (third-party) extensions whenever the project changes
   useEffect(() => {
@@ -146,17 +120,6 @@ function App(): JSX.Element {
 
   // Reload settings when a project is opened to merge in repo config
   useEffect(() => { if (rootPath) loadSettings() }, [rootPath, loadSettings])
-
-  // First time settings finish loading, seed the agent view's expanded state
-  // from the user's preference. After this point the user can toggle in-session
-  // without us clobbering their choice.
-  useEffect(() => {
-    if (!settingsLoaded || initialExpandApplied.current) return
-    initialExpandApplied.current = true
-    if (agentStartsExpanded) {
-      useViewStore.setState({ isChatFullWidth: true })
-    }
-  }, [settingsLoaded, agentStartsExpanded])
 
   // Restore the user's last bloom/editor choice on first settings load. Runs
   // after the stale-activeView reset above (which narrows to base views but

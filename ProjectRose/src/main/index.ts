@@ -6,6 +6,7 @@ import { registerAllHandlers, registerIpcManifests } from './ipc'
 import { attachDisplayMediaHandler } from './ipc/screenHandlers'
 import { buildAppMenu } from './menu'
 import { disposeAllTerminals } from './services/terminalService'
+import { reapAllBackgroundProcesses } from './services/backgroundProcesses'
 import { stopLsp } from './services/lspManager'
 import { initAutoUpdater } from './services/updaterService'
 import { toolRegistry } from './services/toolRegistry'
@@ -145,4 +146,10 @@ app.on('window-all-closed', () => {
   stopLsp()
   destroyTray()
   if (process.platform !== 'darwin') app.quit()
+})
+
+// Background processes the agent started via run_command run_in_background
+// must never outlive the app.
+app.on('will-quit', () => {
+  reapAllBackgroundProcesses()
 })

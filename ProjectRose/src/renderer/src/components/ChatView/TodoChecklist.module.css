@@ -1,0 +1,89 @@
+.checklist {
+  border-top: 1px solid var(--color-bg-secondary);
+  background: var(--color-bg-primary);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-align: left;
+}
+
+.caret {
+  font-size: 9px;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.count {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+}
+
+.activeHint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  font-style: italic;
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 8px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  color: var(--color-text-primary);
+  line-height: 1.5;
+}
+
+.marker {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.inProgress .marker {
+  color: var(--color-accent);
+}
+
+.inProgress .label {
+  color: var(--color-accent);
+}
+
+.completed .marker {
+  color: var(--color-saved);
+}
+
+.completed .label {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

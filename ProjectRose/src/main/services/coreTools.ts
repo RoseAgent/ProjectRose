@@ -6,10 +6,18 @@ import {
   handleWriteFile,
   handleEditFile,
   handleListDirectory,
+  handleDeleteFile,
+  handleMoveFile,
   handleGrep,
+  handleGlob,
   handleRunCommand,
+  handleReadProcessOutput,
+  handleKillProcess,
+  handleFetchUrl,
   handleSearchWeb
 } from './toolHandlers'
+import { getConversationToolState } from './conversationToolState'
+import type { TodoItem } from '../../shared/todos'
 import {
   handleMemoryReadDiary,
   handleMemoryListDiary,
@@ -61,14 +69,18 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
   const { rootPath: projectRoot, emit, toolCtx, hookCtx } = ctx
   return {
     read_file: tool({
-      description: 'Read the contents of a file. Use project-relative paths.',
+      description:
+        'Read the contents of a file with line numbers (each line is "N<tab>text"). Use project-relative paths. Reads up to 2000 lines by default; for larger files pass offset/limit to page through.',
       inputSchema: z.object({
-        path: z.string().describe('File path relative to the project root')
+        path: z.string().describe('File path relative to the project root'),
+        offset: z.number().optional().describe('1-based line number to start reading from (default 1)'),
+        limit: z.number().optional().describe('Maximum number of lines to return (default 2000)')
       }),
       execute: wrapExecute('read_file', handleReadFile, projectRoot, emit, toolCtx, hookCtx)
     }),
     write_file: tool({
-      description: 'Write content to a file. Creates the file and any missing parent directories if they do not exist.',
+      description:
+        'Write content to a file. Creates the file and any missing parent directories if they do not exist. Overwriting an existing file requires reading it with read_file first.',
       inputSchema: z.object({
         path: z.string().describe('File path relative to the project root'),
         content: z.string().describe('The full file content to write')
@@ -76,11 +88,13 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       execute: wrapExecute('write_file', handleWriteFile, projectRoot, emit, toolCtx, hookCtx)
     }),
     edit_file: tool({
-      description: 'Replace a unique string in a file with new content. Fails if old_string is not found or appears more than once — add more surrounding context to disambiguate.',
+      description:
+        'Replace a string in a file. old_string must match the file exactly — strip the "N<tab>" line-number prefix that read_file adds before composing it. Fails if old_string is not found, or if it appears more than once (add surrounding context to disambiguate, or pass replace_all to replace every occurrence). The file must have been read with read_file earlier in the conversation.',
       inputSchema: z.object({
         path: z.string().describe('File path relative to the project root'),
-        old_string: z.string().describe('Exact string to find and replace. Must appear exactly once in the file.'),
-        new_string: z.string().describe('String to replace old_string with')
+        old_string: z.string().describe('Exact string to find and replace (without read_file line-number prefixes)'),
+        new_string: z.string().describe('String to replace old_string with'),
+        replace_all: z.boolean().optional().describe('Replace every occurrence instead of requiring a unique match (default false)')
       }),
       execute: wrapExecute('edit_file', handleEditFile, projectRoot, emit, toolCtx, hookCtx)
     }),
@@ -91,22 +105,101 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       }),
       execute: wrapExecute('list_directory', handleListDirectory, projectRoot, emit, toolCtx, hookCtx)
     }),
-    grep: tool({
-      description: 'Search file contents for a regex pattern. Returns matching lines as file:line: text. Searches the entire project by default; narrow with path or include.',
+    delete_file: tool({
+      description: 'Delete a single file. Refuses directories — use run_command to remove those.',
       inputSchema: z.object({
-        pattern: z.string().describe('Regex pattern to search for'),
+        path: z.string().describe('File path relative to the project root')
+      }),
+      execute: wrapExecute('delete_file', handleDeleteFile, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    move_file: tool({
+      description: 'Move or rename a file. Creates missing parent directories at the destination; fails if the destination already exists.',
+      inputSchema: z.object({
+        path: z.string().describe('Current file path relative to the project root'),
+        new_path: z.string().describe('New file path relative to the project root')
+      }),
+      execute: wrapExecute('move_file', handleMoveFile, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    grep: tool({
+      description:
+        'Search file contents for a regex pattern using ripgrep. Respects .gitignore and skips binary files. Returns matching lines as file:line:text. Searches the entire project by default; narrow with path or include.',
+      inputSchema: z.object({
+        pattern: z.string().describe('Regex pattern to search for (ripgrep syntax)'),
         path: z.string().optional().describe('Directory to search in, relative to project root (default: entire project)'),
-        include: z.string().optional().describe('Comma-separated file extensions to include, e.g. ".ts,.tsx" or "*.py"'),
-        case_sensitive: z.boolean().optional().describe('Case-sensitive match (default: false)')
+        include: z.string().optional().describe('Comma-separated extensions or globs to include, e.g. ".ts,.tsx" or "*.py" or "src/**/*.css"'),
+        case_sensitive: z.boolean().optional().describe('Case-sensitive match (default: false)'),
+        context: z.number().optional().describe('Show N lines of context around each match (max 10)')
       }),
       execute: wrapExecute('grep', handleGrep, projectRoot, emit, toolCtx, hookCtx)
     }),
-    run_command: tool({
-      description: 'Run a shell command in the project directory. Use for installing packages, running tests, linting, etc. Returns stdout/stderr.',
+    glob: tool({
+      description:
+        'Find files by name pattern, e.g. "*.test.ts" or "src/**/*.css". Respects .gitignore. Results are sorted most-recently-modified first.',
       inputSchema: z.object({
-        command: z.string().describe('The shell command to execute')
+        pattern: z.string().describe('Glob pattern to match file paths against'),
+        path: z.string().optional().describe('Directory to search in, relative to project root (default: entire project)')
+      }),
+      execute: wrapExecute('glob', handleGlob, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    run_command: tool({
+      description:
+        'Run a shell command in the project directory. Use for installing packages, running tests, linting, git, etc. Returns stdout/stderr. Default timeout is 2 minutes — pass timeout (ms) for longer runs. For servers and watchers that should keep running, pass run_in_background: true and poll with read_process_output.',
+      inputSchema: z.object({
+        command: z.string().describe('The shell command to execute'),
+        timeout: z.number().optional().describe('Timeout in milliseconds (default 120000, max 600000). Ignored for background commands.'),
+        run_in_background: z.boolean().optional().describe('Start the command as a background process and return a shell_id immediately (default false)')
       }),
       execute: wrapExecute('run_command', handleRunCommand, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    read_process_output: tool({
+      description: 'Read output produced by a background process since the last read. Also reports whether it is still running.',
+      inputSchema: z.object({
+        shell_id: z.string().describe('The shell_id returned by run_command with run_in_background')
+      }),
+      execute: wrapExecute('read_process_output', handleReadProcessOutput, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    kill_process: tool({
+      description: 'Kill a background process started with run_command run_in_background.',
+      inputSchema: z.object({
+        shell_id: z.string().describe('The shell_id of the process to kill')
+      }),
+      execute: wrapExecute('kill_process', handleKillProcess, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    fetch_url: tool({
+      description:
+        'Fetch a web page or API endpoint and return its readable text content (HTML is converted to plain text). Use after search_web to read a result, or directly when the user gives a URL.',
+      inputSchema: z.object({
+        url: z.string().describe('The http/https URL to fetch')
+      }),
+      execute: wrapExecute('fetch_url', handleFetchUrl, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    todo_write: tool({
+      description:
+        'Replace your task list for this conversation. Use for multi-step work: create the list when you start, mark exactly one item in_progress at a time, and mark items completed as soon as they are done. The user sees the list as a live checklist.',
+      inputSchema: z.object({
+        todos: z
+          .array(
+            z.object({
+              content: z.string().describe('Short imperative description of the task'),
+              status: z.enum(['pending', 'in_progress', 'completed']).describe('Current state of the task')
+            })
+          )
+          .describe('The full task list — this replaces the previous list entirely')
+      }),
+      execute: wrapExecute(
+        'todo_write',
+        async (input) => {
+          const todos = (input.todos ?? []) as TodoItem[]
+          getConversationToolState(toolCtx.sessionId).todos = todos
+          emit(IPC.AI_TODOS_UPDATED, { sessionId: toolCtx.sessionId, todos })
+          const done = todos.filter((t) => t.status === 'completed').length
+          return `Todo list updated: ${done}/${todos.length} completed.`
+        },
+        projectRoot,
+        emit,
+        toolCtx,
+        hookCtx
+      )
     }),
     ask_user: tool({
       description: 'Ask the user a clarifying question and wait for their response before continuing. Use when you need input or a decision from the user. Provide 2–6 multiple-choice options when relevant.',
@@ -184,7 +277,7 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       }
     }),
     search_web: tool({
-      description: 'Search the web for up-to-date information. Use when the user asks about current events, documentation, libraries, or anything that may have changed since the model was trained. Returns the search API response as JSON containing result titles, URLs, and snippets.',
+      description: 'Search the web for up-to-date information using the search provider configured in Settings > Providers > Search (Brave, Tavily, or Browserbase). Use when the user asks about current events, documentation, libraries, or anything that may have changed since the model was trained. Returns JSON with result titles, URLs, and snippets — use fetch_url to read a result page.',
       inputSchema: z.object({
         query: z.string().describe('The search query — natural language is fine'),
         numResults: z.number().optional().describe('Maximum number of results to return (server picks a default if omitted)')

@@ -34,7 +34,6 @@ export interface SettingsSnapshot {
       userName: string
       agentName: string
       lastMainView: 'bloom' | 'editor'
-      agentStartsExpanded: boolean
     }
     speech: {
       micDeviceId: string
@@ -49,10 +48,15 @@ export interface SettingsSnapshot {
       roseSpeechSpeakerId: number | null
     }
     provider: {
-      hostMode: 'projectrose' | 'kimi' | 'self'
+      // The most recent provider+model pair picked in the chat composer.
+      // There is no global "active provider" — each Conversation carries its
+      // own pick; this is the fallback for background work.
+      lastModel: { provider: 'ollama' | 'projectrose' | 'kimi'; modelName: string } | null
       ollamaBaseUrl: string
-      ollamaModelName: string
-      kimiModelName: string
+      kimiAuthMethod: 'oauth' | 'apikey'
+    }
+    search: {
+      provider: 'brave' | 'tavily' | 'browserbase' | null
     }
     google: {
       credentialsConfigured: boolean
@@ -95,5 +99,6 @@ export interface SettingsSnapshot {
     googleCalendar: ConnectionResult
     imap: ConnectionResult
     smtp: ConnectionResult
+    search: ConnectionResult
   }
 }

@@ -69,11 +69,10 @@ function baseSettings(overrides: Record<string, unknown> = {}): Record<string, u
     whisperModel: 'Xenova/whisper-tiny.en',
     activeListeningSetupComplete: false,
     activeListeningDraftSeconds: 8,
-    hostMode: 'self',
-    agentStartsExpanded: false,
     lastMainView: 'bloom',
     ollamaBaseUrl: '',
-    ollamaModelName: '',
+    kimiAuthMethod: 'oauth',
+    lastModel: null,
     roseSpeechSpeakerId: null,
     tts: { enabled: false, voice: 'en_US-amy-medium', speed: 1.0 },
     memory: {
@@ -118,6 +117,7 @@ describe('buildSettingsSnapshot', () => {
       'kimi',
       'ollama',
       'projectRose',
+      'search',
       'smtp'
     ])
   })
@@ -142,10 +142,11 @@ describe('buildSettingsSnapshot', () => {
     expect(snap.connections.googleCalendar.status).toBe('not-configured')
     expect(snap.connections.imap.status).toBe('not-configured')
     expect(snap.connections.smtp.status).toBe('not-configured')
+    expect(snap.connections.search.status).toBe('not-configured')
   })
 
   it('marks Ollama ok when /api/tags returns 2xx, and reports the model count', async () => {
-    settingsState.value = baseSettings({ hostMode: 'self', ollamaBaseUrl: 'http://localhost:11434/' })
+    settingsState.value = baseSettings({ ollamaBaseUrl: 'http://localhost:11434/' })
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ models: [{}, {}, {}] }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
     const snap = await buildSettingsSnapshot('/proj')
@@ -159,7 +160,7 @@ describe('buildSettingsSnapshot', () => {
   })
 
   it('marks Ollama failed when the fetch throws', async () => {
-    settingsState.value = baseSettings({ hostMode: 'self', ollamaBaseUrl: 'http://localhost:11434' })
+    settingsState.value = baseSettings({ ollamaBaseUrl: 'http://localhost:11434' })
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('ECONNREFUSED') }))
     const snap = await buildSettingsSnapshot('/proj')
     expect(snap.connections.ollama.status).toMatch(/^failed: /)
@@ -168,7 +169,6 @@ describe('buildSettingsSnapshot', () => {
   })
 
   it('marks projectRose ok when usage check succeeds', async () => {
-    settingsState.value = baseSettings({ hostMode: 'projectrose' })
     vi.mocked(getAuthStatus).mockResolvedValueOnce({
       loggedIn: true, email: 'u@e.com', name: 'U', avatar: ''
     })
@@ -182,7 +182,6 @@ describe('buildSettingsSnapshot', () => {
   })
 
   it('marks projectRose failed when the usage check rejects the token', async () => {
-    settingsState.value = baseSettings({ hostMode: 'projectrose' })
     vi.mocked(getAuthStatus).mockResolvedValueOnce({
       loggedIn: true, email: 'u@e.com', name: 'U', avatar: ''
     })
@@ -269,6 +268,32 @@ describe('buildSettingsSnapshot', () => {
     expect(snap.connections.smtp.status).toContain('auth failed')
     // The rest of the snapshot still made it through.
     expect(snap.configuration.identity.userName).toBe('andrew')
+  })
+
+  it('probes providers independently — ProjectRose and Ollama can both be ok at once', async () => {
+    settingsState.value = baseSettings({ ollamaBaseUrl: 'http://localhost:11434' })
+    vi.mocked(getAuthStatus).mockResolvedValueOnce({
+      loggedIn: true, email: 'u@e.com', name: 'U', avatar: ''
+    })
+    vi.mocked(fetchUsage).mockResolvedValueOnce({
+      ok: true,
+      usage: { plan: 'pro', plan_budget_usd: 20, month_cost_usd: 0, month_remaining_usd: 20, pct: 0, over_budget: false }
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ models: [{}] }), { status: 200 })))
+    const snap = await buildSettingsSnapshot('/proj')
+    expect(snap.connections.projectRose.status).toBe('ok')
+    expect(snap.connections.ollama.status).toBe('ok')
+    vi.unstubAllGlobals()
+  })
+
+  it('carries the composer lastModel and kimi auth method in configuration.provider', async () => {
+    settingsState.value = baseSettings({
+      lastModel: { provider: 'kimi', modelName: 'kimi-k2-thinking' },
+      kimiAuthMethod: 'apikey'
+    })
+    const snap = await buildSettingsSnapshot('/proj')
+    expect(snap.configuration.provider.lastModel).toEqual({ provider: 'kimi', modelName: 'kimi-k2-thinking' })
+    expect(snap.configuration.provider.kimiAuthMethod).toBe('apikey')
   })
 
   it('forwards workspace project-settings into configuration.workspace', async () => {

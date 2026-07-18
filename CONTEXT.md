@@ -9,15 +9,15 @@ The product itself — the Electron app that hosts agents and the extensions the
 _Avoid_: IDE, assistant, harness, app (when referring to ProjectRose as a whole)
 
 **Agent**:
-A single persistent identity on a machine, stored at `~/.rose/`, that operates on **Workspaces**. One Agent per machine — there is no notion of multiple Agents to switch between. The Agent owns its system prompt (`~/.rose/ROSE.md`), model + provider configuration, and memory; a **Workspace** contributes optional project-specific operating instructions and per-project enable/disable + settings for installed **Extensions**. Running an agent means starting a **Turn** inside a **Conversation** with it; the LLM-loop instance is the **Turn**, not the agent itself.
+A single persistent identity on a machine, stored at `~/.rose/`, that operates on **Workspaces**. One Agent per machine — there is no notion of multiple Agents to switch between. The Agent owns its system prompt (`~/.rose/ROSE.md`), provider credentials/config (sign-ins, Ollama base URL, Kimi auth method), and memory; the model itself is chosen per **Conversation** in the chat composer's ModelPicker (there is no global "active provider" — `settings.lastModel` records only the most recent pick, as the default for new Conversations and the fallback for background LLM work). A **Workspace** contributes optional project-specific operating instructions and per-project enable/disable + settings for installed **Extensions**. Running an agent means starting a **Turn** inside a **Conversation** with it; the LLM-loop instance is the **Turn**, not the agent itself.
 _Avoid_: bot, assistant (lowercase), AI
 
 **Conversation**:
-A persistent, resumable thread of turns the user holds with an agent in the chat panel. Identified in the code as `sessionId`. Always bound to exactly one **Workspace** (`workspacePath` on its meta) — the active Conversation is what determines the active Workspace, not the other way round (see ADR 0016). Persisted agent-global at `~/.rose/conversations/<encoded-workspace>/<sessionId>/main.json`, with the real Workspace path recorded in the group's `workspace.json` (the encoded directory name is lossy and never decoded).
+A persistent, resumable thread of turns the user holds with an agent in the chat panel. Identified in the code as `sessionId`. Always bound to exactly one **Workspace** (`workspacePath` on its meta) — the active Conversation is what determines the active Workspace, not the other way round (see ADR 0016). Carries its own provider+model pair (`model` on its meta), picked in the chat composer's ModelPicker and pinned across reloads. Persisted agent-global at `~/.rose/conversations/<encoded-workspace>/<sessionId>/main.json`, with the real Workspace path recorded in the group's `workspace.json` (the encoded directory name is lossy and never decoded).
 _Avoid_: chat, session (bare), thread, history
 
 **External Session**:
-A read-only transcript discovered in another agent CLI's on-disk store — Claude Code at `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`, Codex at `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`. Surfaced in the sidebar grouped under its Workspace (the real cwd, read from inside the file — never decoded from the lossy directory name) alongside Rose **Conversations**, badged by source. Viewable but never resumed and never mutated; "continuing" one means starting a fresh Rose Conversation in the same Workspace. Parsed by `src/main/services/externalSessions/{claudeReader,codexReader}.ts` into the shared `ExternalTranscript` shape (`src/shared/externalSession.ts`), whose entry kinds mirror the Detached Run transcript so the same renderer cells apply. See ADR 0016.
+A read-only transcript discovered in another agent CLI's on-disk store — Claude Code at `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`, Codex at `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`. Surfaced in the sidebar grouped under its Workspace (the real cwd, read from inside the file — never decoded from the lossy directory name) alongside Rose **Conversations**, badged by source. The on-disk transcript is never mutated. The viewer shows the same chat composer as a Rose Conversation; "continuing" one depends on the ModelPicker choice: the session's own CLI (Claude/Codex) resumes it in the integrated terminal (`claude --resume` / `codex resume`, optional `--model`, typed message passed as the first prompt), while a Rose provider forks the transcript into a brand-new Rose Conversation seeded with the converted history. Parsed by `src/main/services/externalSessions/{claudeReader,codexReader}.ts` into the shared `ExternalTranscript` shape (`src/shared/externalSession.ts`), whose entry kinds mirror the Detached Run transcript so the same renderer cells apply. See ADR 0016.
 _Avoid_: foreign session, imported chat, legacy session
 
 **Turn**:
@@ -41,8 +41,12 @@ A workspace-scoped markdown how-to that an **Agent** loads on demand to learn a 
 _Avoid_: playbook, recipe, guide, prompt template
 
 **Tool**:
-A named, schema-typed action an **Agent** can invoke during a **Turn**. Umbrella term covering both host-supplied tools (`ask_user`, `screenshot`, `write_file`, terminal, etc.) and **Extension Tools**.
+A named, schema-typed action an **Agent** can invoke during a **Turn**. Umbrella term covering both host-supplied tools (`read_file`, `edit_file`, `grep`/`glob` (ripgrep-backed, see ADR 0018), `run_command` (async, with **Background Process** support), `fetch_url`, `todo_write`, `ask_user`, `screenshot`, etc.) and **Extension Tools**. The file-mutating tools enforce a read-before-modify guard: `edit_file` and `write_file`-on-an-existing-file require the file to have been read earlier in the same **Conversation**.
 _Avoid_: action, function (in domain talk), command
+
+**Background Process**:
+A long-lived child process a **Turn** starts via `run_command` with `run_in_background` (dev servers, watchers, long builds). Owned by the **Conversation**, not the Turn — it survives across Turns, is addressed by the `shell_id` returned at spawn, is polled with `read_process_output` (cursor-based: each read returns only output since the last), stopped with `kill_process`, and reaped when the Conversation is deleted or the app quits. Registry at `src/main/services/backgroundProcesses.ts`.
+_Avoid_: daemon, service, job (when speaking canonically)
 
 **Extension Tool**:
 A **Tool** contributed by an **Extension** via `ctx.registerTools()`. Distinct from a built-in tool because it crosses a trust/sandbox boundary — the extension's code, not the host's, executes when the agent calls it. Must agree with the manifest's `provides.tools[]` declaration on names.
@@ -57,7 +61,7 @@ Content a **Hook** adds to a **Turn** by returning `{ inject: string }` from its
 _Avoid_: hook output, inject, contribution
 
 **Worker**:
-A transient, task-scoped LLM run that an **Agent** dispatches during a **Turn** to do a delegated piece of work (e.g., read-only codebase exploration). Has its own system prompt and a scoped tool set (often with destructive tools disabled). Dies when its task finishes. *Not* a persistent identity — distinct from **Agent**.
+A transient, task-scoped LLM run that an **Agent** dispatches during a **Turn** to do a delegated piece of work (e.g., read-only codebase exploration). Has its own system prompt and a scoped tool set (often with destructive tools disabled). Dies when its task finishes. *Not* a persistent identity — distinct from **Agent**. The `explore` tool's queries are authored by the dispatching Agent itself (1–5 self-contained queries, one Worker each); the earlier mechanical keyword decomposition was removed.
 _Avoid_: subagent (in canonical talk), child agent, sub-agent
 
 **Detached Run**:

@@ -1,4 +1,5 @@
 import type { MessageAttachment } from '@shared/roseModelTypes'
+import type { ModelConfig } from '@shared/modelConfig'
 
 interface BaseMessage {
   id: string
@@ -68,6 +69,9 @@ export interface SessionMeta {
   // Absolute path of the Workspace this Conversation is bound to. Every
   // Conversation always has one — a Conversation drives its own Workspace.
   workspacePath: string
+  // The provider+model pair picked in the chat composer for this
+  // Conversation. Absent on conversations from before the picker existed.
+  model?: ModelConfig
 }
 
 export type CompressedApiMessage = { role: 'user' | 'assistant' | 'system'; content: string }

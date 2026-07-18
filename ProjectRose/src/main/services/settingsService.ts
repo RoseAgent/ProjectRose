@@ -6,11 +6,16 @@ import { DEFAULT_MEMORY_SETTINGS, type MemorySettings } from '../../shared/memor
 import { DEFAULT_EMAIL_SETTINGS, type EmailSettings } from '../../shared/email'
 import { DEFAULT_TTS_SETTINGS, type TtsSettings } from '../../shared/tts'
 import { logInteraction } from './interactionLog'
+import {
+  DEFAULT_KIMI_MODEL,
+  DEFAULT_KIMI_PLATFORM_MODEL,
+  PROJECTROSE_MODEL,
+  type ModelConfig
+} from '../../shared/modelConfig'
 
-export interface ModelConfig {
-  provider: 'ollama' | 'projectrose' | 'kimi'
-  modelName: string
-}
+export type { ModelConfig } from '../../shared/modelConfig'
+
+export type SearchProvider = 'brave' | 'tavily' | 'browserbase'
 
 export interface AppSettings {
   micDeviceId: string
@@ -20,17 +25,18 @@ export interface AppSettings {
   activeListeningSetupComplete: boolean
   activeListeningDraftSeconds: number
   whisperModel: string
-  hostMode: 'projectrose' | 'kimi' | 'self'
-  agentStartsExpanded: boolean
   lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
-  // The single Ollama model name to run when hostMode === 'self'. Empty until
-  // the user types one in Settings → Providers → Ollama. ProjectRose mode
-  // ignores this and uses the inline 'managed' model in modelSelection.ts.
-  ollamaModelName: string
-  // The Kimi Code model to run when hostMode === 'kimi'. The OAuth token pair
-  // is NOT here — it lives in userData/kimi-session.bin via safeStorage.
-  kimiModelName: string
+  // How Kimi authenticates: 'oauth' (kimi.com account, device flow, Coding
+  // API) or 'apikey' (BYO Moonshot platform key → api.moonshot.ai/v1). The
+  // key itself lives in userData/kimi-api-key.bin via safeStorage.
+  kimiAuthMethod: 'oauth' | 'apikey'
+  // The most recent provider+model pair the user picked in the chat
+  // composer's ModelPicker. Not a user-facing setting: it seeds the picker
+  // for new Conversations and is the model background LLM work (diary,
+  // compression, detached extension runs) falls back to. Absent until the
+  // first pick (or the legacy-hostMode migration below fills it).
+  lastModel?: ModelConfig | null
   // Memory subsystem (host-level, agent-global at ~/.rose/memory/). The
   // diary scheduler reads enabled + time; the renderer Memory tab writes
   // them through the same settings:set IPC.
@@ -42,6 +48,11 @@ export interface AppSettings {
   // Text-to-speech (built-in Piper). Auto-play toggle + voice + speed; voice
   // files live under ~/.rose/cache/piper/voices/.
   tts: TtsSettings
+  // BYO web-search provider for the `search_web` tool. Only the provider
+  // choice lives here — the API key is sealed in userData/search-api-key.bin
+  // via safeStorage (see search/searchCredentialsStore.ts). Absent until the
+  // user configures a provider in Settings > Providers > Search.
+  search?: { provider: SearchProvider }
   // User-supplied Google OAuth credentials plus the signed-in account email.
   // Only the clientId is persisted here; the client_secret is sealed in
   // userData/google-oauth-secret.bin via safeStorage (ADR 0009). The
@@ -60,12 +71,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   activeListeningSetupComplete: false,
   activeListeningDraftSeconds: 8,
   whisperModel: 'Xenova/whisper-tiny.en',
-  hostMode: 'self',
-  agentStartsExpanded: false,
   lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
-  ollamaModelName: '',
-  kimiModelName: 'kimi-for-coding',
+  kimiAuthMethod: 'oauth',
   memory: DEFAULT_MEMORY_SETTINGS,
   email: DEFAULT_EMAIL_SETTINGS,
   tts: DEFAULT_TTS_SETTINGS
@@ -105,22 +113,49 @@ export async function readSettings(_rootPath?: string): Promise<AppSettings> {
   delete (merged as Record<string, unknown>).openaiCompatApiKey
 
   // Migrate from the old multi-model + router shape: lift the default Ollama
-  // model name out of models[] and drop the now-unused fields. Runs once per
-  // settings.json that still has the old shape.
-  const legacyModels = (merged as Record<string, unknown>).models
-  const legacyDefaultId = (merged as Record<string, unknown>).defaultModelId
-  if (Array.isArray(legacyModels) && !merged.ollamaModelName) {
+  // model name out of models[] (used by the lastModel migration below) and
+  // drop the now-unused fields.
+  const legacy = merged as Record<string, unknown>
+  const legacyModels = legacy.models
+  const legacyDefaultId = legacy.defaultModelId
+  if (Array.isArray(legacyModels) && !legacy.ollamaModelName) {
     const ollamaModels = legacyModels.filter(
       (m): m is { id?: string; provider?: string; modelName?: string } =>
         !!m && typeof m === 'object' && (m as { provider?: unknown }).provider === 'ollama'
     )
     const chosen =
       ollamaModels.find((m) => m.id && m.id === legacyDefaultId) ?? ollamaModels[0]
-    if (chosen?.modelName) merged.ollamaModelName = chosen.modelName
+    if (chosen?.modelName) legacy.ollamaModelName = chosen.modelName
   }
-  delete (merged as Record<string, unknown>).models
-  delete (merged as Record<string, unknown>).defaultModelId
-  delete (merged as Record<string, unknown>).router
+  delete legacy.models
+  delete legacy.defaultModelId
+  delete legacy.router
+
+  // Migrate from the global hostMode era: the active provider + model choice
+  // moved into the chat composer (per-Conversation, persisted on the
+  // Conversation). Synthesize lastModel from the legacy fields once, then
+  // drop them so settings.json stays minimal.
+  if (!merged.lastModel) {
+    const hostMode = legacy.hostMode
+    const kimiModelName = typeof legacy.kimiModelName === 'string' ? legacy.kimiModelName : ''
+    const ollamaModelName = typeof legacy.ollamaModelName === 'string' ? legacy.ollamaModelName : ''
+    if (hostMode === 'projectrose') {
+      merged.lastModel = PROJECTROSE_MODEL
+    } else if (hostMode === 'kimi') {
+      const fallback =
+        merged.kimiAuthMethod === 'apikey' ? DEFAULT_KIMI_PLATFORM_MODEL : DEFAULT_KIMI_MODEL
+      merged.lastModel = { provider: 'kimi', modelName: kimiModelName || fallback }
+    } else if (ollamaModelName) {
+      merged.lastModel = { provider: 'ollama', modelName: ollamaModelName }
+    }
+  }
+  delete legacy.hostMode
+  delete legacy.kimiModelName
+  delete legacy.ollamaModelName
+
+  // The bloom view is always full screen on entry now — the "agent starts
+  // expanded" toggle it replaced is gone.
+  delete legacy.agentStartsExpanded
 
   // Behavior & Context section was removed — the thinking-injection toggle
   // and user-tunable compression threshold are gone; compression now runs on

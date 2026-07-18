@@ -12,6 +12,11 @@ export const KIMI_OAUTH_HOST = 'https://auth.kimi.com'
 export const KIMI_API_BASE_URL = 'https://api.kimi.com/coding/v1'
 // The Kimi Coding API rejects requests (403) without a coding-agent UA.
 export const KIMI_USER_AGENT = 'KimiCLI/1.5'
+// The Moonshot open platform — where BYO API keys (sk-…) come from. Distinct
+// backend from the subscription-backed Coding API above: platform keys are
+// pay-as-you-go and use the platform's own model ids (kimi-k2-thinking,
+// kimi-latest, …), not the kimi-for-coding aliases.
+export const KIMI_PLATFORM_BASE_URL = 'https://api.moonshot.ai/v1'
 
 // Refresh when less than this many seconds of access-token life remain.
 const REFRESH_SKEW_SECONDS = 120
@@ -63,6 +68,56 @@ export async function clearKimiTokens(): Promise<void> {
   } catch {
     // ENOENT is fine — already gone.
   }
+}
+
+// ── BYO Moonshot platform API key ────────────────────────────────────────
+// Alternative to the OAuth pair above (AppSettings.kimiAuthMethod picks the
+// active method). Stored separately in userData/kimi-api-key.bin so signing
+// in/out of the kimi.com account never touches the key and vice versa.
+
+function kimiApiKeyPath(): string {
+  return join(app.getPath('userData'), 'kimi-api-key.bin')
+}
+
+export async function loadKimiApiKey(): Promise<string | null> {
+  let buf: Buffer
+  try {
+    buf = await readFile(kimiApiKeyPath())
+  } catch {
+    return null
+  }
+  try {
+    return safeStorage.isEncryptionAvailable()
+      ? safeStorage.decryptString(buf)
+      : Buffer.from(buf.toString('utf-8'), 'base64').toString('utf-8')
+  } catch {
+    return null
+  }
+}
+
+export async function saveKimiApiKey(apiKey: string): Promise<void> {
+  const trimmed = apiKey.trim()
+  if (!trimmed) throw new Error('An API key is required.')
+  let buf: Buffer
+  if (safeStorage.isEncryptionAvailable()) {
+    buf = safeStorage.encryptString(trimmed)
+  } else {
+    console.warn('[kimi] safeStorage unavailable — writing base64-encoded plaintext fallback')
+    buf = Buffer.from(Buffer.from(trimmed, 'utf-8').toString('base64'), 'utf-8')
+  }
+  await writeFile(kimiApiKeyPath(), buf)
+}
+
+export async function clearKimiApiKey(): Promise<void> {
+  try {
+    await unlink(kimiApiKeyPath())
+  } catch {
+    // ENOENT is fine — already gone.
+  }
+}
+
+export async function hasKimiApiKey(): Promise<boolean> {
+  return (await loadKimiApiKey()) !== null
 }
 
 interface TokenResponse {

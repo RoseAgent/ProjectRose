@@ -8,7 +8,10 @@ import { skillIpc } from '../main/services/skillService.ipc'
 import { interactionLogIpc } from '../main/services/interactionLog.ipc'
 import { fileIpc } from '../main/services/fileService.ipc'
 import { recentProjectsIpc } from '../main/services/recentProjects.ipc'
-import { settingsIpc, healthIpc } from '../main/services/settingsService.ipc'
+import { settingsIpc, healthIpc, searchIpc } from '../main/services/settingsService.ipc'
+import { dopplerIpc } from '../main/services/dopplerImport.ipc'
+import type { TodoItem } from '../shared/todos'
+import type { ModelConfig } from '../shared/modelConfig'
 import { projectSettingsIpc, toolsIpc } from '../main/services/projectSettingsService.ipc'
 import { roseSetupIpc } from '../main/services/roseSetupService.ipc'
 import { whisperIpc } from '../main/services/whisperService.ipc'
@@ -25,6 +28,10 @@ import { emailIpc } from '../main/services/email/emailService.ipc'
 import { ttsIpc } from '../main/services/tts/ttsService.ipc'
 
 const api = {
+  // Host OS platform — the renderer needs it to quote terminal commands
+  // correctly (PowerShell vs POSIX shells).
+  platform: process.platform as string,
+
   // Theme
   setNativeTheme: (theme: 'dark' | 'light' | 'herbarium'): void => {
     ipcRenderer.send('theme:changed', theme)
@@ -122,6 +129,25 @@ const api = {
   setSettings: settingsIpc.bindings.set,
   checkServicesHealth: healthIpc.bindings.checkAll,
 
+  // BYO web-search provider (Settings > Providers > Search)
+  searchProvider: searchIpc.bindings,
+
+  // Doppler secrets import (Settings > Connected Accounts) — manifest
+  // bindings plus the hand-written device-flow event subscriptions.
+  doppler: {
+    ...dopplerIpc.bindings,
+    onChanged: (callback: (data: { loggedIn: boolean }) => void): (() => void) => {
+      const handler = (_e: unknown, data: { loggedIn: boolean }): void => callback(data)
+      ipcRenderer.on(IPC.DOPPLER_AUTH_CHANGED, handler)
+      return () => { ipcRenderer.removeListener(IPC.DOPPLER_AUTH_CHANGED, handler) }
+    },
+    onPending: (callback: (data: { url: string; userCode: string }) => void): (() => void) => {
+      const handler = (_e: unknown, data: { url: string; userCode: string }): void => callback(data)
+      ipcRenderer.on(IPC.DOPPLER_AUTH_PENDING, handler)
+      return () => { ipcRenderer.removeListener(IPC.DOPPLER_AUTH_PENDING, handler) }
+    }
+  },
+
   transcribeAudio: whisperIpc.bindings.transcribe,
 
   whisper: {
@@ -184,8 +210,8 @@ const api = {
   // AI — request methods wrap the manifest payload-style bindings into the
   // existing positional renderer API. Event subscriptions stay hand-written
   // below (broadcasts aren't manifest-covered).
-  aiChat: (messages: Message[], rootPath: string, sessionId: string) =>
-    aiIpc.bindings.chat({ messages, rootPath, sessionId }),
+  aiChat: (messages: Message[], rootPath: string, sessionId: string, model?: ModelConfig) =>
+    aiIpc.bindings.chat({ messages, rootPath, sessionId, model }),
   aiContextStatus: (
     rootPath: string,
     messages: Array<Record<string, unknown>>,
@@ -193,10 +219,15 @@ const api = {
       compressedMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
       compressedFromCount: number
       compressedFromRawCount: number
-    } | null
-  ) => aiIpc.bindings.contextStatus({ rootPath, messages, compression }),
-  aiCompressToolNoise: (rootPath: string, messages: Array<Record<string, unknown>>, full?: boolean) =>
-    aiIpc.bindings.compressToolNoise({ rootPath, messages, full }),
+    } | null,
+    model?: ModelConfig
+  ) => aiIpc.bindings.contextStatus({ rootPath, messages, compression, model }),
+  aiCompressToolNoise: (
+    rootPath: string,
+    messages: Array<Record<string, unknown>>,
+    full?: boolean,
+    model?: ModelConfig
+  ) => aiIpc.bindings.compressToolNoise({ rootPath, messages, full, model }),
   aiGetSystemPrompt: aiIpc.bindings.getSystemPrompt,
 
   onAiFileModified: (callback: (data: { path: string }) => void): (() => void) => {
@@ -257,6 +288,12 @@ const api = {
     const handler = (_e: unknown, data: { sessionId: string; extensionId: string; extensionName: string; extensionIcon?: string; content: string }): void => callback(data)
     ipcRenderer.on(IPC.AI_INJECTED_MESSAGE, handler)
     return () => { ipcRenderer.removeListener(IPC.AI_INJECTED_MESSAGE, handler) }
+  },
+
+  onAiTodosUpdated: (callback: (data: { sessionId: string; todos: TodoItem[] }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { sessionId: string; todos: TodoItem[] }): void => callback(data)
+    ipcRenderer.on(IPC.AI_TODOS_UPDATED, handler)
+    return () => { ipcRenderer.removeListener(IPC.AI_TODOS_UPDATED, handler) }
   },
 
   onAiCaptureScreenshot: (
@@ -427,8 +464,10 @@ const api = {
     logout: kimiAuthIpc.bindings.logout,
     cancel: kimiAuthIpc.bindings.cancel,
     getStatus: kimiAuthIpc.bindings.getStatus,
-    onChanged: (callback: (data: { loggedIn: boolean }) => void): (() => void) => {
-      const handler = (_e: unknown, data: { loggedIn: boolean }): void => callback(data)
+    saveApiKey: kimiAuthIpc.bindings.saveApiKey,
+    clearApiKey: kimiAuthIpc.bindings.clearApiKey,
+    onChanged: (callback: (data: { loggedIn: boolean; apiKeyStored: boolean }) => void): (() => void) => {
+      const handler = (_e: unknown, data: { loggedIn: boolean; apiKeyStored: boolean }): void => callback(data)
       ipcRenderer.on(IPC.KIMI_AUTH_CHANGED, handler)
       return () => { ipcRenderer.removeListener(IPC.KIMI_AUTH_CHANGED, handler) }
     },

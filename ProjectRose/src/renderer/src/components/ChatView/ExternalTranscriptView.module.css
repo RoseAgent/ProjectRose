@@ -83,33 +83,3 @@
   padding: 12px;
   font-style: italic;
 }
-
-.footer {
-  flex-shrink: 0;
-  padding: 12px 20px;
-  border-top: 1px solid var(--color-border);
-}
-
-.startBtn {
-  width: 100%;
-  padding: 10px 12px;
-  background: none;
-  border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
-  font-family: var(--font-family-mono);
-  font-size: 11px;
-  letter-spacing: 1px;
-  cursor: pointer;
-}
-
-.startBtn:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-text-primary);
-  background: var(--color-button-hover-bg);
-}
-
-.startBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}

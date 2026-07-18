@@ -6,6 +6,9 @@ import {
   clearKimiTokens,
   loadKimiTokens,
   saveKimiTokens,
+  saveKimiApiKey,
+  clearKimiApiKey,
+  hasKimiApiKey,
   type KimiTokens
 } from '../lib/kimiSession'
 
@@ -30,8 +33,10 @@ function notifyRenderer(channel: string, payload: unknown): void {
   }
 }
 
-function emitChanged(loggedIn: boolean): void {
-  notifyRenderer(IPC.KIMI_AUTH_CHANGED, { loggedIn })
+// Broadcast the full auth status (OAuth session + stored API key) so the
+// renderer's provider-availability store can weigh both methods.
+async function emitChanged(): Promise<void> {
+  notifyRenderer(IPC.KIMI_AUTH_CHANGED, await getKimiAuthStatus())
 }
 
 interface DeviceAuthorization {
@@ -141,7 +146,7 @@ export async function kimiSignIn(): Promise<void> {
     const tokens = await Promise.race([pollForTokens(auth, flight), cancellation])
     await saveKimiTokens(tokens)
     console.log('[kimi] signed in via device flow')
-    emitChanged(true)
+    await emitChanged()
   } finally {
     if (pending === flight) pending = null
   }
@@ -157,14 +162,29 @@ export function cancelKimiSignIn(): void {
 
 export async function kimiSignOut(): Promise<void> {
   await clearKimiTokens()
-  emitChanged(false)
+  await emitChanged()
 }
 
 export interface KimiAuthStatus {
   loggedIn: boolean
+  // Whether a BYO Moonshot platform API key is stored (kimiAuthMethod
+  // 'apikey'). Independent of the kimi.com OAuth session.
+  apiKeyStored: boolean
 }
 
 export async function getKimiAuthStatus(): Promise<KimiAuthStatus> {
   const tokens = await loadKimiTokens()
-  return { loggedIn: !!tokens }
+  return { loggedIn: !!tokens, apiKeyStored: await hasKimiApiKey() }
+}
+
+export async function kimiSaveApiKey(apiKey: string): Promise<KimiAuthStatus> {
+  await saveKimiApiKey(apiKey)
+  await emitChanged()
+  return getKimiAuthStatus()
+}
+
+export async function kimiClearApiKey(): Promise<KimiAuthStatus> {
+  await clearKimiApiKey()
+  await emitChanged()
+  return getKimiAuthStatus()
 }
