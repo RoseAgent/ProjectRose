@@ -12,7 +12,7 @@ import { loadConversation, saveConversation, deleteConversation } from '../servi
 import { reapConversationProcesses } from '../services/backgroundProcesses'
 import { clearConversationToolState } from '../services/conversationToolState'
 import { buildWorkspaceGroupedList, listKnownWorkspaces } from '../services/workspaceRegistry'
-import { getExternalTranscript } from '../services/externalSessions'
+import { getExternalTranscript, getExternalTranscriptUpdate } from '../services/externalSessions'
 
 import { promptIpc } from '../services/promptService.ipc'
 import {
@@ -276,7 +276,8 @@ export function registerIpcManifests(): void {
     }
   })
   externalIpc.register({
-    getTranscript: getExternalTranscript
+    getTranscript: getExternalTranscript,
+    getTranscriptUpdate: getExternalTranscriptUpdate
   })
   workspacesIpc.register({
     listKnown: listKnownWorkspaces

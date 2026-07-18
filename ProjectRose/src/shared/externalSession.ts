@@ -48,5 +48,13 @@ export interface ExternalTranscript {
   entryCountTruncated?: boolean
 }
 
+// Result of a poll-friendly transcript read: the fresh transcript plus the
+// file's mtime, which the caller passes back next poll to skip re-parsing an
+// unchanged file.
+export interface ExternalTranscriptUpdate {
+  transcript: ExternalTranscript
+  mtimeMs: number
+}
+
 // Hard cap so a runaway multi-MB session can't blow up the renderer.
 export const MAX_TRANSCRIPT_ENTRIES = 2000

@@ -83,3 +83,35 @@
   padding: 12px;
   font-style: italic;
 }
+
+/* Hosts the scrolling timeline so the jump pill can float over it. */
+.timelineWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.jumpPill {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  padding: 5px 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: background 0.1s, color 0.1s;
+}
+
+.jumpPill:hover {
+  background: var(--color-accent);
+  color: var(--color-bg-primary);
+}

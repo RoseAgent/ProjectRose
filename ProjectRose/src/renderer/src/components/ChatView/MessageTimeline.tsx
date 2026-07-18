@@ -66,10 +66,24 @@ function renderItem(item: RenderItem): JSX.Element {
   return <ChatCell key={item.message.id} message={item.message} />
 }
 
-export function MessageTimeline({ messages }: { messages: ChatMessage[] }): JSX.Element {
+export function MessageTimeline({
+  messages,
+  tailRef,
+  containerRef,
+  onScroll,
+}: {
+  messages: ChatMessage[]
+  // Optional anchor rendered after the last cell, inside the scroll container —
+  // callers point scrollIntoView at it to follow a live-updating transcript.
+  tailRef?: React.RefObject<HTMLDivElement | null>
+  // Optional handle on the scroll container itself, for at-bottom detection.
+  containerRef?: React.RefObject<HTMLDivElement | null>
+  onScroll?: React.UIEventHandler<HTMLDivElement>
+}): JSX.Element {
   return (
-    <div className={styles.messages}>
+    <div className={styles.messages} ref={containerRef} onScroll={onScroll}>
       {groupMessages(messages).map(renderItem)}
+      {tailRef && <div ref={tailRef} />}
     </div>
   )
 }
