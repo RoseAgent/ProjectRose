@@ -6,7 +6,14 @@ interface TerminalSession {
   process: pty.IPty
   onDataDispose: pty.IDisposable
   onExitDispose: pty.IDisposable
+  // Rolling scrollback so a renderer terminal that attaches later (the pty
+  // may run headless while the editor view is closed) can replay what it
+  // missed instead of showing a blank screen.
+  buffer: string
 }
+
+// Cap the replay buffer; TUI apps redraw whole frames so the tail is enough.
+const BUFFER_CAP = 400_000
 
 const sessions = new Map<string, TerminalSession>()
 let sessionCounter = 0
@@ -48,15 +55,25 @@ export function spawnTerminal(
     env: process.env as Record<string, string>
   })
 
-  const onDataDispose = proc.onData(onData)
+  const onDataDispose = proc.onData((data) => {
+    const session = sessions.get(id)
+    if (session) {
+      session.buffer = (session.buffer + data).slice(-BUFFER_CAP)
+    }
+    onData(data)
+  })
   const onExitDispose = proc.onExit(({ exitCode }) => {
     console.log(`Terminal ${id} exited with code ${exitCode}`)
     onExit(exitCode)
   })
 
-  sessions.set(id, { process: proc, onDataDispose, onExitDispose })
+  sessions.set(id, { process: proc, onDataDispose, onExitDispose, buffer: '' })
   console.log(`Terminal ${id} spawned successfully (pid: ${proc.pid})`)
   return id
+}
+
+export function getTerminalBuffer(sessionId: string): string {
+  return sessions.get(sessionId)?.buffer ?? ''
 }
 
 export function writeToTerminal(sessionId: string, data: string): void {

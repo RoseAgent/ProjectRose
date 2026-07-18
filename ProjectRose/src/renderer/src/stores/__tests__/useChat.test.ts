@@ -606,11 +606,13 @@ describe('useChat slice', () => {
       await useChat.getState().send()
 
       expect(setPendingCommand).toHaveBeenCalledWith(
-        "claude --resume ext-sess-1 --model opus 'fix the bug in foo''s parser'"
+        "claude --resume ext-sess-1 --dangerously-skip-permissions --model opus 'fix the bug in foo''s parser'"
       )
       expect(initialize).toHaveBeenCalledWith('/proj')
-      expect(setActiveView).toHaveBeenCalledWith('editor')
-      expect(useChat.getState().externalView).toBeNull()
+      // The resume runs in the background — the user stays in their current
+      // view and the transcript stays open.
+      expect(setActiveView).not.toHaveBeenCalled()
+      expect(useChat.getState().externalView).not.toBeNull()
       expect(useChat.getState().inputValue).toBe('')
       expect(api.aiChat).not.toHaveBeenCalled()
     })
@@ -625,7 +627,9 @@ describe('useChat slice', () => {
 
       await useChat.getState().send()
 
-      expect(setPendingCommand).toHaveBeenCalledWith('claude --resume ext-sess-1')
+      expect(setPendingCommand).toHaveBeenCalledWith(
+        'claude --resume ext-sess-1 --dangerously-skip-permissions'
+      )
     })
 
     it('a missing workspace bails with an error toast and opens nothing', async () => {

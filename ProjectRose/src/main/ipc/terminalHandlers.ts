@@ -4,7 +4,8 @@ import {
   spawnTerminal,
   writeToTerminal,
   resizeTerminal,
-  disposeTerminal
+  disposeTerminal,
+  getTerminalBuffer
 } from '../services/terminalService'
 
 export function registerTerminalHandlers(): void {
@@ -53,4 +54,10 @@ export function registerTerminalHandlers(): void {
   ipcMain.handle(IPC.TERMINAL_DISPOSE, (_event, sessionId: string) => {
     disposeTerminal(sessionId)
   })
+
+  // Scrollback replay for a renderer terminal attaching to an already-running
+  // background session (the pty keeps running while the editor view is closed).
+  ipcMain.handle(IPC.TERMINAL_READ_BUFFER, (_event, sessionId: string) =>
+    getTerminalBuffer(sessionId)
+  )
 }

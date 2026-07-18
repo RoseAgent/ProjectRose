@@ -1174,10 +1174,10 @@ async function loadSessionIntoSlice(sessionId: string): Promise<void> {
 // ── External-session send routes ───────────────────────────────────────────
 
 // Resume the external session with its own CLI in the integrated terminal.
-// Mirrors the old "Open in Claude" button flow: bind the workspace, drop into
-// editor view with the terminal showing, and queue the resume command to run
-// once the shell is ready. The typed message (if any) rides along as the
-// CLI's first prompt.
+// Deliberately does NOT switch views: the resume runs in the background pty
+// (the store's initialize() types the queued command itself) and the user
+// stays where they are — the terminal pane is flagged visible so it shows
+// whenever they next open the editor.
 async function resumeExternalInTerminal(
   ext: ExternalTranscript,
   modelFlag: string | null,
@@ -1198,16 +1198,14 @@ async function resumeExternalInTerminal(
     platform: window.api.platform,
   })
   useChat.getState().setInputValue('')
-  useChat.getState().closeExternalSession()
-  // Collapse chat full-width too — otherwise the editor pane (which hosts the
-  // terminal) is hidden and only the full-width chat shows. Editor view gates
-  // EditorView on `!(activeView === 'editor' && isChatFullWidth)`.
-  useViewStore.setState({ isTerminalVisible: true, isChatFullWidth: false })
-  useViewStore.getState().setActiveView('editor')
+  useViewStore.setState({ isTerminalVisible: true })
   useTerminalStore.getState().setPendingCommand(cmd)
   // Re-root the terminal at this workspace (dispose+respawn) so the resume
   // runs in the right directory even if a terminal was already open.
   await useTerminalStore.getState().initialize(ext.workspacePath)
+  useStatusStore
+    .getState()
+    .notify(`Resumed in the terminal — open the editor view to watch it`, { tone: 'success' })
 }
 
 // Fork an external transcript into a brand-new Rose conversation: convert the

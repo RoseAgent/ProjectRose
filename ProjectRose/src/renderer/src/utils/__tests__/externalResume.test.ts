@@ -33,7 +33,7 @@ describe('quoteForShell', () => {
 })
 
 describe('buildResumeCommand', () => {
-  it('builds a bare claude resume with no model and no message', () => {
+  it('builds a claude resume that skips permission prompts (unattended pty)', () => {
     expect(
       buildResumeCommand({
         source: 'claude-code',
@@ -42,7 +42,7 @@ describe('buildResumeCommand', () => {
         message: '',
         platform: 'win32'
       })
-    ).toBe('claude --resume abc-123')
+    ).toBe('claude --resume abc-123 --dangerously-skip-permissions')
   })
 
   it('adds --model when a flag is chosen', () => {
@@ -54,7 +54,7 @@ describe('buildResumeCommand', () => {
         message: '',
         platform: 'win32'
       })
-    ).toBe('claude --resume abc-123 --model opus')
+    ).toBe('claude --resume abc-123 --dangerously-skip-permissions --model opus')
   })
 
   it('appends the quoted flattened message last', () => {
@@ -66,10 +66,12 @@ describe('buildResumeCommand', () => {
         message: "fix the\nbug in foo's parser",
         platform: 'win32'
       })
-    ).toBe("claude --resume abc-123 --model sonnet 'fix the bug in foo''s parser'")
+    ).toBe(
+      "claude --resume abc-123 --dangerously-skip-permissions --model sonnet 'fix the bug in foo''s parser'"
+    )
   })
 
-  it('uses the codex resume form for codex sessions', () => {
+  it('uses the codex resume form for codex sessions (no skip flag)', () => {
     expect(
       buildResumeCommand({
         source: 'codex',
@@ -90,6 +92,6 @@ describe('buildResumeCommand', () => {
         message: '   \n ',
         platform: 'win32'
       })
-    ).toBe('claude --resume abc')
+    ).toBe('claude --resume abc --dangerously-skip-permissions')
   })
 })

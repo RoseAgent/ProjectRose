@@ -62,7 +62,6 @@ export function TerminalPanel(): JSX.Element {
   const cleanupRef = useRef<(() => void) | null>(null)
 
   const initialize = useTerminalStore((s) => s.initialize)
-  const dispose = useTerminalStore((s) => s.dispose)
   const sessionId = useTerminalStore((s) => s.sessionId)
   const theme = useThemeStore((s) => s.theme)
   const terminalHeight = useViewStore((s) => s.terminalHeight)
@@ -94,12 +93,22 @@ export function TerminalPanel(): JSX.Element {
 
     setTimeout(() => fitAddon.fit(), 100)
 
-    // Spawn a new pty session rooted at the currently-open project.
-    const cwd = useProjectStore.getState().rootPath ?? undefined
-    initialize(cwd)
+    // Spawn a new pty session rooted at the currently-open project — unless a
+    // background session is already live (e.g. a Claude resume queued from the
+    // bloom view before the editor was ever shown). Respawning over it would
+    // kill the running process; instead just wire up to the existing session.
+    // The resize below sends a SIGWINCH, prompting TUI apps to redraw.
+    if (!useTerminalStore.getState().sessionId) {
+      const cwd = useProjectStore.getState().rootPath ?? undefined
+      initialize(cwd)
+    }
 
     return () => {
-      // Clean up data listeners
+      // Clean up data listeners and the xterm view only. The pty session
+      // itself deliberately survives unmount — it may be running a resumed
+      // Claude/Codex CLI in the background (and StrictMode's dev double-mount
+      // would otherwise kill it). Ptys are reaped on re-root (initialize) and
+      // app quit (disposeAllTerminals in main).
       if (cleanupRef.current) {
         cleanupRef.current()
         cleanupRef.current = null
@@ -107,7 +116,6 @@ export function TerminalPanel(): JSX.Element {
       term.dispose()
       terminalRef.current = null
       fitAddonRef.current = null
-      dispose()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -126,10 +134,28 @@ export function TerminalPanel(): JSX.Element {
       window.api.writeTerminal(sessionId, data)
     })
 
-    // Pty output -> write to xterm
+    // Replay the session's scrollback first (output produced while no panel
+    // was attached — background resumes — or before this wiring), then stream
+    // live output. Live data arriving during the replay fetch is queued so
+    // ordering holds.
+    let replayDone = false
+    let cancelled = false
+    const queued: string[] = []
     const removeDataListener = window.api.onTerminalData((data) => {
-      term.write(data)
+      if (replayDone) term.write(data)
+      else queued.push(data)
     })
+    window.api
+      .readTerminalBuffer(sessionId)
+      .catch(() => '')
+      .then((buffer) => {
+        if (cancelled) return
+        term.reset()
+        if (buffer) term.write(buffer)
+        for (const data of queued) term.write(data)
+        queued.length = 0
+        replayDone = true
+      })
 
     // Fit terminal and tell pty the size
     const fitAddon = fitAddonRef.current
@@ -140,21 +166,8 @@ export function TerminalPanel(): JSX.Element {
       }, 50)
     }
 
-    // One-shot: if a command was queued (e.g. "Open in Claude"), type it into
-    // the freshly-spawned shell once it's had a moment to print its prompt. The
-    // command is cleared only when it actually fires, and only if this session
-    // is still the active one — so a dispose+respawn that re-roots the terminal
-    // at a new cwd carries the command forward instead of dropping it.
-    let pendingTimer: ReturnType<typeof setTimeout> | null = null
-    const pending = useTerminalStore.getState().pendingCommand
-    if (pending) {
-      pendingTimer = setTimeout(() => {
-        if (useTerminalStore.getState().sessionId === sessionId) {
-          window.api.writeTerminal(sessionId, `${pending}\r`)
-          useTerminalStore.getState().setPendingCommand(null)
-        }
-      }, 400)
-    }
+    // Queued commands (external-session resume) are typed by the store's
+    // initialize() itself, so they fire even while this panel is unmounted.
 
     cleanupRef.current = () => {
       inputDisposable.dispose()
@@ -162,7 +175,7 @@ export function TerminalPanel(): JSX.Element {
     }
 
     return () => {
-      if (pendingTimer) clearTimeout(pendingTimer)
+      cancelled = true
       if (cleanupRef.current) {
         cleanupRef.current()
         cleanupRef.current = null

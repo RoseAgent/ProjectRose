@@ -18,6 +18,7 @@ export const IPC = {
   TERMINAL_WRITE: 'terminal:write',
   TERMINAL_RESIZE: 'terminal:resize',
   TERMINAL_DISPOSE: 'terminal:dispose',
+  TERMINAL_READ_BUFFER: 'terminal:readBuffer',
   TERMINAL_DATA: 'terminal:data',
   TERMINAL_EXIT: 'terminal:exit',
 

@@ -94,6 +94,9 @@ const api = {
   disposeTerminal: (sessionId: string): Promise<void> =>
     ipcRenderer.invoke(IPC.TERMINAL_DISPOSE, sessionId),
 
+  readTerminalBuffer: (sessionId: string): Promise<string> =>
+    ipcRenderer.invoke(IPC.TERMINAL_READ_BUFFER, sessionId),
+
   onTerminalData: (callback: (data: string) => void): (() => void) => {
     const handler = (_event: unknown, data: string): void => callback(data)
     ipcRenderer.on(IPC.TERMINAL_DATA, handler)

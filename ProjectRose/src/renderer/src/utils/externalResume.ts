@@ -38,9 +38,11 @@ export function buildResumeCommand(args: {
   message: string
   platform: string
 }): string {
+  // The resume runs unattended in a background pty, so Claude gets
+  // --dangerously-skip-permissions — nobody is watching to approve prompts.
   const parts =
     args.source === 'claude-code'
-      ? ['claude', '--resume', args.sessionId]
+      ? ['claude', '--resume', args.sessionId, '--dangerously-skip-permissions']
       : ['codex', 'resume', args.sessionId]
   if (args.modelFlag) parts.push('--model', args.modelFlag)
   const flattened = flattenPromptText(args.message)
