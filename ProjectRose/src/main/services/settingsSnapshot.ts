@@ -15,8 +15,10 @@ import { readSettings } from './settingsService'
 import { readProjectSettings } from './projectSettingsService'
 import { getAuthStatus, fetchUsage } from './authService'
 import { getKimiAccessToken, loadKimiTokens, hasKimiApiKey } from '../lib/kimiSession'
+import { hasBedrockCredentials } from '../lib/bedrockCredentials'
+import { listBedrockModels } from './bedrockAuthService'
 import { buildAuthedClient, googleAuthGetStatus } from './google/googleAuth'
-import { googleCalendarGetStatus } from './memory/googleCalendar'
+import { googleCalendarGetStatus } from './calendar/googleCalendar'
 import { hasImapPasswords } from './email/imapCredentialsStore'
 import { verifyImapConnection, verifySmtpConnection } from './email/imapTransport'
 import { testSearchProvider } from './toolHandlers'
@@ -94,6 +96,20 @@ async function checkKimi(authMethod: 'oauth' | 'apikey'): Promise<ConnectionResu
     const token = await withTimeout(getKimiAccessToken(), CONNECTION_TIMEOUT_MS)
     if (!token) return { status: 'failed: token refresh failed — sign in again' }
     return { status: 'ok', detail: 'signed in, token valid' }
+  } catch (err) {
+    return { status: `failed: ${shortError(err)}` }
+  }
+}
+
+async function checkBedrock(region: string): Promise<ConnectionResult> {
+  if (!(await hasBedrockCredentials().catch(() => false))) {
+    return { status: 'not-configured', detail: 'no AWS credentials stored' }
+  }
+  try {
+    // Listing models is the cheapest call that actually exercises the SigV4
+    // signature and the region — a stored key pair alone proves nothing.
+    const models = await withTimeout(listBedrockModels(), CONNECTION_TIMEOUT_MS)
+    return { status: 'ok', detail: `${region}, ${models.length} model(s) listable` }
   } catch (err) {
     return { status: `failed: ${shortError(err)}` }
   }
@@ -190,35 +206,27 @@ export async function buildSettingsSnapshot(rootPath: string): Promise<SettingsS
     provider: {
       lastModel: settings.lastModel ?? null,
       ollamaBaseUrl: settings.ollamaBaseUrl,
-      kimiAuthMethod: settings.kimiAuthMethod ?? 'oauth'
+      kimiAuthMethod: settings.kimiAuthMethod ?? 'oauth',
+      bedrockRegion: settings.bedrockRegion
     },
     google: googleConfig,
     search: {
       provider: settings.search?.provider ?? null
     },
-    memory: {
-      diary: {
-        enabled: settings.memory.diaryEnabled,
-        time: settings.memory.diaryTime,
-        lastRunAt: settings.memory.diaryLastRun
-      },
-      contactsUpdater: {
-        enabled: settings.memory.contactsUpdaterEnabled,
-        lastRunAt: settings.memory.contactsUpdaterLastRun
-      },
-      googleContactsSync: {
-        accountEmail: settings.memory.googleSync.accountEmail,
-        lastPullAt: settings.memory.googleSync.lastPullAt,
-        lastPushAt: settings.memory.googleSync.lastPushAt,
-        syncKinds: { ...settings.memory.googleSync.syncKinds }
-      },
-      googleCalendarSync: settings.memory.googleCalendarSync
-        ? {
-            lastPullAt: settings.memory.googleCalendarSync.lastPullAt,
-            lastPushAt: settings.memory.googleCalendarSync.lastPushAt,
-            syncCalendars: { ...settings.memory.googleCalendarSync.syncCalendars }
-          }
-        : null
+    contacts: {
+      googleSync: {
+        accountEmail: settings.contacts.googleSync.accountEmail,
+        lastPullAt: settings.contacts.googleSync.lastPullAt,
+        lastPushAt: settings.contacts.googleSync.lastPushAt,
+        syncKinds: { ...settings.contacts.googleSync.syncKinds }
+      }
+    },
+    calendar: {
+      googleSync: {
+        lastPullAt: settings.calendar.googleSync.lastPullAt,
+        lastPushAt: settings.calendar.googleSync.lastPushAt,
+        syncCalendars: { ...settings.calendar.googleSync.syncCalendars }
+      }
     },
     email: {
       transport: settings.email.transport,
@@ -252,10 +260,11 @@ export async function buildSettingsSnapshot(rootPath: string): Promise<SettingsS
   // Each individual check already swallows its own errors and returns a
   // ConnectionResult, but allSettled is the belt to the suspenders in case a
   // checker throws unexpectedly.
-  const [projectRose, ollama, kimi, googleAuth, googleCalendar, imap, smtp, search] = await Promise.all([
+  const [projectRose, ollama, kimi, bedrock, googleAuth, googleCalendar, imap, smtp, search] = await Promise.all([
     checkProjectRose().catch((err) => ({ status: `failed: ${shortError(err)}` } as ProjectRoseConnection)),
     checkOllama(settings.ollamaBaseUrl).catch((err) => ({ status: `failed: ${shortError(err)}` } as OllamaConnection)),
     checkKimi(settings.kimiAuthMethod ?? 'oauth').catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
+    checkBedrock(settings.bedrockRegion).catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
     checkGoogleAuth().catch((err) => ({ status: `failed: ${shortError(err)}` } as GoogleAuthConnection)),
     checkGoogleCalendar().catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
     checkImap(settings.email.transport).catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
@@ -265,6 +274,6 @@ export async function buildSettingsSnapshot(rootPath: string): Promise<SettingsS
 
   return {
     configuration,
-    connections: { projectRose, ollama, kimi, googleAuth, googleCalendar, imap, smtp, search }
+    connections: { projectRose, ollama, kimi, bedrock, googleAuth, googleCalendar, imap, smtp, search }
   }
 }

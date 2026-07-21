@@ -120,6 +120,34 @@ export async function hasKimiApiKey(): Promise<boolean> {
   return (await loadKimiApiKey()) !== null
 }
 
+// A BYO API key can belong to either of two distinct Kimi products, told
+// apart by prefix:
+//   - `sk-kimi-…`  → Kimi Coding key (kimi.com subscription). Authenticates
+//                    against the Coding API and, like the OAuth path, needs
+//                    the coding-agent UA or the host 403s. Exposes the
+//                    kimi-for-coding / k3 aliases.
+//   - `sk-…`       → Moonshot open-platform key (platform.moonshot.ai),
+//                    pay-as-you-go, its own model ids (kimi-k3, kimi-k2.*).
+// Routing by prefix lets both key types work without a separate setting.
+export interface KimiKeyEndpoint {
+  baseURL: string
+  // Extra headers beyond Authorization (the coding API's required UA).
+  headers: Record<string, string>
+  // Model id to fall back to when a Conversation has no explicit pick.
+  defaultModel: string
+}
+
+export function kimiApiKeyEndpoint(apiKey: string): KimiKeyEndpoint {
+  if (apiKey.startsWith('sk-kimi-')) {
+    return {
+      baseURL: KIMI_API_BASE_URL,
+      headers: { 'User-Agent': KIMI_USER_AGENT },
+      defaultModel: 'kimi-for-coding'
+    }
+  }
+  return { baseURL: KIMI_PLATFORM_BASE_URL, headers: {}, defaultModel: 'kimi-k3' }
+}
+
 interface TokenResponse {
   access_token?: string
   refresh_token?: string

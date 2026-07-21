@@ -11,7 +11,7 @@ import type {
   GooglePushPlan,
   GooglePushUpdate,
   GoogleSyncStatus
-} from '../../../shared/memory'
+} from '../../../shared/contacts'
 import {
   buildAuthedClient,
   googleAuthClearCredentials,
@@ -43,7 +43,7 @@ async function readGoogleSyncSettings(): Promise<{
   syncKinds: Record<ContactKind, boolean>
 }> {
   const settings = await readSettings()
-  const block = settings.memory?.googleSync
+  const block = settings.contacts?.googleSync
   const defaults: Record<ContactKind, boolean> = { person: true, business: true, website: false, other: false }
   return {
     lastPullAt: block?.lastPullAt ?? null,
@@ -57,9 +57,9 @@ async function patchGoogleSyncSettings(patch: {
   lastPushAt?: number | null
 }): Promise<void> {
   const settings = await readSettings()
-  const current = settings.memory
+  const current = settings.contacts
   await applySettingsPatch({
-    memory: {
+    contacts: {
       ...current,
       googleSync: {
         ...current.googleSync,
@@ -112,7 +112,7 @@ export async function googleSignOut(): Promise<GoogleSyncStatus> {
   return googleGetStatus()
 }
 
-// ── Pull (Google → Memory) ───────────────────────────────────────────────
+// ── Pull (Google → local) ───────────────────────────────────────────────
 
 async function listAllGooglePeople(client: OAuth2Client): Promise<people_v1.Schema$Person[]> {
   const people = google.people({ version: 'v1', auth: client })
@@ -212,7 +212,7 @@ export async function googleApplyPull(plan: GooglePullPlan): Promise<GoogleApply
   }
 }
 
-// ── Push (Memory → Google) ───────────────────────────────────────────────
+// ── Push (local → Google) ───────────────────────────────────────────────
 
 export async function googlePreviewPush(): Promise<GooglePushPlan> {
   const client = await buildAuthedClient()

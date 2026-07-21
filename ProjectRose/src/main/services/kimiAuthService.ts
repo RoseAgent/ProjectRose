@@ -3,14 +3,20 @@ import { IPC } from '../../shared/ipcChannels'
 import {
   KIMI_CLIENT_ID,
   KIMI_OAUTH_HOST,
+  KIMI_API_BASE_URL,
+  KIMI_USER_AGENT,
   clearKimiTokens,
   loadKimiTokens,
   saveKimiTokens,
   saveKimiApiKey,
   clearKimiApiKey,
   hasKimiApiKey,
+  loadKimiApiKey,
+  getKimiAccessToken,
+  kimiApiKeyEndpoint,
   type KimiTokens
 } from '../lib/kimiSession'
+import { readSettings } from './settingsService'
 
 // OAuth 2.0 Device Authorization Grant (RFC 8628) against auth.kimi.com —
 // the same flow and public client id kimi-cli uses, so no app registration
@@ -187,4 +193,51 @@ export async function kimiClearApiKey(): Promise<KimiAuthStatus> {
   await clearKimiApiKey()
   await emitChanged()
   return getKimiAuthStatus()
+}
+
+interface ModelsListResponse {
+  data?: Array<{ id?: unknown }>
+}
+
+/**
+ * The model ids the active Kimi auth method can actually reach, fetched live
+ * from the provider's OpenAI-compatible `GET /models` endpoint. The renderer's
+ * ModelPicker builds its Kimi group from this — we never hardcode the list, so
+ * the moment Moonshot ships a new model (e.g. kimi-k3) it appears here.
+ *
+ * Which backend is queried follows AppSettings.kimiAuthMethod, mirroring
+ * resolveModel: 'apikey' → Moonshot open platform, 'oauth' → Coding API.
+ * Throws with an actionable message when the method isn't configured; the
+ * renderer surfaces that (and falls back to whatever it last knew).
+ */
+export async function listKimiModels(): Promise<string[]> {
+  const { kimiAuthMethod } = await readSettings()
+
+  let baseURL: string
+  let headers: Record<string, string>
+  if (kimiAuthMethod === 'apikey') {
+    const apiKey = await loadKimiApiKey()
+    if (!apiKey) throw new Error('Add your Kimi API key in Settings → Providers → Kimi.')
+    // Prefix decides the backend (Coding API vs Moonshot platform) and any
+    // required extra headers (the coding UA) — see kimiApiKeyEndpoint.
+    const endpoint = kimiApiKeyEndpoint(apiKey)
+    baseURL = endpoint.baseURL
+    headers = { Authorization: `Bearer ${apiKey}`, ...endpoint.headers }
+  } else {
+    const token = await getKimiAccessToken()
+    if (!token) throw new Error('Sign in to your Kimi account in Settings → Providers → Kimi.')
+    baseURL = KIMI_API_BASE_URL
+    // The Coding API 403s unless the request identifies as a coding agent.
+    headers = { Authorization: `Bearer ${token}`, 'User-Agent': KIMI_USER_AGENT }
+  }
+
+  const res = await fetch(`${baseURL}/models`, { headers })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Kimi model list failed (${res.status})${body ? `: ${body}` : ''}`)
+  }
+  const data = (await res.json()) as ModelsListResponse
+  return (data.data ?? [])
+    .map((m) => m.id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
 }

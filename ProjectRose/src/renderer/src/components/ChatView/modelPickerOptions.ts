@@ -2,8 +2,6 @@ import type { ModelConfig } from '@shared/modelConfig'
 import type { ExternalSource } from '@shared/externalSession'
 import {
   PROJECTROSE_MODEL,
-  KIMI_MODEL_OPTIONS,
-  KIMI_PLATFORM_MODEL_OPTIONS,
   CLAUDE_MODEL_ALIASES,
   CODEX_MODEL_ALIASES
 } from '@shared/modelConfig'
@@ -43,8 +41,17 @@ export interface PickerAvailability {
   prLoggedIn: boolean
   kimiAvailable: boolean
   kimiAuthMethod: 'oauth' | 'apikey'
+  // Model ids fetched live from Kimi's /models endpoint for the active auth
+  // method. One picker option per id; empty → no Kimi options shown.
+  kimiModels: string[]
   ollamaConfigured: boolean
   ollamaModels: string[]
+  // Whether an AWS key pair is stored. Bedrock has no sign-in flow, so stored
+  // credentials are the whole of "available".
+  bedrockConfigured: boolean
+  // Model ids fetched live from Bedrock's control plane for the configured
+  // account + region. One picker option per id; empty → no Bedrock options.
+  bedrockModels: string[]
 }
 
 export function buildPickerGroups(a: PickerAvailability): PickerGroup[] {
@@ -86,13 +93,29 @@ export function buildPickerGroups(a: PickerAvailability): PickerGroup[] {
     })
   }
 
-  if (a.kimiAvailable) {
-    const table = a.kimiAuthMethod === 'apikey' ? KIMI_PLATFORM_MODEL_OPTIONS : KIMI_MODEL_OPTIONS
+  // Kimi options come straight from the provider's live /models list — the id
+  // is the label, same as Ollama. Suppress the group until a fetch lands so we
+  // never show a stale hardcoded guess.
+  if (a.kimiAvailable && a.kimiModels.length > 0) {
     groups.push({
       label: 'Kimi',
-      options: table.map((m) => {
-        const model: ModelConfig = { provider: 'kimi', modelName: m.id }
-        return { id: choiceId({ kind: 'rose', model }), label: m.label, choice: { kind: 'rose', model } }
+      options: a.kimiModels.map((id) => {
+        const model: ModelConfig = { provider: 'kimi', modelName: id }
+        return { id: choiceId({ kind: 'rose', model }), label: id, choice: { kind: 'rose', model } }
+      })
+    })
+  }
+
+  // Bedrock ids come straight from the account's live control-plane listing —
+  // the id is the label, same as Kimi and Ollama. Suppressed until a fetch
+  // lands: the reachable set is account- and region-scoped, so any hardcoded
+  // guess would offer models the user can't invoke.
+  if (a.bedrockConfigured && a.bedrockModels.length > 0) {
+    groups.push({
+      label: 'Amazon Bedrock',
+      options: a.bedrockModels.map((id) => {
+        const model: ModelConfig = { provider: 'bedrock', modelName: id }
+        return { id: choiceId({ kind: 'rose', model }), label: id, choice: { kind: 'rose', model } }
       })
     })
   }
@@ -116,7 +139,7 @@ export function buildPickerGroups(a: PickerAvailability): PickerGroup[] {
  * even before the Ollama model list has been fetched — a stale pick fails the
  * send with an actionable message, which beats silently switching provider),
  * then the first available option in group order (ProjectRose → Kimi →
- * Ollama). Null when nothing is available.
+ * Amazon Bedrock → Ollama). Null when nothing is available.
  */
 export function defaultChoice(groups: PickerGroup[], lastModel: ModelConfig | null): PickerChoice | null {
   const flat = groups.flatMap((g) => g.options)

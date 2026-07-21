@@ -5,7 +5,7 @@ import type {
   EventRef,
   EventTime,
   ResolvedEventOccurrence
-} from '@shared/memory'
+} from '@shared/calendar'
 import { logInteraction } from '../../../lib/interactionLog'
 import styles from './CalendarPage.module.css'
 
@@ -162,7 +162,7 @@ export function CalendarPage(): JSX.Element {
 
   const refresh = useCallback(async () => {
     try {
-      const list = await window.api.memory.listEvents({
+      const list = await window.api.events.listEvents({
         start: gridStart.toISOString(),
         end: gridEnd.toISOString()
       })
@@ -224,7 +224,7 @@ export function CalendarPage(): JSX.Element {
         .filter(Boolean)
       const attendees = editor.attendees.filter((a) => a.email.trim().length > 0)
       if (editor.ref) {
-        await window.api.memory.updateEvent({
+        await window.api.events.updateEvent({
           ref: editor.ref,
           patch: {
             summary: editor.summary,
@@ -238,7 +238,7 @@ export function CalendarPage(): JSX.Element {
         })
         logInteraction('calendar.event-edited')
       } else {
-        await window.api.memory.createEvent({
+        await window.api.events.createEvent({
           summary: editor.summary,
           start,
           end,
@@ -261,7 +261,7 @@ export function CalendarPage(): JSX.Element {
     setBusy('Deleting…')
     setError(null)
     try {
-      await window.api.memory.deleteEvent(editor.ref)
+      await window.api.events.deleteEvent(editor.ref)
       logInteraction('calendar.event-deleted')
       closeEditor()
       void refresh()

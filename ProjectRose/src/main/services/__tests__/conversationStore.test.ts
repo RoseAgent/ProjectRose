@@ -13,6 +13,7 @@ vi.mock('../recentProjects', () => ({ getRecentProjects: () => RECENTS }))
 
 import {
   saveConversation,
+  appendTurnEvents,
   loadConversation,
   listAllConversations,
   deleteConversation,
@@ -21,6 +22,7 @@ import {
   type Conversation
 } from '../conversationStore'
 import { readWorkspaceMeta } from '../../lib/workspaceEncoding'
+import type { TurnLogRecord } from '../../../shared/turnEvents'
 
 let base: string
 
@@ -74,6 +76,22 @@ describe('save / load / list', () => {
     expect(metas).toHaveLength(2)
   })
 
+  // Mid-turn checkpoints write the same file repeatedly without awaiting, so
+  // the write must be atomic (no torn main.json) and serialized.
+  it('leaves no temp file behind and lands the last of overlapping writes', async () => {
+    const ws = join(base, 'proj-a')
+    await Promise.all([
+      saveConversation(conv('id-1', ws, { title: 'first' })),
+      saveConversation(conv('id-1', ws, { title: 'second' })),
+      saveConversation(conv('id-1', ws, { title: 'third' }))
+    ])
+    const loaded = await loadConversation('id-1')
+    expect(loaded?.title).toBe('third')
+    const groups = await fs.readdir(CONV_DIR)
+    const files = await fs.readdir(join(CONV_DIR, groups[0], 'id-1'))
+    expect(files).toEqual(['main.json'])
+  })
+
   it('deletes a conversation without touching siblings', async () => {
     const ws = join(base, 'proj-a')
     await saveConversation(conv('keep', ws))
@@ -85,6 +103,59 @@ describe('save / load / list', () => {
 
   it('returns null for an unknown id', async () => {
     expect(await loadConversation('nope')).toBeNull()
+  })
+})
+
+describe('turn log', () => {
+  const ws = () => join(base, 'proj-a')
+
+  async function logFile(sessionId: string): Promise<string> {
+    const groups = await fs.readdir(CONV_DIR)
+    return join(CONV_DIR, groups[0], sessionId, 'turn.jsonl')
+  }
+
+  const rec = (seq: number, token: string): TurnLogRecord => ({
+    seq,
+    event: { kind: 'token', token }
+  })
+
+  it('surfaces appended events as pending on the next load', async () => {
+    await saveConversation(conv('id-1', ws()))
+    await appendTurnEvents('id-1', ws(), [rec(1, 'a'), rec(2, 'b')])
+    const loaded = await loadConversation('id-1')
+    expect(loaded?.pendingEvents.map((r) => r.event)).toEqual([
+      { kind: 'token', token: 'a' },
+      { kind: 'token', token: 'b' }
+    ])
+  })
+
+  it('drops the log once a settling save folds it into main.json', async () => {
+    await saveConversation(conv('id-1', ws()))
+    await appendTurnEvents('id-1', ws(), [rec(1, 'a')])
+    await saveConversation(conv('id-1', ws(), { appliedSeq: 1 }))
+    expect((await loadConversation('id-1'))?.pendingEvents).toEqual([])
+    await expect(fs.access(await logFile('id-1'))).rejects.toThrow()
+  })
+
+  // A save that lands but whose log truncation does not (crash in between)
+  // must not replay the same events a second time.
+  it('skips records already folded in when the log outlives its truncation', async () => {
+    await saveConversation(conv('id-1', ws()))
+    await appendTurnEvents('id-1', ws(), [rec(1, 'a'), rec(2, 'b')])
+    // Save records the events as applied; re-append the log as if the rm failed.
+    await saveConversation(conv('id-1', ws(), { appliedSeq: 2 }))
+    await appendTurnEvents('id-1', ws(), [rec(1, 'a'), rec(2, 'b'), rec(3, 'c')])
+    const loaded = await loadConversation('id-1')
+    expect(loaded?.pendingEvents.map((r) => r.seq)).toEqual([3])
+  })
+
+  // A crash mid-append leaves a half-written final line.
+  it('recovers every whole record and discards a torn final line', async () => {
+    await saveConversation(conv('id-1', ws()))
+    await appendTurnEvents('id-1', ws(), [rec(1, 'a'), rec(2, 'b')])
+    await fs.appendFile(await logFile('id-1'), '{"seq":3,"event":{"kind":"tok', 'utf-8')
+    const loaded = await loadConversation('id-1')
+    expect(loaded?.pendingEvents.map((r) => r.seq)).toEqual([1, 2])
   })
 })
 

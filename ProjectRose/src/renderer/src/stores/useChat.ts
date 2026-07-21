@@ -25,6 +25,21 @@ import type { ModelConfig } from '@shared/modelConfig'
 import type { PickerChoice } from '../components/ChatView/modelPickerOptions'
 import { toChatMessages } from '../utils/externalTranscript'
 import { buildResumeCommand } from '../utils/externalResume'
+import type { TurnEvent } from '@shared/turnEvents'
+import {
+  applyTurnEvent,
+  replayTurnEvents,
+  seedMessageIds,
+  makeId,
+  emptyTimeline,
+} from './timelineEvents'
+import {
+  beginTurnLog,
+  endTurnLog,
+  logTurnEvent,
+  currentSeq,
+  flush as flushTurnLog,
+} from './turnLogWriter'
 
 // Tool-step count is fixed at 50 because it's a property of the agentic loop
 // budget rather than the model.
@@ -45,11 +60,6 @@ export const COMPRESSION_THRESHOLD_PCT = 0.70
 // land before the listeners go away.
 const POST_RESOLUTION_DEFER_MS = 250
 
-let msgCounter = 0
-function makeId(): string {
-  return `msg-${++msgCounter}`
-}
-
 let userMsgCounter = 0
 function newUserMsgId(): string {
   return `msg-u-${++userMsgCounter}`
@@ -69,38 +79,6 @@ function clearDeferTimer(): void {
     clearTimeout(activeDeferTimer)
     activeDeferTimer = null
   }
-}
-
-// ── Timeline reducers (formerly in services/chatTimelineReducers.ts) ───────
-
-function insertBefore(messages: ChatMessage[], targetId: string, insert: ChatMessage): ChatMessage[] {
-  const idx = messages.findIndex((m) => m.id === targetId)
-  if (idx < 0) return [...messages, insert]
-  return [...messages.slice(0, idx), insert, ...messages.slice(idx)]
-}
-
-function sealStreamingPlaceholders(state: TimelineFields): ChatMessage[] {
-  return state.messages.map((m) => {
-    if (m.id === state.thinkingPlaceholderId && m.role === 'thinking') return { ...m, streaming: false }
-    if (m.id === state.assistantPlaceholderId && m.role === 'assistant') return { ...m, streaming: false }
-    return m
-  })
-}
-
-interface TimelineFields {
-  messages: ChatMessage[]
-  assistantPlaceholderId: string | null
-  thinkingPlaceholderId: string | null
-  pendingModelDisplay: string | null
-  isLoading: boolean
-}
-
-const emptyTimeline: TimelineFields = {
-  messages: [],
-  assistantPlaceholderId: null,
-  thinkingPlaceholderId: null,
-  pendingModelDisplay: null,
-  isLoading: false,
 }
 
 // ── Api-message builder (formerly in services/chatApiMessages.ts) ──────────
@@ -158,6 +136,11 @@ function sanitizeLoadedMessages(messages: ChatMessage[]): ChatMessage[] {
     if (m.role === 'ask_user' && (m as AskUserMessage).answer === null) {
       return { ...m, answer: '[interrupted]' }
     }
+    // A mid-turn checkpoint can capture a tool call that never returned.
+    // Left pending it would reload as a spinner that never resolves.
+    if (m.role === 'tool' && (m as ToolMessage).pending) {
+      return { ...m, pending: false, result: '[interrupted]', error: true }
+    }
     return m
   })
 }
@@ -207,6 +190,32 @@ function buildPayload(
 function persistSession(meta: SessionMeta): void {
   const state = useChat.getState()
   window.api.session.save(buildPayload(meta, state.messages, state.snapshot)).catch(() => {
+    /* persistence failures are non-fatal */
+  })
+}
+
+// Apply a streaming event to the timeline and append it to the turn log, so
+// the durable record and the on-screen timeline always move together. This is
+// the only path by which streamed events reach the store.
+function dispatchTurnEvent(sessionId: string, event: TurnEvent): void {
+  useChat.setState((s) => applyTurnEvent(s, event))
+  logTurnEvent(sessionId, event)
+}
+
+// Persist the settled turn and retire its log. `appliedSeq` records how much of
+// the log is now inside main.json, which is what lets the store drop it.
+//
+// Switching conversations does not cancel an in-flight turn, so by the time a
+// turn settles the store's messages may belong to a different conversation.
+// Writing them under this meta would overwrite the wrong conversation, so the
+// save is skipped — and, crucially, the log is left alone. The turn's events
+// are all in it, and reopening the conversation replays them.
+function persistSettled(meta: SessionMeta): void {
+  if (useChat.getState().currentSessionId !== meta.id) return
+  const payload = buildPayload(meta, useChat.getState().messages, useChat.getState().snapshot)
+  payload.appliedSeq = currentSeq()
+  endTurnLog()
+  window.api.session.save(payload).catch(() => {
     /* persistence failures are non-fatal */
   })
 }
@@ -490,163 +499,39 @@ export const useChat = create<UseChatSlice>((set, get) => ({
   setMessages: (messages) => set({ messages }),
   resetTimeline: () => set({ ...emptyTimeline }),
 
-  appendToken: ({ token }) =>
-    set((s) => {
-      if (s.assistantPlaceholderId) {
-        return {
-          messages: s.messages.map((m) =>
-            m.id === s.assistantPlaceholderId && m.role === 'assistant'
-              ? { ...m, content: m.content + token }
-              : m
-          ),
-        }
-      }
-      const newId = makeId()
-      const msg: AssistantMessage = {
-        id: newId,
-        role: 'assistant',
-        content: token,
-        timestamp: Date.now(),
-        streaming: true,
-        modelDisplay: s.pendingModelDisplay ?? undefined,
-      }
-      return {
-        messages: [...s.messages, msg],
-        assistantPlaceholderId: newId,
-      }
-    }),
+  appendToken: ({ token }) => set((s) => applyTurnEvent(s, { kind: 'token', token })),
 
   appendToolStart: ({ id, name, params }) =>
-    set((s) => {
-      const toolMsg: ToolMessage = {
-        id: makeId(),
-        role: 'tool',
-        timestamp: Date.now(),
-        toolId: id,
-        name,
-        params,
-        result: null,
-        error: false,
-        pending: true,
-      }
-      return {
-        messages: [...sealStreamingPlaceholders(s), toolMsg],
-        thinkingPlaceholderId: null,
-        assistantPlaceholderId: null,
-      }
-    }),
+    set((s) => applyTurnEvent(s, { kind: 'tool-start', id, name, params })),
 
   resolveToolEnd: ({ id, result, error }) =>
-    set((s) => ({
-      messages: s.messages.map((m) =>
-        m.role === 'tool' && m.toolId === id
-          ? { ...m, result, error, pending: false }
-          : m
-      ),
-    })),
+    set((s) => applyTurnEvent(s, { kind: 'tool-end', id, result, error })),
 
   appendThinking: ({ content }) =>
-    set((s) => {
-      if (s.thinkingPlaceholderId) {
-        return {
-          messages: s.messages.map((m) =>
-            m.id === s.thinkingPlaceholderId && m.role === 'thinking'
-              ? { ...m, content: m.content + content }
-              : m
-          ),
-        }
-      }
-      const newId = makeId()
-      const msg: ThinkingMessage = {
-        id: newId,
-        role: 'thinking',
-        timestamp: Date.now(),
-        content,
-        streaming: true,
-      }
-      return {
-        messages: s.assistantPlaceholderId
-          ? insertBefore(s.messages, s.assistantPlaceholderId, msg)
-          : [...s.messages, msg],
-        thinkingPlaceholderId: newId,
-      }
-    }),
+    set((s) => applyTurnEvent(s, { kind: 'thinking', content })),
 
   appendAskUser: ({ questionId, question, options }) =>
-    set((s) => {
-      const msg: AskUserMessage = {
-        id: makeId(),
-        role: 'ask_user',
-        timestamp: Date.now(),
-        questionId,
-        question,
-        options,
-        answer: null,
-      }
-      return {
-        messages: [...sealStreamingPlaceholders(s), msg],
-        thinkingPlaceholderId: null,
-        assistantPlaceholderId: null,
-      }
-    }),
+    set((s) => applyTurnEvent(s, { kind: 'ask-user', questionId, question, options })),
 
   applyAnswer: ({ questionId, answer }) =>
-    set((s) => ({
-      messages: s.messages.map((m) =>
-        m.role === 'ask_user' && m.questionId === questionId
-          ? { ...m, answer }
-          : m
-      ),
-    })),
+    set((s) => applyTurnEvent(s, { kind: 'ask-answer', questionId, answer })),
 
   appendInjectedMessage: ({ extensionId, extensionName, extensionIcon, content }) =>
-    set((s) => {
-      const msg: InjectedMessage = {
-        id: makeId(),
-        role: 'injected',
-        timestamp: Date.now(),
-        content,
+    set((s) =>
+      applyTurnEvent(s, {
+        kind: 'injected',
         extensionId,
         extensionName,
         extensionIcon,
-      }
-      return {
-        messages: [...sealStreamingPlaceholders(s), msg],
-        thinkingPlaceholderId: null,
-        assistantPlaceholderId: null,
-      }
-    }),
+        content,
+      })
+    ),
 
   modelSelected: ({ modelDisplay }) =>
-    set((s) => {
-      if (s.assistantPlaceholderId) {
-        return {
-          messages: s.messages.map((m) =>
-            m.id === s.assistantPlaceholderId && m.role === 'assistant'
-              ? { ...m, modelDisplay }
-              : m
-          ),
-        }
-      }
-      return { pendingModelDisplay: modelDisplay }
-    }),
+    set((s) => applyTurnEvent(s, { kind: 'model-selected', modelDisplay })),
 
   streamReset: ({ fallbackModel, errorMessage }) =>
-    set((s) => {
-      if (!s.assistantPlaceholderId) return {}
-      return {
-        messages: s.messages.map((m) =>
-          m.id === s.assistantPlaceholderId && m.role === 'assistant'
-            ? {
-                ...m,
-                content: '',
-                modelDisplay: fallbackModel,
-                fallbackNotice: `${m.modelDisplay ?? 'Model'} failed: ${errorMessage}`,
-              }
-            : m
-        ),
-      }
-    }),
+    set((s) => applyTurnEvent(s, { kind: 'stream-reset', fallbackModel, errorMessage })),
 
   startTurn: (userMessage) =>
     set((s) => ({
@@ -850,25 +735,66 @@ export const useChat = create<UseChatSlice>((set, get) => ({
 
     get().setInputValue('')
     get().startTurn(userMsg)
-    persistSession(sessionMeta)
+    // Full save first: the user message becomes part of main.json, and the log
+    // that follows carries only what the turn itself produces.
+    persistSettled(sessionMeta)
+    beginTurnLog(sessionId, rootPath, currentSeq())
 
     // Streaming listener wire-up with sessionId filtering: late events from
     // an abandoned session would otherwise land on the new session's timeline.
     const turnSessionId = sessionId
-    const forThisTurn = <T extends { sessionId: string }>(handler: (d: T) => void) =>
+    // Each streamed event is applied to the timeline and appended to the turn
+    // log in one step, so what is on screen and what is on disk cannot drift.
+    const onEvent = <T extends { sessionId: string }>(toEvent: (d: T) => TurnEvent) =>
       (d: T): void => {
         if (d.sessionId !== turnSessionId) return
-        handler(d)
+        dispatchTurnEvent(turnSessionId, toEvent(d))
       }
-    const cleanupToken = window.api.onAiToken(forThisTurn((d) => get().appendToken(d)))
-    const cleanupToolStart = window.api.onAiToolCallStart(forThisTurn((d) => get().appendToolStart(d)))
-    const cleanupToolEnd = window.api.onAiToolCallEnd(forThisTurn((d) => get().resolveToolEnd(d)))
-    const cleanupThinking = window.api.onAiThinking(forThisTurn((d) => get().appendThinking(d)))
-    const cleanupAskUser = window.api.onAiAskUser(forThisTurn((d) => get().appendAskUser(d)))
-    const cleanupInjected = window.api.onAiInjectedMessage(forThisTurn((d) => get().appendInjectedMessage(d)))
-    const cleanupModelSelected = window.api.onAiModelSelected(forThisTurn((d) => get().modelSelected(d)))
-    const cleanupStreamReset = window.api.onAiStreamReset(forThisTurn((d) => get().streamReset(d)))
-    const cleanupTodos = window.api.onAiTodosUpdated(forThisTurn((d) => set({ todos: d.todos })))
+    const cleanupToken = window.api.onAiToken(
+      onEvent((d) => ({ kind: 'token', token: d.token }))
+    )
+    const cleanupToolStart = window.api.onAiToolCallStart(
+      onEvent((d) => ({ kind: 'tool-start', id: d.id, name: d.name, params: d.params }))
+    )
+    const cleanupToolEnd = window.api.onAiToolCallEnd(
+      onEvent((d) => ({ kind: 'tool-end', id: d.id, result: d.result, error: d.error }))
+    )
+    const cleanupThinking = window.api.onAiThinking(
+      onEvent((d) => ({ kind: 'thinking', content: d.content }))
+    )
+    const cleanupAskUser = window.api.onAiAskUser(
+      onEvent((d) => ({
+        kind: 'ask-user',
+        questionId: d.questionId,
+        question: d.question,
+        options: d.options,
+      }))
+    )
+    const cleanupInjected = window.api.onAiInjectedMessage(
+      onEvent((d) => ({
+        kind: 'injected',
+        extensionId: d.extensionId,
+        extensionName: d.extensionName,
+        extensionIcon: d.extensionIcon,
+        content: d.content,
+      }))
+    )
+    const cleanupModelSelected = window.api.onAiModelSelected(
+      onEvent((d) => ({ kind: 'model-selected', modelDisplay: d.modelDisplay }))
+    )
+    const cleanupStreamReset = window.api.onAiStreamReset(
+      onEvent((d) => ({
+        kind: 'stream-reset',
+        fallbackModel: d.fallbackModel,
+        errorMessage: d.errorMessage,
+      }))
+    )
+    // Todos live outside the message timeline — nothing to replay, so this one
+    // stays a plain store write.
+    const cleanupTodos = window.api.onAiTodosUpdated((d) => {
+      if (d.sessionId !== turnSessionId) return
+      set({ todos: d.todos })
+    })
 
     const cleanup = (): void => {
       cleanupToken()
@@ -912,7 +838,7 @@ export const useChat = create<UseChatSlice>((set, get) => ({
         }
         get().touchSession(sessionId)
         const updatedMeta = findRoseMeta(get().groups, sessionId) ?? sessionMeta!
-        persistSession(updatedMeta)
+        persistSettled(updatedMeta)
         // Refresh status after each settled turn so the toast can fire.
         get().refreshContextStatus().catch(() => { /* best-effort */ })
         if (response.modifiedFiles.length > 0) {
@@ -933,7 +859,7 @@ export const useChat = create<UseChatSlice>((set, get) => ({
           const errorContent = `Error: ${err instanceof Error ? err.message : 'Failed to get response'}`
           get().errorCleanup({ errorContent })
         }
-        persistSession(sessionMeta!)
+        persistSettled(sessionMeta!)
       }, POST_RESOLUTION_DEFER_MS)
     }
   },
@@ -946,9 +872,16 @@ export const useChat = create<UseChatSlice>((set, get) => ({
   },
 
   answerAskUser: async (questionId, answer) => {
-    get().applyAnswer({ questionId, answer })
     const sessionId = get().currentSessionId
-    if (!sessionId) return
+    if (!sessionId) {
+      get().applyAnswer({ questionId, answer })
+      return
+    }
+    // Logged like a streamed event — the answer arrives mid-turn, so a crash
+    // before the turn settles would otherwise lose what the user typed. Flushed
+    // immediately rather than batched: these are rare and worth a round trip.
+    dispatchTurnEvent(sessionId, { kind: 'ask-answer', questionId, answer })
+    flushTurnLog()
     await window.api.aiAskUserResponse(sessionId, questionId, answer)
   },
 
@@ -1148,10 +1081,19 @@ async function loadSessionIntoSlice(sessionId: string): Promise<void> {
     loaded.compressedAt != null
 
   useChat.getState().resetTimeline()
-  useChat
-    .getState()
-    .setMessages(sanitizeLoadedMessages((loaded.messages as ChatMessage[]) ?? []))
+  // Crash recovery: fold the turn log back in. `pendingEvents` is empty for a
+  // conversation whose last turn settled cleanly, so the normal path replays
+  // nothing. Sanitizing after replay is what closes out the interrupted turn —
+  // a half-streamed reply and a tool call that never returned both get marked.
+  const saved = (loaded.messages as ChatMessage[]) ?? []
+  seedMessageIds(saved)
+  const recovered = replayTurnEvents(saved, loaded.pendingEvents.map((r) => r.event))
+  useChat.getState().setMessages(sanitizeLoadedMessages(recovered))
   useChat.getState().setCurrentSessionId(sessionId)
+  // Continue the conversation's sequence so the next turn's records can never
+  // reuse a seq that a recovered-but-not-yet-truncated log already holds.
+  const lastSeq = loaded.pendingEvents.at(-1)?.seq ?? loaded.appliedSeq ?? 0
+  beginTurnLog(sessionId, loaded.workspacePath, lastSeq)
   useChat.getState().setSnapshot(
     hasFullSnapshot
       ? {

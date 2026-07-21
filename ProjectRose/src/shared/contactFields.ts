@@ -1,6 +1,6 @@
-// Parse and serialize Memory.Contact bullet-note files.
+// Parse and serialize Contact bullet-note files.
 //
-// Memory contacts live on disk as markdown:
+// Contacts live on disk as markdown:
 //
 //   # Entity: Jane Doe
 //   - kind: person
@@ -19,7 +19,7 @@
 //
 // Pure functions only, no IO — safe to import from either process.
 
-import type { ContactKind } from './memory'
+import type { ContactKind } from './contacts'
 
 export interface LabeledValue {
   value: string

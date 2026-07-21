@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { EmailStatus, EmailTransportKind, SaveImapTransportArgs } from '@shared/email'
-import type { GoogleSyncStatus } from '@shared/memory'
+import type { GoogleSyncStatus } from '@shared/contacts'
 import styles from './InboxPage.module.css'
 
 // Drawer-cog SettingsView for rose-email. The user picks ONE transport
@@ -16,7 +16,7 @@ export function EmailSettings(): JSX.Element {
   const refresh = useCallback(async () => {
     const [s, g] = await Promise.all([
       window.api.email.getStatus(),
-      window.api.memory.googleGetStatus()
+      window.api.contacts.googleGetStatus()
     ])
     setStatus(s)
     setGoogle(g)
@@ -265,7 +265,7 @@ function GoogleCard(props: {
   const signIn = async (): Promise<void> => {
     setErr(null); setBusy('Signing in…')
     try {
-      await window.api.memory.googleSignIn()
+      await window.api.contacts.googleSignIn()
       props.onSignedIn()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
@@ -291,8 +291,8 @@ function GoogleCard(props: {
   const reauthorize = async (): Promise<void> => {
     setErr(null); setBusy('Re-authorizing…')
     try {
-      await window.api.memory.googleSignOut()
-      await window.api.memory.googleSignIn()
+      await window.api.contacts.googleSignOut()
+      await window.api.contacts.googleSignIn()
       props.onSignedIn()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))

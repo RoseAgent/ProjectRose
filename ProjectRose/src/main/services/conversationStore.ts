@@ -10,6 +10,7 @@ import {
   WORKSPACE_META_FILE
 } from '../lib/workspaceEncoding'
 import type { ModelConfig } from '../../shared/modelConfig'
+import type { TurnLogRecord } from '../../shared/turnEvents'
 
 // Snapshot of the "compressed view" the renderer sends to the LLM in place of
 // the leading portion of its api-shape messages. Persisted alongside the raw
@@ -43,6 +44,18 @@ export interface ConversationMeta {
 
 export interface Conversation extends ConversationMeta, Partial<CompressedSnapshot> {
   messages: unknown[]
+  // Highest turn-log seq already folded into `messages`. Saving with this set
+  // truncates the log; on load, records at or below it are skipped. Absent on
+  // conversations written before the turn log existed — those replay nothing
+  // because they have no log.
+  appliedSeq?: number
+}
+
+// A conversation plus whatever survived in its turn log — the events that were
+// streamed after the last full save. An in-flight turn leaves records here; a
+// cleanly settled one leaves none.
+export interface LoadedConversation extends Conversation {
+  pendingEvents: TurnLogRecord[]
 }
 
 const MIGRATION_MARKER = '.migrated-to-agent-home'
@@ -58,6 +71,36 @@ function indexSet(sessionId: string, groupDir: string): void {
 
 function mainPath(groupDir: string, sessionId: string): string {
   return join(groupDir, sessionId, 'main.json')
+}
+
+// Serialize saves per session file. Mid-turn checkpoints fire several times a
+// turn and the renderer does not await them, so saves to one file overlap.
+// Chaining the whole save — not just its final write — means the settling save
+// issued last is also the one that lands last, and the temp-file dance below
+// never races itself.
+const saveQueue = new Map<string, Promise<void>>()
+
+function enqueue(key: string, work: () => Promise<void>): Promise<void> {
+  const next = (saveQueue.get(key) ?? Promise.resolve()).then(work)
+  // Keep the chain alive past a failed save, and drop the entry once idle.
+  const guarded = next.catch(() => {})
+  saveQueue.set(key, guarded)
+  return next.finally(() => {
+    if (saveQueue.get(key) === guarded) saveQueue.delete(key)
+  })
+}
+
+// Write via temp file + rename. A crash mid-write then leaves either the old
+// file or the new one, never a truncated one — a torn main.json fails to parse
+// and the loader treats the whole conversation as missing.
+async function writeAtomic(path: string, contents: string): Promise<void> {
+  const tmp = `${path}.tmp`
+  await fs.writeFile(tmp, contents, 'utf-8')
+  await fs.rename(tmp, path)
+}
+
+function turnLogPath(groupDir: string, sessionId: string): string {
+  return join(groupDir, sessionId, 'turn.jsonl')
 }
 
 function subagentPath(groupDir: string, sessionId: string, index: number): string {
@@ -121,42 +164,98 @@ async function resolveGroupForId(sessionId: string): Promise<string | null> {
   return groupIndex?.get(sessionId) ?? null
 }
 
-export async function loadConversation(sessionId: string): Promise<Conversation | null> {
+// Read a conversation's turn log, dropping records already folded into
+// `main.json`. The final line is discarded if it does not parse: a crash
+// during an append leaves a partial line, and that torn tail is exactly the
+// data the log exists to bound the loss of.
+async function readTurnLog(
+  groupDir: string,
+  sessionId: string,
+  appliedSeq: number
+): Promise<TurnLogRecord[]> {
+  let raw: string
+  try {
+    raw = await fs.readFile(turnLogPath(groupDir, sessionId), 'utf-8')
+  } catch {
+    return [] // no log — the conversation settled cleanly
+  }
+  const out: TurnLogRecord[] = []
+  for (const line of raw.split('\n')) {
+    if (!line) continue
+    try {
+      const rec = JSON.parse(line) as TurnLogRecord
+      if (rec?.event && rec.seq > appliedSeq) out.push(rec)
+    } catch {
+      // Torn tail. Nothing after it can be trusted either, so stop.
+      break
+    }
+  }
+  return out.sort((a, b) => a.seq - b.seq)
+}
+
+export async function loadConversation(sessionId: string): Promise<LoadedConversation | null> {
   const groupDir = await resolveGroupForId(sessionId)
   if (!groupDir) return null
   try {
     const raw = await fs.readFile(mainPath(groupDir, sessionId), 'utf-8')
-    return JSON.parse(raw) as Conversation
+    const conversation = JSON.parse(raw) as Conversation
+    const pendingEvents = await readTurnLog(groupDir, sessionId, conversation.appliedSeq ?? 0)
+    return { ...conversation, pendingEvents }
   } catch {
     return null
   }
 }
 
-export async function saveConversation(conversation: Conversation): Promise<void> {
-  const groupDir = await ensureGroupDir(conversationsDir(), conversation.workspacePath)
-  await fs.mkdir(join(groupDir, conversation.id), { recursive: true })
-  await fs.writeFile(
-    mainPath(groupDir, conversation.id),
-    JSON.stringify(conversation, null, 2),
-    'utf-8'
-  )
-  indexSet(conversation.id, groupDir)
+// Append streamed events to the in-flight turn's log. Shares the save queue so
+// an append issued before a settling save can never land after it.
+export function appendTurnEvents(
+  sessionId: string,
+  workspacePath: string,
+  records: TurnLogRecord[]
+): Promise<void> {
+  if (records.length === 0) return Promise.resolve()
+  return enqueue(`main:${sessionId}`, async () => {
+    const groupDir = await ensureGroupDir(conversationsDir(), workspacePath)
+    await fs.mkdir(join(groupDir, sessionId), { recursive: true })
+    const lines = records.map((r) => JSON.stringify(r)).join('\n') + '\n'
+    await fs.appendFile(turnLogPath(groupDir, sessionId), lines, 'utf-8')
+    indexSet(sessionId, groupDir)
+  })
 }
 
-export async function saveSubagentConversation(
+export function saveConversation(conversation: Conversation): Promise<void> {
+  return enqueue(`main:${conversation.id}`, async () => {
+    const groupDir = await ensureGroupDir(conversationsDir(), conversation.workspacePath)
+    await fs.mkdir(join(groupDir, conversation.id), { recursive: true })
+    await writeAtomic(
+      mainPath(groupDir, conversation.id),
+      JSON.stringify(conversation, null, 2)
+    )
+    // The log's contents are now inside main.json, so drop it. Order matters:
+    // a crash between the two leaves a log whose records all sit at or below
+    // the saved appliedSeq, and replay skips them.
+    if (conversation.appliedSeq != null) {
+      await fs.rm(turnLogPath(groupDir, conversation.id), { force: true })
+    }
+    indexSet(conversation.id, groupDir)
+  })
+}
+
+export function saveSubagentConversation(
   workspacePath: string,
   sessionId: string,
   index: number,
   conversation: Conversation
 ): Promise<void> {
-  const groupDir = await ensureGroupDir(conversationsDir(), workspacePath)
-  await fs.mkdir(join(groupDir, sessionId), { recursive: true })
-  await fs.writeFile(
-    subagentPath(groupDir, sessionId, index),
-    JSON.stringify(conversation, null, 2),
-    'utf-8'
-  )
-  indexSet(sessionId, groupDir)
+  return enqueue(`sub:${sessionId}:${index}`, async () => {
+    const groupDir = await ensureGroupDir(conversationsDir(), workspacePath)
+    await fs.mkdir(join(groupDir, sessionId), { recursive: true })
+    await writeAtomic(
+      subagentPath(groupDir, sessionId, index),
+      JSON.stringify(conversation, null, 2)
+    )
+    indexSet(sessionId, groupDir)
+  })
 }
 
 export async function deleteConversation(sessionId: string): Promise<void> {

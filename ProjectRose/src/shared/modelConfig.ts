@@ -7,7 +7,7 @@
 // the default for new Conversations.
 
 export interface ModelConfig {
-  provider: 'ollama' | 'projectrose' | 'kimi'
+  provider: 'ollama' | 'projectrose' | 'kimi' | 'bedrock'
   modelName: string
 }
 
@@ -16,28 +16,12 @@ export const PROJECTROSE_MODEL: ModelConfig = {
   modelName: 'managed'
 }
 
+// Fallback model ids used only when a Conversation has no explicit pick yet
+// (e.g. background LLM work before the user opens the picker). The picker's
+// real option lists are fetched live from each provider's list-models
+// endpoint — see useProviderStore.refreshKimiModels — never hardcoded here.
 export const DEFAULT_KIMI_MODEL = 'kimi-for-coding'
-export const DEFAULT_KIMI_PLATFORM_MODEL = 'kimi-k2-thinking'
-
-// Kimi Code models (OAuth / Coding API). Which ones a given account can
-// actually use depends on the kimi.com membership tier — the API rejects
-// models above the plan, so we list the known set and let the server judge.
-export const KIMI_MODEL_OPTIONS: Array<{ id: string; label: string }> = [
-  { id: 'kimi-for-coding',           label: 'Kimi for Coding — default'          },
-  { id: 'kimi-for-coding-highspeed', label: 'Kimi for Coding — high speed'       },
-  { id: 'kimi-k2-thinking',          label: 'Kimi K2 Thinking — deep reasoning'  },
-  { id: 'k3',                        label: 'K3'                                  },
-  { id: 'k3[1m]',                    label: 'K3 — 1M context'                     }
-]
-
-// Moonshot open-platform models (API-key mode). Different id namespace from
-// the Coding API aliases above — platform keys can't call 'kimi-for-coding'.
-export const KIMI_PLATFORM_MODEL_OPTIONS: Array<{ id: string; label: string }> = [
-  { id: 'kimi-k2-thinking',       label: 'Kimi K2 Thinking — deep reasoning'  },
-  { id: 'kimi-k2-thinking-turbo', label: 'Kimi K2 Thinking — turbo'           },
-  { id: 'kimi-k2-0905-preview',   label: 'Kimi K2 — instruct'                 },
-  { id: 'kimi-latest',            label: 'Kimi Latest — auto-updating'        }
-]
+export const DEFAULT_KIMI_PLATFORM_MODEL = 'kimi-k3'
 
 // CLI resume model choices for external sessions. `flag` is the value passed
 // to the CLI's --model param; null means "omit the flag" (CLI default).

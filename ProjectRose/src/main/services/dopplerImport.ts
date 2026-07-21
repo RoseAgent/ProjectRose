@@ -12,6 +12,11 @@
 
 import { saveSearchCredentials } from './search/searchCredentialsStore'
 import { saveKimiApiKey } from '../lib/kimiSession'
+// Deliberately the service, not lib/bedrockCredentials directly: saving
+// through it broadcasts BEDROCK_AUTH_CHANGED, which is what makes the
+// Settings card and the composer's model picker pick the import up without a
+// restart. Writing to the raw store leaves both stale.
+import { bedrockSaveCredentials } from './bedrockAuthService'
 import { saveGoogleOAuthCredentials } from './google/googleOAuthCredentialsStore'
 import { applySettingsPatch } from './settingsService'
 import { loadDopplerToken } from '../lib/dopplerSession'
@@ -32,7 +37,13 @@ export interface DopplerAccess {
 // One importable credential detected in the Doppler config. `target` is what
 // the value would be written into; `secretName` is the Doppler name it came
 // from. Search targets are mutually exclusive (one active provider).
-export type ImportTarget = 'search-brave' | 'search-tavily' | 'search-browserbase' | 'kimi-apikey' | 'google-oauth'
+export type ImportTarget =
+  | 'search-brave'
+  | 'search-tavily'
+  | 'search-browserbase'
+  | 'kimi-apikey'
+  | 'google-oauth'
+  | 'bedrock-aws'
 
 const SEARCH_TARGETS: ImportTarget[] = ['search-brave', 'search-tavily', 'search-browserbase']
 
@@ -60,6 +71,10 @@ const BROWSERBASE_NAMES = ['BROWSERBASE_API_KEY', 'BROWSER_BASE_API_KEY', 'BROWS
 const KIMI_NAMES = ['MOONSHOT_API_KEY', 'KIMI_API_KEY', 'MOONSHOT_KEY']
 const GOOGLE_ID_NAMES = ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_CLIENT_ID']
 const GOOGLE_SECRET_NAMES = ['GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_CLIENT_SECRET']
+const AWS_ACCESS_KEY_NAMES = ['AWS_ACCESS_KEY_ID', 'AWS_ACCESS_KEY']
+const AWS_SECRET_KEY_NAMES = ['AWS_SECRET_ACCESS_KEY', 'AWS_SECRET_KEY']
+const AWS_SESSION_TOKEN_NAMES = ['AWS_SESSION_TOKEN']
+const AWS_REGION_NAMES = ['AWS_REGION', 'AWS_DEFAULT_REGION', 'BEDROCK_REGION']
 
 function mask(value: string): string {
   if (value.length <= 8) return '••••'
@@ -135,6 +150,19 @@ function detectCandidates(secrets: Record<string, string>): ImportCandidate[] {
   if (kimi) {
     candidates.push({ target: 'kimi-apikey', label: 'Kimi — Moonshot platform API key', secretName: kimi.name, maskedValue: mask(kimi.value) })
   }
+  // Like the Google pair below, the AWS key pair is all-or-nothing — an
+  // access key ID without its secret can't sign anything. The session token
+  // and region are optional extras picked up alongside it.
+  const awsAccessKey = findByNames(secrets, AWS_ACCESS_KEY_NAMES)
+  const awsSecretKey = findByNames(secrets, AWS_SECRET_KEY_NAMES)
+  if (awsAccessKey && awsSecretKey) {
+    candidates.push({
+      target: 'bedrock-aws',
+      label: 'Amazon Bedrock — AWS access key pair',
+      secretName: `${awsAccessKey.name} + ${awsSecretKey.name}`,
+      maskedValue: mask(awsSecretKey.value)
+    })
+  }
   // The Google pair is all-or-nothing: importing half a credential would
   // leave the OAuth flow broken with a confusing "not configured" state.
   const googleId = findByNames(secrets, GOOGLE_ID_NAMES)
@@ -197,6 +225,32 @@ export async function dopplerApply(access: DopplerAccess, targets: ImportTarget[
         // the import is immediately usable.
         await applySettingsPatch({ kimiAuthMethod: 'apikey' })
         applied.push({ target, detail: `Kimi API key saved, auth method set to API key (${found.name})` })
+        break
+      }
+      case 'bedrock-aws': {
+        const accessKey = findByNames(secrets, AWS_ACCESS_KEY_NAMES)
+        const secretKey = findByNames(secrets, AWS_SECRET_KEY_NAMES)
+        if (!accessKey || !secretKey) {
+          throw new Error('AWS key pair no longer complete in the Doppler config.')
+        }
+        const sessionToken = findByNames(secrets, AWS_SESSION_TOKEN_NAMES)
+        // Region rides along when the config carries one — without it Bedrock
+        // would silently stay on whatever region was configured before, and
+        // the model list is region-scoped. It has to be patched BEFORE the
+        // credential save: saving broadcasts a status that carries the region
+        // and triggers the renderer's model refresh, so patching afterwards
+        // would list models against the previous region.
+        const region = findByNames(secrets, AWS_REGION_NAMES)
+        if (region) await applySettingsPatch({ bedrockRegion: region.value })
+        await bedrockSaveCredentials({
+          accessKeyId: accessKey.value,
+          secretAccessKey: secretKey.value,
+          sessionToken: sessionToken?.value
+        })
+        applied.push({
+          target,
+          detail: `AWS credentials saved (${accessKey.name})${region ? `, region set to ${region.value}` : ''}`
+        })
         break
       }
       case 'google-oauth': {

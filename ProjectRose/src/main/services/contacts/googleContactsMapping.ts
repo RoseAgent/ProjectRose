@@ -1,4 +1,4 @@
-// Pure mapping between Google People API resources and Memory.Contact bullet
+// Pure mapping between Google People API resources and Contact bullet
 // notes. Kept free of IO so it can be unit-tested without electron/fs.
 //
 // The contract (see ADR 0008 + push update support):
@@ -15,13 +15,13 @@
 //
 // This file goes both ways:
 //   - Pull: flattenPersonToNotes(person) → bullets that addContactNote dedups
-//     into the Memory.Contact file.
+//     into the Contact file.
 //   - Push: parseBulletsToFields(notes) → structured fields that get sent to
 //     Google's People API as a new Person (createContact) or merged into an
 //     existing Person (updateContact).
 
 import type { people_v1 } from 'googleapis'
-import type { ContactKind } from '../../../shared/memory'
+import type { ContactKind } from '../../../shared/contacts'
 import type { ParsedLocalFields } from '../../../shared/contactFields'
 
 export type { ParsedLocalFields } from '../../../shared/contactFields'
@@ -32,7 +32,7 @@ export type GooglePerson = people_v1.Schema$Person
 
 /** What the agent stores about one Google contact. */
 export interface MappedContact {
-  /** Display name (used as the Memory entity filename). */
+  /** Display name (used as the Contact entity filename). */
   entity: string
   /**
    * Kind newly-pulled contacts get. Per user spec we always default to

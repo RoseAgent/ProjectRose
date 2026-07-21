@@ -69,7 +69,7 @@ export async function clearRefreshToken(): Promise<void> {
 // ── Signed-in email (canonical location) ─────────────────────────────────
 //
 // Canonical: settings.googleAuth.signedInEmail.
-// Legacy: settings.memory.googleSync.accountEmail (where Contacts used to
+// Legacy: settings.contacts.googleSync.accountEmail (where Contacts used to
 // store it). Read falls back to the legacy field for users who signed in
 // before this refactor; write only touches the canonical field, so the
 // legacy field is harmless once it has been superseded.
@@ -77,7 +77,7 @@ export async function clearRefreshToken(): Promise<void> {
 export async function readSignedInEmail(): Promise<string | null> {
   const s = await readSettings()
   if (s.googleAuth?.signedInEmail !== undefined) return s.googleAuth.signedInEmail
-  return s.memory?.googleSync?.accountEmail ?? null
+  return s.contacts?.googleSync?.accountEmail ?? null
 }
 
 async function writeSignedInEmail(email: string | null): Promise<void> {

@@ -154,6 +154,7 @@ export function ChatPanel({ primary = true }: { primary?: boolean } = {}): JSX.E
   const prLoggedIn = useProviderStore((s) => s.prLoggedIn)
   const kimiOauth = useProviderStore((s) => s.kimiOauth)
   const kimiKey = useProviderStore((s) => s.kimiKey)
+  const bedrockConfigured = useProviderStore((s) => s.bedrockConfigured)
   const setActiveView = useViewStore((s) => s.setActiveView)
   const setSettingsTarget = useViewStore((s) => s.setSettingsTarget)
   const activeView = useViewStore((s) => s.activeView)
@@ -162,11 +163,17 @@ export function ChatPanel({ primary = true }: { primary?: boolean } = {}): JSX.E
   const showExpandToggle = activeView === 'chat'
 
   // With no provider available at all (not signed in to ProjectRose or Kimi,
-  // no Ollama URL configured) the composer picker is empty and chatting can't
-  // go anywhere. Model choice itself lives in the picker, not Settings.
+  // no AWS credentials for Bedrock, no Ollama URL configured) the composer
+  // picker is empty and chatting can't go anywhere. Model choice itself lives
+  // in the picker, not Settings.
   const kimiAvailable = kimiAuthMethod === 'apikey' ? kimiKey : kimiOauth
   const setupNeeded =
-    settingsLoaded && providersLoaded && !prLoggedIn && !kimiAvailable && !ollamaBaseUrl
+    settingsLoaded &&
+    providersLoaded &&
+    !prLoggedIn &&
+    !kimiAvailable &&
+    !bedrockConfigured &&
+    !ollamaBaseUrl
 
   const openAgentSettings = (): void => {
     setSettingsTarget('providers')

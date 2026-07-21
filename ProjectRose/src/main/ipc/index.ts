@@ -8,7 +8,12 @@ import { registerScreenHandlers } from './screenHandlers'
 import { registerTtsManifest } from './ttsHandlers'
 
 import { sessionIpc, externalIpc, workspacesIpc } from '../services/conversation.ipc'
-import { loadConversation, saveConversation, deleteConversation } from '../services/conversationStore'
+import {
+  loadConversation,
+  saveConversation,
+  appendTurnEvents,
+  deleteConversation
+} from '../services/conversationStore'
 import { reapConversationProcesses } from '../services/backgroundProcesses'
 import { clearConversationToolState } from '../services/conversationToolState'
 import { buildWorkspaceGroupedList, listKnownWorkspaces } from '../services/workspaceRegistry'
@@ -99,8 +104,17 @@ import {
   cancelKimiSignIn,
   getKimiAuthStatus,
   kimiSaveApiKey,
-  kimiClearApiKey
+  kimiClearApiKey,
+  listKimiModels
 } from '../services/kimiAuthService'
+
+import { bedrockAuthIpc } from '../services/bedrockAuthService.ipc'
+import {
+  getBedrockAuthStatus,
+  bedrockSaveCredentials,
+  bedrockClearCredentials,
+  listBedrockModels
+} from '../services/bedrockAuthService'
 
 import { aiIpc } from '../services/aiService.ipc'
 import { chat, compressToolNoise, getContextStatus } from '../services/aiService'
@@ -167,7 +181,8 @@ import {
   prepareSession
 } from '../services/speech/activeSpeechService'
 
-import { memoryIpc } from '../services/memory/memoryService.ipc'
+import { contactsIpc } from '../services/contacts/contactsService.ipc'
+import { eventsIpc } from '../services/calendar/eventsService.ipc'
 
 import { emailIpc } from '../services/email/emailService.ipc'
 import {
@@ -190,15 +205,6 @@ import {
   deleteMessage as emailDelete
 } from '../services/email/emailService'
 import {
-  listDiaryIndex,
-  readDiary,
-  writeDiary,
-  deleteDiary,
-  listBehaviorRecords,
-  readBehaviorRecord,
-  writeBehaviorRecord,
-  deleteBehaviorRecord,
-  addBehaviorRecord,
   listContacts,
   listContactsDetailed,
   readContact,
@@ -208,12 +214,9 @@ import {
   addContactNote,
   removeContactNote,
   setContactKind,
-  searchContacts,
-  runDiaryNow,
-  regenerateTodayDiary,
-  getScheduleStatus,
-  runContactsUpdaterNow,
-  getContactsUpdaterStatus,
+  searchContacts
+} from '../services/contacts/contacts'
+import {
   googleGetStatus,
   googleSaveCredentials,
   googleClearCredentials,
@@ -222,20 +225,24 @@ import {
   googlePreviewPull,
   googleApplyPull,
   googlePreviewPush,
-  googleApplyPush,
+  googleApplyPush
+} from '../services/contacts/googleContacts'
+import {
   createEvent as createCalendarEvent,
   updateEvent as updateCalendarEvent,
   deleteEvent as deleteCalendarEvent,
   readEvent as readCalendarEvent,
-  listEventsForRange,
+  listEventsForRange
+} from '../services/calendar/calendar'
+import {
   googleCalendarGetStatus,
   googleCalendarListCalendars,
   googleCalendarPreviewPull,
   googleCalendarApplyPull,
   googleCalendarPreviewPush,
-  googleCalendarApplyPush,
-  inviteAttendeesToEvent
-} from '../services/memory'
+  googleCalendarApplyPush
+} from '../services/calendar/googleCalendar'
+import { inviteAttendeesToEvent } from '../services/calendar/calendarInvite'
 
 // Hand-written handlers that don't fit the manifest pattern: dialog (needs
 // the calling BrowserWindow), terminal (per-session webContents.send
@@ -267,6 +274,7 @@ export function registerIpcManifests(): void {
     listAll: buildWorkspaceGroupedList,
     load: loadConversation,
     save: saveConversation,
+    appendEvents: appendTurnEvents,
     // Deleting a Conversation also reaps its background processes and drops
     // its per-conversation tool state (read-guard set, todos).
     delete: async (sessionId: string) => {
@@ -379,7 +387,14 @@ export function registerIpcManifests(): void {
     cancel: cancelKimiSignIn,
     getStatus: getKimiAuthStatus,
     saveApiKey: ({ apiKey }) => kimiSaveApiKey(apiKey),
-    clearApiKey: kimiClearApiKey
+    clearApiKey: kimiClearApiKey,
+    listModels: listKimiModels
+  })
+  bedrockAuthIpc.register({
+    getStatus: getBedrockAuthStatus,
+    saveCredentials: bedrockSaveCredentials,
+    clearCredentials: bedrockClearCredentials,
+    listModels: listBedrockModels
   })
   extensionIpc.register({
     list: listExtensions,
@@ -449,16 +464,7 @@ export function registerIpcManifests(): void {
     closeSession,
     prepareSession
   })
-  memoryIpc.register({
-    listDiary: listDiaryIndex,
-    readDiary: readDiary,
-    writeDiary: ({ dateKey, content }) => writeDiary(dateKey, content),
-    deleteDiary: deleteDiary,
-    listBehaviorRecords,
-    readBehaviorRecord,
-    writeBehaviorRecord: ({ filename, content }) => writeBehaviorRecord(filename, content),
-    deleteBehaviorRecord,
-    addBehaviorRecord,
+  contactsIpc.register({
     listContacts,
     listContactsDetailed,
     readContact,
@@ -469,11 +475,6 @@ export function registerIpcManifests(): void {
     removeContactNote: ({ entity, note }) => removeContactNote(entity, note),
     setContactKind: ({ entity, kind }) => setContactKind(entity, kind),
     searchContacts,
-    runDiaryNow,
-    regenerateTodayDiary,
-    getScheduleStatus,
-    runContactsUpdaterNow,
-    getContactsUpdaterStatus,
     googleGetStatus,
     googleSaveCredentials,
     googleClearCredentials,
@@ -482,7 +483,9 @@ export function registerIpcManifests(): void {
     googlePreviewPull,
     googleApplyPull,
     googlePreviewPush,
-    googleApplyPush,
+    googleApplyPush
+  })
+  eventsIpc.register({
     listEvents: listEventsForRange,
     getEvent: readCalendarEvent,
     createEvent: createCalendarEvent,

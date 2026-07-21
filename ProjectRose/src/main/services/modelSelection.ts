@@ -1,5 +1,6 @@
 import { loadSession } from '../lib/session'
 import { loadKimiTokens, hasKimiApiKey } from '../lib/kimiSession'
+import { hasBedrockCredentials } from '../lib/bedrockCredentials'
 import type { AppSettings, ModelConfig } from './settingsService'
 
 /**
@@ -30,6 +31,16 @@ export async function validateModelCredentials(
         throw new Error('Sign in to your Kimi account in Settings → Providers → Kimi.')
       }
     }
+  }
+
+  if (model.provider === 'bedrock') {
+    if (!(await hasBedrockCredentials())) {
+      throw new Error('Add your AWS credentials in Settings → Providers → Amazon Bedrock.')
+    }
+    // Per-model access on Bedrock is granted per account and can't be checked
+    // without attempting an invoke, so a granted-looking model may still be
+    // refused at send time — Bedrock's own error is the actionable one there.
+    return
   }
   // ollama needs no credentials.
 }

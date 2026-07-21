@@ -33,7 +33,6 @@ import type { ChatHook } from '../../shared/extensionHooks'
 import type { ExtensionMainContext } from '../../shared/extension-contract'
 import type { AgentSession } from '../../shared/extension-agent-session'
 import type { DetachedRunTranscript } from '../../shared/detachedRunTranscript'
-import { logActivity } from '../services/memory/agentActivity'
 
 /** Full host surface, with no manifest gating. The slicer picks from this. */
 export interface HostExtensionSurface {
@@ -83,14 +82,6 @@ function makeMissingCapabilityStub(extensionId: string, capability: string, meth
   }
 }
 
-// Memory activity-log preview cap. Long prompts/results balloon the JSONL
-// quickly; this keeps it browsable without losing the lead.
-const PREVIEW_LEN = 200
-function truncatePreview(text: string): string {
-  const clean = text.replace(/\s+/g, ' ').trim()
-  return clean.length <= PREVIEW_LEN ? clean : clean.slice(0, PREVIEW_LEN) + '…'
-}
-
 /**
  * Build a sliced `ExtensionMainContext` for a single extension based on the
  * capabilities declared in its manifest.
@@ -120,50 +111,11 @@ export function buildContext(opts: {
     : (makeMissingCapabilityStub(extensionId, 'chatHooks', 'registerHooks') as HostExtensionSurface['registerHooks'])
 
   const runBackgroundAgent: HostExtensionSurface['runBackgroundAgent'] = provides.backgroundAgent
-    ? async (prompt, systemPrompt) => {
-        // Memory: log start + end of every Detached Run so the diary writer
-        // sees that this extension delegated work to the agent.
-        const preview = truncatePreview(prompt)
-        void logActivity(extensionId, 'detached-run-start', `prompt: ${preview}`)
-        try {
-          const result = await host.runBackgroundAgent(prompt, systemPrompt)
-          void logActivity(
-            extensionId,
-            'detached-run-end',
-            `result: ${truncatePreview(result)}`
-          )
-          return result
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          void logActivity(extensionId, 'detached-run-end', `error: ${msg.slice(0, 200)}`)
-          throw err
-        }
-      }
+    ? host.runBackgroundAgent
     : (makeMissingCapabilityStub(extensionId, 'backgroundAgent', 'runBackgroundAgent') as HostExtensionSurface['runBackgroundAgent'])
 
   const runDetachedRunWithTools: HostExtensionSurface['runDetachedRunWithTools'] = provides.detachedRunWithTools
-    ? async (prompt, systemPrompt, options) => {
-        const preview = truncatePreview(prompt)
-        const toolList = options.allowedTools.join(',') || '(none)'
-        void logActivity(
-          extensionId,
-          'detached-run-start',
-          `tools: [${toolList}] prompt: ${preview}`
-        )
-        try {
-          const transcript = await host.runDetachedRunWithTools(prompt, systemPrompt, options)
-          void logActivity(
-            extensionId,
-            'detached-run-end',
-            `final: ${truncatePreview(transcript.finalText)} (${transcript.durationMs}ms, ${transcript.entries.length} entries)`
-          )
-          return transcript
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          void logActivity(extensionId, 'detached-run-end', `error: ${msg.slice(0, 200)}`)
-          throw err
-        }
-      }
+    ? host.runDetachedRunWithTools
     : (makeMissingCapabilityStub(
         extensionId,
         'detachedRunWithTools',
@@ -171,31 +123,7 @@ export function buildContext(opts: {
       ) as HostExtensionSurface['runDetachedRunWithTools'])
 
   const openAgentSession: HostExtensionSurface['openAgentSession'] = provides.agentSession
-    ? (opts) => {
-        // Memory: log when an extension opens an Agent Handle and wrap the
-        // returned handle so every .send() also lands in the activity log.
-        void logActivity(
-          extensionId,
-          'agent-handle-open',
-          `system: ${truncatePreview(opts.systemPrompt)}`
-        )
-        const handle = host.openAgentSession(opts)
-        return {
-          send: async (text: string) => {
-            void logActivity(extensionId, 'agent-handle-message', `>>> ${truncatePreview(text)}`)
-            try {
-              const reply = await handle.send(text)
-              void logActivity(extensionId, 'agent-handle-message', `<<< ${truncatePreview(reply)}`)
-              return reply
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err)
-              void logActivity(extensionId, 'agent-handle-message', `error: ${msg.slice(0, 200)}`)
-              throw err
-            }
-          },
-          close: () => handle.close()
-        }
-      }
+    ? host.openAgentSession
     : (makeMissingCapabilityStub(extensionId, 'agentSession', 'openAgentSession') as HostExtensionSurface['openAgentSession'])
 
   return {

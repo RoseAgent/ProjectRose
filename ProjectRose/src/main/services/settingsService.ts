@@ -2,7 +2,8 @@ import { readFile, writeFile, mkdir } from 'fs/promises'
 import { dirname } from 'path'
 import { agentSettingsPath } from '../lib/agentHome'
 import { serviceStatus } from './serviceStatus'
-import { DEFAULT_MEMORY_SETTINGS, type MemorySettings } from '../../shared/memory'
+import { DEFAULT_CONTACTS_SETTINGS, type ContactsSettings } from '../../shared/contacts'
+import { DEFAULT_CALENDAR_SETTINGS, type CalendarSettings } from '../../shared/calendar'
 import { DEFAULT_EMAIL_SETTINGS, type EmailSettings } from '../../shared/email'
 import { DEFAULT_TTS_SETTINGS, type TtsSettings } from '../../shared/tts'
 import { logInteraction } from './interactionLog'
@@ -31,16 +32,22 @@ export interface AppSettings {
   // API) or 'apikey' (BYO Moonshot platform key → api.moonshot.ai/v1). The
   // key itself lives in userData/kimi-api-key.bin via safeStorage.
   kimiAuthMethod: 'oauth' | 'apikey'
+  // AWS region the Bedrock provider talks to. Not a secret, so it lives here
+  // rather than in the sealed store — the key pair itself is in
+  // userData/bedrock-credentials.bin via safeStorage. Region is load-bearing
+  // beyond routing: which models exist, and which inference profiles are
+  // reachable, is region-scoped.
+  bedrockRegion: string
   // The most recent provider+model pair the user picked in the chat
   // composer's ModelPicker. Not a user-facing setting: it seeds the picker
-  // for new Conversations and is the model background LLM work (diary,
-  // compression, detached extension runs) falls back to. Absent until the
-  // first pick (or the legacy-hostMode migration below fills it).
+  // for new Conversations and is the model background LLM work (compression,
+  // detached extension runs) falls back to. Absent until the first pick (or
+  // the legacy-hostMode migration below fills it).
   lastModel?: ModelConfig | null
-  // Memory subsystem (host-level, agent-global at ~/.rose/memory/). The
-  // diary scheduler reads enabled + time; the renderer Memory tab writes
-  // them through the same settings:set IPC.
-  memory: MemorySettings
+  // Contacts (~/.rose/contact/) — Google Contacts sync state.
+  contacts: ContactsSettings
+  // Events (~/.rose/calendar/) — Google Calendar sync state.
+  calendar: CalendarSettings
   // Email subsystem (rose-email built-in extension). Host-owned per ADR 0010
   // so built-ins can read/write directly. IMAP/SMTP passwords are NOT here —
   // they live in userData/email-imap.bin via safeStorage.
@@ -74,7 +81,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
   kimiAuthMethod: 'oauth',
-  memory: DEFAULT_MEMORY_SETTINGS,
+  bedrockRegion: 'us-east-1',
+  contacts: DEFAULT_CONTACTS_SETTINGS,
+  calendar: DEFAULT_CALENDAR_SETTINGS,
   email: DEFAULT_EMAIL_SETTINGS,
   tts: DEFAULT_TTS_SETTINGS
 }
@@ -87,15 +96,33 @@ export async function readSettings(_rootPath?: string): Promise<AppSettings> {
   const merged: AppSettings = {
     ...DEFAULT_SETTINGS,
     ...stored,
-    // memory is a nested block — shallow-merge so stored partials don't drop
-    // newly-introduced default keys.
-    memory: { ...DEFAULT_MEMORY_SETTINGS, ...(stored.memory ?? {}) },
+    // contacts/calendar are nested blocks — shallow-merge so stored partials
+    // don't drop newly-introduced default keys.
+    contacts: { ...DEFAULT_CONTACTS_SETTINGS, ...(stored.contacts ?? {}) },
+    calendar: { ...DEFAULT_CALENDAR_SETTINGS, ...(stored.calendar ?? {}) },
     // email is also a nested block — same shallow-merge rule so users on old
     // settings.json get the new fields filled with their defaults.
     email: { ...DEFAULT_EMAIL_SETTINGS, ...(stored.email ?? {}) },
     // tts is also a nested block; same merge rule applies so flipping the
     // toggle on a fresh install doesn't drop the default voice/speed.
     tts: { ...DEFAULT_TTS_SETTINGS, ...(stored.tts ?? {}) }
+  }
+
+  // Migrate from the retired host-memory era (ADR 0019): the Google sync
+  // state for Contacts and Events used to live under settings.memory. Lift it
+  // into the new blocks once, then drop the memory key — the name is reserved
+  // for the future memory system. Diary/behavior-record fields die here.
+  const legacyMemory = (merged as Record<string, unknown>).memory as
+    | { googleSync?: ContactsSettings['googleSync']; googleCalendarSync?: CalendarSettings['googleSync'] }
+    | undefined
+  if (legacyMemory) {
+    if (!stored.contacts && legacyMemory.googleSync) {
+      merged.contacts = { googleSync: { ...DEFAULT_CONTACTS_SETTINGS.googleSync, ...legacyMemory.googleSync } }
+    }
+    if (!stored.calendar && legacyMemory.googleCalendarSync) {
+      merged.calendar = { googleSync: { ...DEFAULT_CALENDAR_SETTINGS.googleSync, ...legacyMemory.googleCalendarSync } }
+    }
+    delete (merged as Record<string, unknown>).memory
   }
 
   // Drop any legacy navItems entry — the host no longer has a navigation bar.
@@ -108,6 +135,12 @@ export async function readSettings(_rootPath?: string): Promise<AppSettings> {
   // Drop legacy provider config (anthropic/openai/bedrock/openai-compatible
   // were removed when ProjectRose narrowed to projectrose + ollama). Older
   // ~/.rose/settings.json files may still carry these fields.
+  //
+  // Bedrock has since been reintroduced, but deliberately not through
+  // `providerKeys`: its credentials are sealed in userData/*.bin like every
+  // other secret, and only `bedrockRegion` (non-secret) lives in settings.json.
+  // So this strip stays as-is — it must keep removing the old plaintext-key
+  // blob, which is exactly what we don't want back.
   delete (merged as Record<string, unknown>).providerKeys
   delete (merged as Record<string, unknown>).openaiCompatBaseUrl
   delete (merged as Record<string, unknown>).openaiCompatApiKey

@@ -33,26 +33,40 @@ export function ModelPicker(): JSX.Element {
   const prLoggedIn = useProviderStore((s) => s.prLoggedIn)
   const kimiOauth = useProviderStore((s) => s.kimiOauth)
   const kimiKey = useProviderStore((s) => s.kimiKey)
+  const kimiModels = useProviderStore((s) => s.kimiModels)
+  const kimiModelsError = useProviderStore((s) => s.kimiModelsError)
   const ollamaModels = useProviderStore((s) => s.ollamaModels)
+  const bedrockConfigured = useProviderStore((s) => s.bedrockConfigured)
+  const bedrockModels = useProviderStore((s) => s.bedrockModels)
+  const bedrockModelsError = useProviderStore((s) => s.bedrockModelsError)
   const kimiAuthMethod = useSettingsStore((s) => s.kimiAuthMethod)
   const ollamaBaseUrl = useSettingsStore((s) => s.ollamaBaseUrl)
+  const bedrockRegion = useSettingsStore((s) => s.bedrockRegion)
+
+  const kimiAvailable = kimiAuthMethod === 'apikey' ? kimiKey : kimiOauth
 
   const groups = buildPickerGroups({
     externalSource,
     prLoggedIn,
-    kimiAvailable: kimiAuthMethod === 'apikey' ? kimiKey : kimiOauth,
+    kimiAvailable,
     kimiAuthMethod,
+    kimiModels,
     ollamaConfigured: !!ollamaBaseUrl.trim(),
-    ollamaModels
+    ollamaModels,
+    bedrockConfigured,
+    bedrockModels
   })
 
-  // Refresh the installed-model list each time the menu opens so a freshly
-  // pulled Ollama model shows up without an app restart.
+  // Refresh the live model lists each time the menu opens so a freshly pulled
+  // Ollama model or a newly-shipped Kimi model shows up without a restart.
+  // bedrockRegion is a dep because the reachable Bedrock set is region-scoped:
+  // changing region in Settings has to re-list, not reuse the old region's ids.
   useEffect(() => {
-    if (open && ollamaBaseUrl.trim()) {
-      void useProviderStore.getState().refreshOllamaModels()
-    }
-  }, [open, ollamaBaseUrl])
+    if (!open) return
+    if (ollamaBaseUrl.trim()) void useProviderStore.getState().refreshOllamaModels()
+    if (kimiAvailable) void useProviderStore.getState().refreshKimiModels()
+    if (bedrockConfigured) void useProviderStore.getState().refreshBedrockModels()
+  }, [open, ollamaBaseUrl, kimiAvailable, bedrockConfigured, bedrockRegion])
 
   useEffect(() => {
     if (!open) return
@@ -113,6 +127,26 @@ export function ModelPicker(): JSX.Element {
               ))}
             </div>
           ))}
+          {/* Kimi is configured but its live /models fetch failed (e.g. a 401
+              from an invalid key) — say so rather than omitting Kimi entirely. */}
+          {kimiAvailable && kimiModels.length === 0 && kimiModelsError && (
+            <div className={styles.group}>
+              <div className={styles.groupLabel}>Kimi</div>
+              <div className={styles.emptyNote}>
+                Couldn’t load models — {kimiModelsError}
+              </div>
+            </div>
+          )}
+          {/* Same for Bedrock: credentials are stored but the control-plane
+              listing failed (bad keys, wrong region, missing IAM permission). */}
+          {bedrockConfigured && bedrockModels.length === 0 && bedrockModelsError && (
+            <div className={styles.group}>
+              <div className={styles.groupLabel}>Amazon Bedrock</div>
+              <div className={styles.emptyNote}>
+                Couldn’t load models — {bedrockModelsError}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

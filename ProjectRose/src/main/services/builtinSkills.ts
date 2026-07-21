@@ -3,7 +3,7 @@ import { RELEASES, type ReleaseEntry } from '@shared/releases'
 
 import aboutRaw from '../builtin-skills/about.md?raw'
 import patchNotesRaw from '../builtin-skills/patch-notes.md?raw'
-import memoryRaw from '../builtin-skills/memory.md?raw'
+import contactsCalendarRaw from '../builtin-skills/contacts-calendar.md?raw'
 import extensionsRaw from '../builtin-skills/extensions.md?raw'
 import toolsRaw from '../builtin-skills/tools.md?raw'
 import settingsRaw from '../builtin-skills/settings.md?raw'
@@ -66,7 +66,7 @@ function formatRelease(entry: ReleaseEntry): string {
 }
 
 const aboutStatic = staticBody(aboutRaw)
-const memoryStatic = staticBody(memoryRaw)
+const contactsCalendarStatic = staticBody(contactsCalendarRaw)
 const extensionsStatic = staticBody(extensionsRaw)
 const toolsStatic = staticBody(toolsRaw)
 const settingsStatic = staticBody(settingsRaw)
@@ -86,7 +86,7 @@ const BUILTIN_SKILLS: BuiltinSkill[] = [
       }
     }
   },
-  { shortName: 'memory', description: memoryStatic.description, resolveBody: memoryStatic.resolve },
+  { shortName: 'contacts-calendar', description: contactsCalendarStatic.description, resolveBody: contactsCalendarStatic.resolve },
   { shortName: 'extensions', description: extensionsStatic.description, resolveBody: extensionsStatic.resolve },
   { shortName: 'tools', description: toolsStatic.description, resolveBody: toolsStatic.resolve },
   { shortName: 'settings', description: settingsStatic.description, resolveBody: settingsStatic.resolve },

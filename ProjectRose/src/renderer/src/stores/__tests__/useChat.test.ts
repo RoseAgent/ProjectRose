@@ -48,6 +48,7 @@ interface ApiStub {
   session: {
     save: ReturnType<typeof vi.fn>
     load: ReturnType<typeof vi.fn>
+    appendEvents: ReturnType<typeof vi.fn>
     listAll: ReturnType<typeof vi.fn>
     delete: ReturnType<typeof vi.fn>
   }
@@ -101,6 +102,7 @@ function makeApi(): ApiStub {
     session: {
       save: vi.fn(async () => {}),
       load: vi.fn(async () => null),
+      appendEvents: vi.fn(async () => {}),
       listAll: vi.fn(async () => ({ groups: [] })),
       delete: vi.fn(async () => {}),
     },
@@ -455,7 +457,10 @@ describe('useChat slice', () => {
         title: 'persisted',
         createdAt: 1,
         updatedAt: 1,
+        workspacePath: '/ws',
         messages: [{ id: 'u1', role: 'user', content: 'old', timestamp: 0 }],
+        // Settled conversation — nothing left in the turn log to replay.
+        pendingEvents: [],
         compressedMessages: [{ role: 'system', content: 'summary' }],
         compressedFromCount: 1,
         compressedFromRawCount: 1,

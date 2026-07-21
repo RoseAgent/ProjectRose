@@ -1,5 +1,5 @@
-// Host tool handlers for Memory.Event (rose-calendar). Same signature as
-// memory/tools.ts — (input, projectRoot, toolCtx) => Promise<string> — so
+// Host tool handlers for Events (rose-calendar). Same signature as
+// contacts/tools.ts — (input, projectRoot, toolCtx) => Promise<string> — so
 // they plug into buildCoreTools() via wrapExecute.
 
 import {
@@ -17,7 +17,7 @@ import type {
   EventRef,
   EventTime,
   ResolvedEventOccurrence
-} from '../../../shared/memory'
+} from '../../../shared/calendar'
 
 function asString(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback

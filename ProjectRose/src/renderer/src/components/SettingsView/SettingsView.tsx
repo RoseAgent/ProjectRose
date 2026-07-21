@@ -2,15 +2,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { ExtensionsTab } from './ExtensionsTab'
 import { PromptsTab } from './PromptsTab'
 import { UpdatesTab } from './UpdatesTab'
-import { MemoryTab } from './MemoryTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useStatusStore } from '../../stores/useStatusStore'
 import { useViewStore } from '../../stores/useViewStore'
 import { useWhisperPreloadStore } from '../../stores/useWhisperPreloadStore'
+import { useProviderStore } from '../../stores/useProviderStore'
 import { subscribeToExtensionsChange } from '../../extensions/registry'
 import type { ToolMeta } from '@shared/types'
-import type { GoogleSyncStatus } from '@shared/memory'
+import type { GoogleSyncStatus } from '@shared/contacts'
 import styles from './SettingsView.module.css'
 import { WhisperModelInstallModal, type WhisperModelOption } from './WhisperModelInstallModal'
 import whisperModalStyles from './WhisperModelInstallModal.module.css'
@@ -62,6 +62,7 @@ const PROVIDERS: ProviderMeta[] = [
   { kind: 'projectrose', spec: '00', name: 'ProjectRose',       latin: 'Rosa managed'    },
   { kind: 'ollama',      spec: '01', name: 'Ollama',            latin: 'Rosa localis'    },
   { kind: 'kimi',        spec: '02', name: 'Kimi',              latin: 'Rosa lunaris'    },
+  { kind: 'bedrock',     spec: '03', name: 'Amazon Bedrock',    latin: 'Rosa fluminis'   },
 ]
 
 // Doppler import — recognized secret names and where each one lands. Shown
@@ -72,6 +73,7 @@ const DOPPLER_KEY_ROWS: Array<{ secret: string; importsTo: string }> = [
   { secret: 'TAVILY_API_KEY',                       importsTo: 'Web Search — Tavily' },
   { secret: 'BROWSERBASE_API_KEY',                  importsTo: 'Web Search — Browserbase' },
   { secret: 'MOONSHOT_API_KEY',                     importsTo: 'Kimi — platform API key' },
+  { secret: 'AWS_ACCESS_KEY_ID + _SECRET_ACCESS_KEY', importsTo: 'Amazon Bedrock — AWS key pair' },
   { secret: 'GOOGLE_OAUTH_CLIENT_ID + _SECRET',     importsTo: 'Google — OAuth pair' },
 ]
 
@@ -123,6 +125,18 @@ function ProviderGlyph({ kind, size = 28 }: { kind: string; size?: number }): JS
         <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
           <path d="M21 5 A12 12 0 1 0 27 17 A9.5 9.5 0 0 1 21 5 Z" />
           <circle cx="23.5" cy="8.5" r="1.2" fill={c} stroke="none" />
+        </svg>
+      )
+    case 'bedrock':
+      // Layered strata over a river bend — "bedrock", kept single-colour and
+      // deliberately not the AWS wordmark (trademark/brand-guideline reasons,
+      // same call as the Google glyph below).
+      return (
+        <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
+          <path d="M4 11 H28" strokeLinecap="round" />
+          <path d="M4 17 H28" strokeLinecap="round" opacity="0.7" />
+          <path d="M6 23 C11 20 21 26 26 23" strokeLinecap="round" />
+          <circle cx="16" cy="6" r="2" fill={c} stroke="none" />
         </svg>
       )
     case 'google':
@@ -365,7 +379,7 @@ function UsageBar({ usage, loading, error, onRefresh }: {
 export function SettingsView(): JSX.Element {
   const {
     micDeviceId, userName, agentName, activeListeningDraftSeconds, whisperModel,
-    ollamaBaseUrl, kimiAuthMethod,
+    ollamaBaseUrl, kimiAuthMethod, bedrockRegion,
     tts,
     update,
   } = useSettingsStore()
@@ -563,6 +577,71 @@ export function SettingsView(): JSX.Element {
     } finally { setKimiKeyBusy(false) }
   }
 
+  // ── bedrock account state ──
+  // No sign-in flow: Bedrock authenticates per-request with SigV4, so
+  // "connecting" is just storing an AWS key pair. The drafts are write-only
+  // across IPC and start blank on every load (same pattern as the Kimi key
+  // and the Google client secret).
+  const [bedrockCreds, setBedrockCreds] = useState<{ credentialsStored: boolean }>({
+    credentialsStored: false,
+  })
+  const [bedrockAccessKeyDraft, setBedrockAccessKeyDraft] = useState('')
+  const [bedrockSecretKeyDraft, setBedrockSecretKeyDraft] = useState('')
+  const [bedrockSessionTokenDraft, setBedrockSessionTokenDraft] = useState('')
+  const [bedrockBusy, setBedrockBusy] = useState(false)
+  const [bedrockError, setBedrockError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    window.api.bedrockAuth.getStatus().then((s) => {
+      if (!cancelled) setBedrockCreds({ credentialsStored: s.credentialsStored })
+    })
+    const offChanged = window.api.bedrockAuth.onChanged((d) => {
+      setBedrockCreds({ credentialsStored: d.credentialsStored })
+      setBedrockError('')
+    })
+    return () => { cancelled = true; offChanged() }
+  }, [])
+
+  async function bedrockSaveCredentials(): Promise<void> {
+    const accessKeyId = bedrockAccessKeyDraft.trim()
+    const secretAccessKey = bedrockSecretKeyDraft.trim()
+    if (!accessKeyId || !secretAccessKey) {
+      setBedrockError('Both an access key ID and a secret access key are required.')
+      return
+    }
+    setBedrockBusy(true)
+    setBedrockError('')
+    try {
+      const sessionToken = bedrockSessionTokenDraft.trim()
+      const s = await window.api.bedrockAuth.saveCredentials({
+        accessKeyId,
+        secretAccessKey,
+        ...(sessionToken ? { sessionToken } : {}),
+      })
+      setBedrockCreds({ credentialsStored: s.credentialsStored })
+      setBedrockAccessKeyDraft('')
+      setBedrockSecretKeyDraft('')
+      setBedrockSessionTokenDraft('')
+    } catch (e) {
+      setBedrockError(e instanceof Error ? e.message : 'Could not save the AWS credentials')
+    } finally { setBedrockBusy(false) }
+  }
+
+  async function bedrockClearCredentials(): Promise<void> {
+    setBedrockBusy(true)
+    setBedrockError('')
+    try {
+      const s = await window.api.bedrockAuth.clearCredentials()
+      setBedrockCreds({ credentialsStored: s.credentialsStored })
+      setBedrockAccessKeyDraft('')
+      setBedrockSecretKeyDraft('')
+      setBedrockSessionTokenDraft('')
+    } catch (e) {
+      setBedrockError(e instanceof Error ? e.message : 'Could not clear the AWS credentials')
+    } finally { setBedrockBusy(false) }
+  }
+
   // ── google account state ──
   // Lives on the Providers tab so the auth is a shared, app-wide concern.
   // The rose-contacts built-in extension consumes the status but doesn't
@@ -579,7 +658,7 @@ export function SettingsView(): JSX.Element {
   const [googleHelpOpen, setGoogleHelpOpen] = useState(false)
 
   const refreshGoogleStatus = useCallback(async () => {
-    const s = await window.api.memory.googleGetStatus()
+    const s = await window.api.contacts.googleGetStatus()
     setGoogleStatus(s)
   }, [])
 
@@ -589,7 +668,7 @@ export function SettingsView(): JSX.Element {
     setGoogleBusy('Opening Google sign-in…')
     setGoogleError(null)
     try {
-      const s = await window.api.memory.googleSignIn()
+      const s = await window.api.contacts.googleSignIn()
       setGoogleStatus(s)
     } catch (e) {
       setGoogleError(e instanceof Error ? e.message : 'Sign-in failed')
@@ -599,7 +678,7 @@ export function SettingsView(): JSX.Element {
   async function googleSignOut(): Promise<void> {
     setGoogleBusy('Signing out…')
     try {
-      const s = await window.api.memory.googleSignOut()
+      const s = await window.api.contacts.googleSignOut()
       setGoogleStatus(s)
     } finally { setGoogleBusy(null) }
   }
@@ -614,7 +693,7 @@ export function SettingsView(): JSX.Element {
     setGoogleBusy('Saving credentials…')
     setGoogleError(null)
     try {
-      const s = await window.api.memory.googleSaveCredentials({ clientId, clientSecret })
+      const s = await window.api.contacts.googleSaveCredentials({ clientId, clientSecret })
       setGoogleStatus(s)
       setGoogleClientIdDraft('')
       setGoogleClientSecretDraft('')
@@ -627,7 +706,7 @@ export function SettingsView(): JSX.Element {
     setGoogleBusy('Clearing credentials…')
     setGoogleError(null)
     try {
-      const s = await window.api.memory.googleClearCredentials()
+      const s = await window.api.contacts.googleClearCredentials()
       setGoogleStatus(s)
       setGoogleClientIdDraft('')
       setGoogleClientSecretDraft('')
@@ -686,7 +765,13 @@ export function SettingsView(): JSX.Element {
   // One-shot: token is held in renderer state only for the fetch/apply calls
   // and never persisted anywhere. Preview values arrive masked.
   interface DopplerCandidate {
-    target: 'search-brave' | 'search-tavily' | 'search-browserbase' | 'kimi-apikey' | 'google-oauth'
+    target:
+      | 'search-brave'
+      | 'search-tavily'
+      | 'search-browserbase'
+      | 'kimi-apikey'
+      | 'google-oauth'
+      | 'bedrock-aws'
     label: string
     secretName: string
     maskedValue: string
@@ -1215,6 +1300,14 @@ export function SettingsView(): JSX.Element {
         ? kimiAccount.apiKeyStored ? 'connected' : 'missing'
         : kimiAccount.loggedIn ? 'connected' : 'missing'
     }
+    // 'connected' here means "keys are stored", not "keys are valid" — the
+    // only way to prove validity is a signed call, which VERIFY does (and
+    // which then lands in testedProviders, taking priority below).
+    if (kind === 'bedrock') {
+      if (testedProviders[kind] === 'error') return 'error'
+      if (!bedrockCreds.credentialsStored) return 'missing'
+      return testedProviders[kind] === 'connected' ? 'connected' : 'unverified'
+    }
     if (testedProviders[kind] === 'connected') return 'connected'
     if (testedProviders[kind] === 'error') return 'error'
     const fields = getProviderFields(kind)
@@ -1241,6 +1334,20 @@ export function SettingsView(): JSX.Element {
         const res = await fetch(`${url}/api/tags`)
         ok = res.ok
         if (ok) fetchOllamaModels('__ollama_provider__', ollamaBaseUrl)
+      } else if (kind === 'bedrock') {
+        // Listing models is the cheapest call that actually exercises the
+        // SigV4 signature, the region, and the IAM policy. It runs in main —
+        // the renderer has no credentials to sign with. Refresh the picker's
+        // list off the same call so a successful verify populates it.
+        setBedrockError('')
+        try {
+          await useProviderStore.getState().refreshBedrockModels()
+          const err = useProviderStore.getState().bedrockModelsError
+          ok = !err
+          if (err) setBedrockError(err)
+        } catch (e) {
+          setBedrockError(e instanceof Error ? e.message : 'Could not reach Bedrock')
+        }
       }
       setTestedProviders((prev) => ({ ...prev, [kind]: ok ? 'connected' : 'error' }))
     } catch {
@@ -1260,9 +1367,8 @@ export function SettingsView(): JSX.Element {
     { id: 'tools',      label: 'Tools',      n: '03' },
     { id: 'skills',     label: 'Skills',     n: '04' },
     { id: 'prompts',    label: 'Prompts',    n: '05' },
-    { id: 'memory',     label: 'Memory',     n: '06' },
-    { id: 'extensions', label: 'Extensions', n: '07' },
-    { id: 'updates',    label: 'Updates',    n: '08' },
+    { id: 'extensions', label: 'Extensions', n: '06' },
+    { id: 'updates',    label: 'Updates',    n: '07' },
   ]
 
   const allPageIds = topLevelItems.map((i) => i.id)
@@ -1754,10 +1860,14 @@ export function SettingsView(): JSX.Element {
                               ? kimiAuthMethod === 'apikey'
                                 ? kimiAccount.apiKeyStored
                                   ? 'API key saved'
-                                  : 'add a Moonshot API key'
+                                  : 'add a Kimi API key'
                                 : kimiAccount.loggedIn
                                   ? 'signed in'
                                   : 'sign in with your kimi.com account'
+                            : p.kind === 'bedrock'
+                              ? bedrockCreds.credentialsStored
+                                ? `AWS credentials saved · ${bedrockRegion}`
+                                : 'add AWS credentials'
                               : status === 'connected' || status === 'unverified'
                                 ? `${filledCount}/${totalFields} field${totalFields === 1 ? '' : 's'}`
                                 : `${totalFields} field${totalFields === 1 ? '' : 's'} required`}
@@ -1842,8 +1952,8 @@ export function SettingsView(): JSX.Element {
                         <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
                           {kimiAuthMethod === 'apikey'
                             ? kimiAccount.apiKeyStored
-                              ? 'API key saved — pick a Kimi model from the model picker in the chat composer (billed against your Moonshot key).'
-                              : 'Paste a Moonshot platform API key (platform.moonshot.ai) to make the pay-as-you-go Kimi models available in the chat composer — no kimi.com subscription needed.'
+                              ? 'API key saved — pick a Kimi model from the model picker in the chat composer.'
+                              : 'Paste a Kimi Coding key (sk-kimi-…, from kimi.com) or a Moonshot platform key (sk-…, from platform.moonshot.ai). The key type is detected automatically and routed to the right API.'
                             : kimiAccount.loggedIn
                               ? 'Signed in — pick a Kimi Code model from the model picker in the chat composer (backed by your kimi.com subscription).'
                               : 'Sign in with your kimi.com account to make Kimi Code available in the chat composer — no API keys needed.'}
@@ -1885,6 +1995,47 @@ export function SettingsView(): JSX.Element {
                         ) : null}
                         {kimiError && (
                           <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{kimiError}</p>
+                        )}
+                      </div>
+                    ) : p.kind === 'bedrock' ? (
+                      <div style={{ padding: '12px 16px 4px' }}>
+                        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
+                          {bedrockCreds.credentialsStored
+                            ? 'AWS credentials saved — pick a Bedrock model from the model picker in the chat composer.'
+                            : 'Paste an AWS access key pair for an IAM identity with bedrock:InvokeModelWithResponseStream, bedrock:ListFoundationModels, and bedrock:ListInferenceProfiles. Keys are stored in the system keychain and never leave this machine.'}
+                        </p>
+                        <FieldRow label="REGION" hint="model availability is region-scoped">
+                          <KeyInput
+                            value={bedrockRegion}
+                            placeholder="us-east-1"
+                            onChange={(v) => update({ bedrockRegion: v })}
+                          />
+                        </FieldRow>
+                        <FieldRow label="ACCESS KEY ID" hint="stored in system keychain">
+                          <KeyInput
+                            value={bedrockAccessKeyDraft}
+                            placeholder={bedrockCreds.credentialsStored ? '••••••••  (saved — paste to replace)' : 'AKIA…'}
+                            onChange={setBedrockAccessKeyDraft}
+                          />
+                        </FieldRow>
+                        <FieldRow label="SECRET ACCESS KEY" hint="stored in system keychain">
+                          <KeyInput
+                            value={bedrockSecretKeyDraft}
+                            placeholder={bedrockCreds.credentialsStored ? '••••••••  (saved — paste to replace)' : ''}
+                            type="password"
+                            onChange={setBedrockSecretKeyDraft}
+                          />
+                        </FieldRow>
+                        <FieldRow label="SESSION TOKEN" hint="only for temporary / STS credentials">
+                          <KeyInput
+                            value={bedrockSessionTokenDraft}
+                            placeholder="optional"
+                            type="password"
+                            onChange={setBedrockSessionTokenDraft}
+                          />
+                        </FieldRow>
+                        {bedrockError && (
+                          <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{bedrockError}</p>
                         )}
                       </div>
                     ) : (
@@ -1932,7 +2083,7 @@ export function SettingsView(): JSX.Element {
                               style={{ flex: 1 }}
                               onClick={kimiClearApiKey}
                               disabled={!kimiAccount.apiKeyStored || kimiKeyBusy}
-                              title="Wipes the saved Moonshot API key."
+                              title="Wipes the saved Kimi API key."
                             >
                               CLEAR
                             </button>
@@ -1959,6 +2110,51 @@ export function SettingsView(): JSX.Element {
                             SIGN IN
                           </button>
                         )}
+                      </div>
+                    ) : p.kind === 'bedrock' ? (
+                      <div className={styles.providerCardFooter} style={{ justifyContent: 'stretch' }}>
+                        <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                          <button
+                            type="button"
+                            className={styles.ghostBtn}
+                            style={{ flex: 1 }}
+                            onClick={bedrockClearCredentials}
+                            disabled={!bedrockCreds.credentialsStored || bedrockBusy}
+                            title="Wipes the saved AWS credentials."
+                          >
+                            CLEAR
+                          </button>
+                          {/* Verify is only meaningful once keys are stored —
+                              it signs a real control-plane call. With unsaved
+                              drafts in the fields, SAVE takes priority. */}
+                          {bedrockCreds.credentialsStored &&
+                          bedrockAccessKeyDraft.trim().length === 0 &&
+                          bedrockSecretKeyDraft.trim().length === 0 ? (
+                            <button
+                              type="button"
+                              className={styles.primaryBtn}
+                              style={{ flex: 2 }}
+                              disabled={isTesting}
+                              onClick={() => verifyProvider(p.kind)}
+                            >
+                              {isTesting ? 'TESTING…' : status === 'connected' ? '↻ TEST AGAIN' : 'VERIFY'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className={styles.primaryBtn}
+                              style={{ flex: 2 }}
+                              onClick={bedrockSaveCredentials}
+                              disabled={
+                                bedrockAccessKeyDraft.trim().length === 0 ||
+                                bedrockSecretKeyDraft.trim().length === 0 ||
+                                bedrockBusy
+                              }
+                            >
+                              {bedrockBusy ? 'SAVING…' : 'SAVE CREDENTIALS'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <div className={styles.providerCardFooter}>
@@ -2796,7 +2992,6 @@ export function SettingsView(): JSX.Element {
       case 'tools':      return renderTools()
       case 'skills':     return renderSkills()
       case 'prompts':    return <PromptsTab />
-      case 'memory':     return <MemoryTab />
       case 'updates':    return <UpdatesTab />
       case 'extensions': return renderExtensions()
       default: {

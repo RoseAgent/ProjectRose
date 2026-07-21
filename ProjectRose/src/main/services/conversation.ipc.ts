@@ -1,5 +1,6 @@
 import { defineIpc, method } from '../../shared/ipc/defineIpc'
-import type { Conversation } from './conversationStore'
+import type { Conversation, LoadedConversation } from './conversationStore'
+import type { TurnLogRecord } from '../../shared/turnEvents'
 import type { WorkspaceGroupedList, KnownWorkspace } from '../../shared/conversationGroups'
 import type {
   ExternalSource,
@@ -13,8 +14,12 @@ import type {
 // index, and each saved Conversation carries its own workspacePath.
 export const sessionIpc = defineIpc('session', {
   listAll: method<[], WorkspaceGroupedList>(),
-  load: method<[sessionId: string], Conversation | null>(),
+  load: method<[sessionId: string], LoadedConversation | null>(),
   save: method<[conversation: Conversation], void>(),
+  // Append-only durability for the turn in flight. Called every few hundred ms
+  // while streaming, so it carries a batch rather than one event.
+  appendEvents:
+    method<[sessionId: string, workspacePath: string, records: TurnLogRecord[]], void>(),
   delete: method<[sessionId: string], void>()
 })
 

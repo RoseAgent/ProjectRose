@@ -4,7 +4,7 @@ export const manifest: ExtensionManifest = {
   id: 'rose-calendar',
   name: 'Calendar',
   version: '1.0.0',
-  description: 'Calendar events in agent memory — create, edit, list, and round-trip with Google Calendar.',
+  description: 'Calendar events — create, edit, list, and round-trip with Google Calendar.',
   author: 'ProjectRose',
   latin: 'Eventus',
   provides: {

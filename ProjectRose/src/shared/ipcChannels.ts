@@ -67,6 +67,12 @@ export const IPC = {
   KIMI_AUTH_CHANGED: 'kimiAuth:changed',
   KIMI_AUTH_PENDING: 'kimiAuth:pending',
 
+  // Amazon Bedrock credential-change broadcast (main → renderer). There's no
+  // interactive sign-in flow to report progress for — SigV4 needs only a
+  // stored key pair — so unlike Kimi there's no matching PENDING channel.
+  // Request channels are declared by services/bedrockAuthService.ipc.ts.
+  BEDROCK_AUTH_CHANGED: 'bedrockAuth:changed',
+
   // Doppler CLI-flow auth broadcasts (main → renderer). Request channels are
   // declared by services/dopplerImport.ipc.ts.
   DOPPLER_AUTH_CHANGED: 'dopplerAuth:changed',

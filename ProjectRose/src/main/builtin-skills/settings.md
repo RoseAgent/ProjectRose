@@ -29,13 +29,13 @@ If the user wants you to read their Gmail, sync their Google Contacts, or sync t
 
 One sign-in covers all three (email, contacts, calendar). Signing out disconnects all three.
 
-## Memory
+## Contacts and Calendar sync
 
-- **Diary** — on/off plus the time of day to write it.
-- **Contacts sync** — on/off, plus which direction (Rose → Google, Google → Rose, or both).
-- **Calendar sync** — on/off, plus which Google calendars to include.
+The Contacts and Calendar apps each have their own settings (the cog on their drawer cards):
+- **Contacts sync** — which kinds of contacts (person, business, website, other) round-trip with Google Contacts. Pull and push are separate, confirmed actions.
+- **Calendar sync** — which Google calendars round-trip. Same confirmed pull/push pattern.
 
-Load `rose:memory` if the user wants to understand what's in their memory beyond the toggles.
+Load `rose:contacts-calendar` if the user wants to understand what contacts and events are beyond the toggles.
 
 ## Email
 
@@ -69,10 +69,10 @@ A handful of settings are workspace-specific rather than global:
 - Which extensions are enabled
 - Each extension's own per-project configuration
 
-Everything else (mic, voice, providers, memory, email) is global — the same in every project the user opens.
+Everything else (mic, voice, providers, contacts, calendar, email) is global — the same in every project the user opens.
 
 ## Related skills
 
-- `rose:memory` — what the memory toggles actually gate
+- `rose:contacts-calendar` — what the contacts and calendar sync toggles actually gate
 - `rose:tools` — every tool listed on the Tools page, explained
 - `rose:extensions` — what installed extensions can add

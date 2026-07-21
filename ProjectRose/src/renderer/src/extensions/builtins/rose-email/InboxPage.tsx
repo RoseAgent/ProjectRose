@@ -215,8 +215,8 @@ function GmailErrorPrompt(props: { info: GmailErrorInfo; onRetry: () => void }):
   const reauthorize = async (): Promise<void> => {
     setBusy('Re-authorizing…')
     try {
-      await window.api.memory.googleSignOut()
-      await window.api.memory.googleSignIn()
+      await window.api.contacts.googleSignOut()
+      await window.api.contacts.googleSignIn()
       window.location.reload()
     } finally { setBusy(null) }
   }

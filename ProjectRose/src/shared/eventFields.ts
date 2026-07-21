@@ -1,6 +1,6 @@
-// Parse and serialize Memory.Event bullet-note files.
+// Parse and serialize Event bullet-note files.
 //
-// Memory events live on disk as markdown:
+// Events live on disk as markdown:
 //
 //   # Event: Team standup
 //   - start: 2026-05-22T14:00 (America/New_York)

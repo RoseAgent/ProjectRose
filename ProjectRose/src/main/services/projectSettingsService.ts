@@ -61,75 +61,75 @@ interface BuiltinExtensionToolMeta {
 }
 
 const BUILTIN_EXTENSION_TOOLS: Record<string, BuiltinExtensionToolMeta> = {
-  memory_new_contact: {
+  contacts_new: {
     extensionId: 'rose-contacts',
     extensionName: 'Contacts',
     displayName: 'New Contact',
     description: 'Create an empty contact entry classified as person, business, website, or other'
   },
-  memory_set_contact_kind: {
+  contacts_set_kind: {
     extensionId: 'rose-contacts',
     extensionName: 'Contacts',
     displayName: 'Set Contact Kind',
     description: 'Reclassify an existing contact (person / business / website / other)'
   },
-  memory_read_contact: {
+  contacts_read: {
     extensionId: 'rose-contacts',
     extensionName: 'Contacts',
     displayName: 'Read Contact',
     description: 'Read every note about a person/place/thing by name'
   },
-  memory_search_contacts: {
+  contacts_search: {
     extensionId: 'rose-contacts',
     extensionName: 'Contacts',
     displayName: 'Search Contacts',
     description: 'Search contacts by name and find notes that mention a term'
   },
-  memory_add_contact_note: {
+  contacts_add_note: {
     extensionId: 'rose-contacts',
     extensionName: 'Contacts',
     displayName: 'Add Contact Note',
     description: 'Append a note to a contact; creates the contact if missing'
   },
-  memory_remove_contact_note: {
+  contacts_remove_note: {
     extensionId: 'rose-contacts',
     extensionName: 'Contacts',
     displayName: 'Remove Contact Note',
     description: 'Remove a note from a contact, matched case-insensitively'
   },
   // ── rose-calendar ─────────────────────────────────────────────────────
-  memory_create_event: {
+  events_create: {
     extensionId: 'rose-calendar',
     extensionName: 'Calendar',
     displayName: 'Create Event',
-    description: 'Create a calendar event in agent memory; can be pushed to Google Calendar'
+    description: 'Create a calendar event; can be pushed to Google Calendar'
   },
-  memory_edit_event: {
+  events_edit: {
     extensionId: 'rose-calendar',
     extensionName: 'Calendar',
     displayName: 'Edit Event',
     description: 'Modify an existing calendar event (summary, times, attendees, recurrence, etc.)'
   },
-  memory_get_event: {
+  events_get: {
     extensionId: 'rose-calendar',
     extensionName: 'Calendar',
     displayName: 'Get Event',
     description: 'Read the full record of a calendar event by ref or Google ID'
   },
-  memory_list_events: {
+  events_list: {
     extensionId: 'rose-calendar',
     extensionName: 'Calendar',
     displayName: 'List Events',
     description: 'List events in a date-time range, expanding recurring rules into occurrences'
   },
-  memory_invite_to_event: {
+  events_invite: {
     extensionId: 'rose-calendar',
     extensionName: 'Calendar',
     displayName: 'Invite to Event',
     description: 'Send Google Calendar invitations to attendees of a synced event.',
     defaultDisabled: true
   },
-  memory_delete_event: {
+  events_delete: {
     extensionId: 'rose-calendar',
     extensionName: 'Calendar',
     displayName: 'Delete Event',

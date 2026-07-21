@@ -106,9 +106,9 @@ Per-extension settings are namespaced under `settings.extensions['rose-myext']` 
 
 The four built-ins ship in the host bundle (never installed from a zip, always enabled):
 
-- **rose-contacts** — contact memory + Google Contacts sync
+- **rose-contacts** — agent-global contacts + Google Contacts sync
 - **rose-email** — IMAP/SMTP and Gmail inbox/compose
-- **rose-calendar** — event memory + Google Calendar sync
+- **rose-calendar** — agent-global calendar + Google Calendar sync
 - **rose-routines** — scheduled agent prompts (weekly / bi-weekly / monthly / yearly) with per-routine tool allowlists
 
 Their source lives under `src/renderer/src/extensions/builtins/` and is the cleanest reference for the contract.

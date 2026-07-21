@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const savedSearch: Array<{ provider: string; key: string }> = []
 const savedKimiKeys: string[] = []
 const savedGoogle: Array<{ clientId: string; clientSecret: string }> = []
+const savedBedrock: Array<{ accessKeyId: string; secretAccessKey: string; sessionToken?: string }> = []
 const settingsPatches: Array<Record<string, unknown>> = []
 
 vi.mock('../search/searchCredentialsStore', () => ({
@@ -19,6 +20,14 @@ vi.mock('../google/googleOAuthCredentialsStore', () => ({
   saveGoogleOAuthCredentials: vi.fn(async (creds: { clientId: string; clientSecret: string }) => {
     savedGoogle.push(creds)
   })
+}))
+vi.mock('../bedrockAuthService', () => ({
+  bedrockSaveCredentials: vi.fn(
+    async (creds: { accessKeyId: string; secretAccessKey: string; sessionToken?: string }) => {
+      savedBedrock.push(creds)
+      return { credentialsStored: true, region: 'us-east-1' }
+    }
+  )
 }))
 vi.mock('../settingsService', () => ({
   applySettingsPatch: vi.fn(async (patch: Record<string, unknown>) => {
@@ -38,6 +47,7 @@ beforeEach(() => {
   savedSearch.length = 0
   savedKimiKeys.length = 0
   savedGoogle.length = 0
+  savedBedrock.length = 0
   settingsPatches.length = 0
 })
 
@@ -99,6 +109,45 @@ describe('dopplerApply', () => {
     expect(savedGoogle).toEqual([{ clientId: 'id.apps.googleusercontent.com', clientSecret: 'GOCSPX-secret-value' }])
     // Importing a Kimi key flips the auth method so it takes effect.
     expect(settingsPatches).toEqual([{ kimiAuthMethod: 'apikey' }])
+  })
+
+  it('imports an AWS key pair, session token, and region for Bedrock', async () => {
+    stubDoppler({
+      AWS_ACCESS_KEY_ID: 'AKIAIOSFODNN7EXAMPLE',
+      AWS_SECRET_ACCESS_KEY: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+      AWS_SESSION_TOKEN: 'FwoGZXIvYXdzEExampleSessionToken',
+      AWS_REGION: 'eu-central-1'
+    })
+    const result = await dopplerApply({ token: 'dp.st.test' }, ['bedrock-aws'])
+    expect(result.applied).toHaveLength(1)
+    expect(savedBedrock).toEqual([
+      {
+        accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+        secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        sessionToken: 'FwoGZXIvYXdzEExampleSessionToken'
+      }
+    ])
+    // Region must be patched BEFORE the credential save, so the resulting
+    // change broadcast carries the new region and the picker's model refresh
+    // runs against it rather than the previous one.
+    expect(settingsPatches).toEqual([{ bedrockRegion: 'eu-central-1' }])
+  })
+
+  it('omits the session token when the config has no temporary credentials', async () => {
+    stubDoppler({
+      AWS_ACCESS_KEY_ID: 'AKIAIOSFODNN7EXAMPLE',
+      AWS_SECRET_ACCESS_KEY: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+    })
+    await dopplerApply({ token: 'dp.st.test' }, ['bedrock-aws'])
+    expect(savedBedrock[0].sessionToken).toBeUndefined()
+    // No region in the config → leave whatever the user already configured.
+    expect(settingsPatches).toEqual([])
+  })
+
+  it('skips a half-present AWS key pair', async () => {
+    stubDoppler({ AWS_ACCESS_KEY_ID: 'AKIAIOSFODNN7EXAMPLE' })
+    const preview = await dopplerPreview({ token: 'dp.st.test' })
+    expect(preview.candidates).toEqual([])
   })
 
   it('rejects selecting more than one search provider', async () => {

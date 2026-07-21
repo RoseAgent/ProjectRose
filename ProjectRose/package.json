@@ -92,8 +92,9 @@
     }
   },
   "dependencies": {
+    "@ai-sdk/amazon-bedrock": "^4.0.137",
     "@ai-sdk/openai": "^3.0.53",
-    "@ai-sdk/openai-compatible": "^3.0.12",
+    "@ai-sdk/openai-compatible": "^2.0.62",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@huggingface/transformers": "^4.2.0",
@@ -106,6 +107,7 @@
     "@xterm/xterm": "^5.5.0",
     "ai": "^6.0.168",
     "ai-sdk-ollama": "^3.8.3",
+    "aws4fetch": "^1.0.20",
     "better-sqlite3": "^12.9.0",
     "clsx": "^2.1.1",
     "discord.js": "^14.26.3",

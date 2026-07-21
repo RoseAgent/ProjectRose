@@ -1,12 +1,14 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createOllama } from 'ai-sdk-ollama'
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { loadSession } from '../lib/session'
+import { loadBedrockCredentials } from '../lib/bedrockCredentials'
 import {
   getKimiAccessToken,
   loadKimiApiKey,
+  kimiApiKeyEndpoint,
   KIMI_API_BASE_URL,
-  KIMI_PLATFORM_BASE_URL,
   KIMI_USER_AGENT
 } from '../lib/kimiSession'
 import { readSettings } from './settingsService'
@@ -170,16 +172,13 @@ export async function resolveModel(
       if (kimiAuthMethod === 'apikey') {
         const apiKey = await loadKimiApiKey()
         if (!apiKey) {
-          throw new Error('Add your Moonshot API key in Settings → Providers → Kimi.')
+          throw new Error('Add your Kimi API key in Settings → Providers → Kimi.')
         }
-        const provider = createOpenAICompatible({
-          name: 'kimi',
-          baseURL: KIMI_PLATFORM_BASE_URL,
-          apiKey
-        })
-        // Platform model ids differ from the Coding API's aliases — default
-        // to the platform's thinking model, not 'kimi-for-coding'.
-        return provider.chatModel(model.modelName || 'kimi-k2-thinking')
+        // The key's prefix decides the backend (Coding API vs Moonshot
+        // platform) and the fallback model — see kimiApiKeyEndpoint.
+        const { baseURL, headers, defaultModel } = kimiApiKeyEndpoint(apiKey)
+        const provider = createOpenAICompatible({ name: 'kimi', baseURL, apiKey, headers })
+        return provider.chatModel(model.modelName || defaultModel)
       }
       // The token is short-lived (~15 min); getKimiAccessToken refreshes it
       // on the way in, so every resolve gets a live credential.
@@ -195,6 +194,30 @@ export async function resolveModel(
         headers: { 'User-Agent': KIMI_USER_AGENT }
       })
       return provider.chatModel(model.modelName || 'kimi-for-coding')
+    }
+    case 'bedrock': {
+      // Explicit key pair only — never the ambient AWS credential chain. See
+      // lib/bedrockCredentials.ts for why. Region is a plain setting, read
+      // here the same way the kimi branch reads kimiAuthMethod.
+      const creds = await loadBedrockCredentials()
+      if (!creds) {
+        throw new Error('Add your AWS credentials in Settings → Providers → Amazon Bedrock.')
+      }
+      const { bedrockRegion } = await readSettings()
+      const provider = createAmazonBedrock({
+        region: bedrockRegion,
+        accessKeyId: creds.accessKeyId,
+        secretAccessKey: creds.secretAccessKey,
+        sessionToken: creds.sessionToken
+      })
+      // No default model id: unlike the other providers there's no universally
+      // available Bedrock model to fall back to. Which ids exist depends on
+      // the account's region and per-model access grants, so a hardcoded guess
+      // would fail with a confusing validation error instead of this.
+      if (!model.modelName) {
+        throw new Error('Pick a Bedrock model from the model picker in the chat composer.')
+      }
+      return provider(model.modelName)
     }
     case 'projectrose':
     default: {

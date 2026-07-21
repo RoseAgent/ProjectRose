@@ -26,7 +26,7 @@ You have a fixed set of capabilities. Each one is a "tool." This skill is what t
 - Pause and wait for an answer when you need a decision or clarification. You can offer multiple-choice options. This is the *only* way to ask the user something — never ask in plain text.
 
 ### Remember things across sessions
-- Write to and read from the user's diary, standing preferences, contacts, and calendar (load `rose:memory` for details on each)
+- Keep notes on the user's contacts and manage their calendar (load `rose:contacts-calendar` for details on each)
 
 ### Email
 - Read the inbox, search messages, view a specific message, list folders
@@ -65,6 +65,6 @@ Beyond the built-in capabilities above, installed extensions can add their own t
 
 ## Related skills
 
-- `rose:memory` — the memory-related tools explained in plain language
+- `rose:contacts-calendar` — the contact and calendar tools explained in plain language
 - `rose:settings` — where the on/off toggles live
 - `rose:extensions` — what extensions can add to your toolbelt

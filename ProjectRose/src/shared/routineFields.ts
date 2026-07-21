@@ -14,7 +14,7 @@
 //   - tools:
 //     - email_list_messages
 //     - email_get_message
-//     - memory_list_events
+//     - events_list
 //
 //   ## Prompt
 //   Summarize my 10 most-recent unread emails…

@@ -3,7 +3,7 @@ import {
   CONTACT_KINDS,
   type ContactKind,
   type ContactSearchResult
-} from '@shared/memory'
+} from '@shared/contacts'
 import {
   buildContactMarkdown,
   parseContactContent,
@@ -69,7 +69,7 @@ export function ContactsPage(): JSX.Element {
   const [newOpen, setNewOpen] = useState(false)
 
   const refresh = useCallback(async () => {
-    const list = await window.api.memory.listContactsDetailed()
+    const list = await window.api.contacts.listContactsDetailed()
     setEntries(list)
     if (list.length && !selected) setSelected(list[0].entity)
   }, [selected])
@@ -79,7 +79,7 @@ export function ContactsPage(): JSX.Element {
   useEffect(() => {
     if (!selected) { setOriginalContent(''); setState(null); return }
     let cancelled = false
-    void window.api.memory.readContact(selected).then((c) => {
+    void window.api.contacts.readContact(selected).then((c) => {
       if (cancelled) return
       const text = c ?? ''
       setOriginalContent(text)
@@ -96,7 +96,7 @@ export function ContactsPage(): JSX.Element {
     const queries = term.split(/\s+/).filter(Boolean)
     let cancelled = false
     const t = setTimeout(async () => {
-      const result = await window.api.memory.searchContacts(queries)
+      const result = await window.api.contacts.searchContacts(queries)
       if (!cancelled) setSearchResult(result)
     }, 200)
     return () => { cancelled = true; clearTimeout(t) }
@@ -120,7 +120,7 @@ export function ContactsPage(): JSX.Element {
     if (!selected || !state || !dirty) return
     setBusy('Saving…')
     try {
-      await window.api.memory.writeContact({ entity: selected, content: currentContent })
+      await window.api.contacts.writeContact({ entity: selected, content: currentContent })
       setOriginalContent(currentContent)
       logInteraction('contact.edited')
       void refresh()
@@ -131,7 +131,7 @@ export function ContactsPage(): JSX.Element {
     if (!selected) return
     setBusy('Deleting…')
     try {
-      await window.api.memory.deleteContact(selected)
+      await window.api.contacts.deleteContact(selected)
       setSelected(null)
       setOriginalContent('')
       setState(null)
@@ -143,11 +143,11 @@ export function ContactsPage(): JSX.Element {
   const createContact = async (entity: string, kind: ContactKind): Promise<void> => {
     setBusy('Creating…')
     try {
-      const created = await window.api.memory.newContact(entity)
+      const created = await window.api.contacts.newContact(entity)
       // newContact defaults to 'other'; bump the kind in a second call if the
       // user picked something else.
       if (kind !== 'other') {
-        await window.api.memory.setContactKind({ entity: created.entity, kind })
+        await window.api.contacts.setContactKind({ entity: created.entity, kind })
       }
       logInteraction('contact.created')
       await refresh()

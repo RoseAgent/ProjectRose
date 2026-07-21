@@ -1,14 +1,14 @@
 // Single source of truth for "invite attendees to a synced event": read the
 // event, verify it is Google-synced, ask Google to send the native invitations,
 // and reflect the new attendees in the local file on success. Both the agent
-// tool (memory_invite_to_event) and the renderer IPC handler (inviteToEvent)
+// tool (events_invite) and the renderer IPC handler (inviteToEvent)
 // drive this — they differ only in how they present the outcome, so the
 // sequence lives here and the discriminated result lets each caller format its
 // own messages without re-implementing the steps.
 import { readEvent, updateEvent } from './calendar'
 import { googleCalendarSendInvite } from './googleCalendar'
-import type { EventAttendee, EventRef } from '../../../shared/memory'
-import type { GoogleApplyResult } from '../../../shared/memory'
+import type { EventAttendee, EventRef } from '../../../shared/calendar'
+import type { GoogleApplyResult } from '../../../shared/calendar'
 
 export type EventInviteOutcome =
   | { status: 'no-event' }

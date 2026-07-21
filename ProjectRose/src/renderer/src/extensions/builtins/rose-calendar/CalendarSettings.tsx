@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import type {
+  CalendarSettings as CalendarSettingsBlock,
   GoogleCalendarPullPlan,
   GoogleCalendarPushPlan,
-  GoogleCalendarSyncStatus,
-  MemorySettings
-} from '@shared/memory'
+  GoogleCalendarSyncStatus
+} from '@shared/calendar'
 import { useViewStore } from '../../../stores/useViewStore'
 import { useAppsDrawerStore } from '../../../stores/useAppsDrawerStore'
 import styles from '../rose-contacts/ContactsPage.module.css'
@@ -33,7 +33,7 @@ interface ConfirmState {
 
 function CalendarSyncCard(): JSX.Element {
   const [status, setStatus] = useState<GoogleCalendarSyncStatus | null>(null)
-  const [memory, setMemory] = useState<MemorySettings | null>(null)
+  const [calendar, setCalendar] = useState<CalendarSettingsBlock | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
@@ -45,11 +45,11 @@ function CalendarSyncCard(): JSX.Element {
   const refresh = useCallback(async () => {
     try {
       const [s, settings] = await Promise.all([
-        window.api.memory.googleCalendarGetStatus(),
+        window.api.events.googleCalendarGetStatus(),
         window.api.getSettings()
       ])
       setStatus(s)
-      setMemory((settings.memory as MemorySettings | undefined) ?? null)
+      setCalendar((settings.calendar as CalendarSettingsBlock | undefined) ?? null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load calendar status.')
     }
@@ -61,18 +61,18 @@ function CalendarSyncCard(): JSX.Element {
     return () => clearInterval(id)
   }, [refresh])
 
-  const patch = async (next: MemorySettings): Promise<void> => {
-    await window.api.setSettings({ memory: next })
-    setMemory(next)
+  const patch = async (next: CalendarSettingsBlock): Promise<void> => {
+    await window.api.setSettings({ calendar: next })
+    setCalendar(next)
     void refresh()
   }
 
   const toggleCalendar = (calendarId: string, on: boolean): void => {
-    if (!memory) return
-    const current = memory.googleCalendarSync ?? { lastPullAt: null, lastPushAt: null, syncCalendars: { primary: true } }
-    const next: MemorySettings = {
-      ...memory,
-      googleCalendarSync: {
+    if (!calendar) return
+    const current = calendar.googleSync ?? { lastPullAt: null, lastPushAt: null, syncCalendars: { primary: true } }
+    const next: CalendarSettingsBlock = {
+      ...calendar,
+      googleSync: {
         ...current,
         syncCalendars: { ...current.syncCalendars, [calendarId]: on }
       }
@@ -90,7 +90,7 @@ function CalendarSyncCard(): JSX.Element {
     setBusy('Previewing pull from Google…')
     setError(null)
     try {
-      const pullPlan = await window.api.memory.googleCalendarPreviewPull()
+      const pullPlan = await window.api.events.googleCalendarPreviewPull()
       setConfirm({ direction: 'pull', pullPlan })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Preview failed.')
@@ -101,7 +101,7 @@ function CalendarSyncCard(): JSX.Element {
     setBusy('Previewing push to Google…')
     setError(null)
     try {
-      const pushPlan = await window.api.memory.googleCalendarPreviewPush()
+      const pushPlan = await window.api.events.googleCalendarPreviewPush()
       setConfirm({ direction: 'push', pushPlan })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Preview failed.')
@@ -113,10 +113,10 @@ function CalendarSyncCard(): JSX.Element {
     setBusy(confirm.direction === 'pull' ? 'Pulling…' : 'Pushing…')
     try {
       if (confirm.direction === 'pull' && confirm.pullPlan) {
-        const result = await window.api.memory.googleCalendarApplyPull(confirm.pullPlan)
+        const result = await window.api.events.googleCalendarApplyPull(confirm.pullPlan)
         if (!result.ok) setError(result.message)
       } else if (confirm.direction === 'push' && confirm.pushPlan) {
-        const result = await window.api.memory.googleCalendarApplyPush(confirm.pushPlan)
+        const result = await window.api.events.googleCalendarApplyPush(confirm.pushPlan)
         if (!result.ok) setError(result.message)
       }
       setConfirm(null)
@@ -130,7 +130,7 @@ function CalendarSyncCard(): JSX.Element {
   const signedIn = status?.signedIn ?? false
   const credsConfigured = status?.credentialsConfigured ?? false
   const scopeGranted = status?.scopeGranted ?? false
-  const syncCalendars = memory?.googleCalendarSync?.syncCalendars ?? { primary: true }
+  const syncCalendars = calendar?.googleSync?.syncCalendars ?? { primary: true }
 
   return (
     <div className={styles.card}>
@@ -153,10 +153,10 @@ function CalendarSyncCard(): JSX.Element {
         </span>
       </div>
       <div className={styles.cardSub}>
-        Pull events from Google Calendar into your Memory, or push Memory events
-        to Google. Each direction is a separate, confirmed action — nothing
-        syncs in the background. Invitations to attendees are sent by Google
-        when a synced event is pushed or updated.
+        Pull events from Google Calendar into your local calendar, or push
+        local events to Google. Each direction is a separate, confirmed action
+        — nothing syncs in the background. Invitations to attendees are sent
+        by Google when a synced event is pushed or updated.
       </div>
 
       {signedIn && status?.accountEmail && (
@@ -183,7 +183,7 @@ function CalendarSyncCard(): JSX.Element {
                 <input
                   type="checkbox"
                   checked={syncCalendars[cal.id] !== false}
-                  disabled={!memory}
+                  disabled={!calendar}
                   onChange={(e) => toggleCalendar(cal.id, e.target.checked)}
                 />
                 <span>{cal.summary}{cal.primary ? ' ⭐' : ''}</span>
@@ -275,7 +275,7 @@ function ConfirmModal({
           <div className={styles.modalBody}>
             <div className={styles.modalSection}>
               Google returned <strong>{fetched}</strong> event{fetched === 1 ? '' : 's'} across the selected calendars.
-              {' '}{hasChanges ? 'The following changes will apply to your local Memory:' : 'Nothing to apply — already in sync.'}
+              {' '}{hasChanges ? 'The following changes will apply to your local calendar:' : 'Nothing to apply — already in sync.'}
             </div>
             {create.length > 0 && (
               <div className={styles.modalSection}>
@@ -340,10 +340,10 @@ function ConfirmModal({
           </div>
           <div className={styles.modalBody}>
             <div className={styles.modalSection}>
-              You have <strong>{localCount}</strong> Memory event{localCount === 1 ? '' : 's'}.
+              You have <strong>{localCount}</strong> local event{localCount === 1 ? '' : 's'}.
               {' '}{hasChanges
                 ? 'The following will be applied to your Google Calendar (attendees will be notified by Google):'
-                : 'Nothing to push — every Memory event is already in sync.'}
+                : 'Nothing to push — every local event is already in sync.'}
             </div>
             {create.length > 0 && (
               <div className={styles.modalSection}>

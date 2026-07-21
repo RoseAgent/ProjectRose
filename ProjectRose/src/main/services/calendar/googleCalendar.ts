@@ -33,14 +33,14 @@ import type {
   GoogleCalendarRow,
   GoogleCalendarSyncSettings,
   GoogleCalendarSyncStatus
-} from '../../../shared/memory'
+} from '../../../shared/calendar'
 import { listAllEvents, upsertEventFromSync } from './calendar'
 
 // ── Settings helpers ─────────────────────────────────────────────────────
 
 async function readCalendarSyncSettings(): Promise<GoogleCalendarSyncSettings> {
   const settings = await readSettings()
-  const block = settings.memory?.googleCalendarSync
+  const block = settings.calendar?.googleSync
   return {
     lastPullAt: block?.lastPullAt ?? null,
     lastPushAt: block?.lastPushAt ?? null,
@@ -50,12 +50,11 @@ async function readCalendarSyncSettings(): Promise<GoogleCalendarSyncSettings> {
 
 async function patchCalendarSyncSettings(patch: Partial<GoogleCalendarSyncSettings>): Promise<void> {
   const settings = await readSettings()
-  const current = settings.memory
-  const existing = current.googleCalendarSync ?? { lastPullAt: null, lastPushAt: null, syncCalendars: { primary: true } }
+  const existing = settings.calendar?.googleSync ?? { lastPullAt: null, lastPushAt: null, syncCalendars: { primary: true } }
   await applySettingsPatch({
-    memory: {
-      ...current,
-      googleCalendarSync: { ...existing, ...patch }
+    calendar: {
+      ...settings.calendar,
+      googleSync: { ...existing, ...patch }
     }
   })
 }
@@ -252,7 +251,7 @@ async function findMasterEventByICalUID(
   return pickMasterEvent(res.data.items ?? [])
 }
 
-// ── Pull (Google → Memory) ───────────────────────────────────────────────
+// ── Pull (Google → local) ───────────────────────────────────────────────
 
 async function listGoogleEvents(client: OAuth2Client, calendarId: string): Promise<calendar_v3.Schema$Event[]> {
   const cal = google.calendar({ version: 'v3', auth: client })
@@ -372,7 +371,7 @@ export async function googleCalendarApplyPull(plan: GoogleCalendarPullPlan): Pro
   }
 }
 
-// ── Push (Memory → Google) ───────────────────────────────────────────────
+// ── Push (local → Google) ───────────────────────────────────────────────
 
 export async function googleCalendarPreviewPush(): Promise<GoogleCalendarPushPlan> {
   const client = await buildAuthedClient()

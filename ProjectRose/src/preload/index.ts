@@ -18,12 +18,14 @@ import { whisperIpc } from '../main/services/whisperService.ipc'
 import { updaterIpc } from '../main/services/updaterService.ipc'
 import { authIpc } from '../main/services/authService.ipc'
 import { kimiAuthIpc } from '../main/services/kimiAuthService.ipc'
+import { bedrockAuthIpc } from '../main/services/bedrockAuthService.ipc'
 import { aiIpc } from '../main/services/aiService.ipc'
 import { activeSpeechIpc } from '../main/services/speech/activeSpeechService.ipc'
 import { extensionIpc } from '../main/services/extensionService.ipc'
 import { routinesIpc } from '../main/extensions/builtins/rose-routines/routinesService.ipc'
 import { channelsIpc } from '../main/extensions/builtins/rose-channels/channelsService.ipc'
-import { memoryIpc } from '../main/services/memory/memoryService.ipc'
+import { contactsIpc } from '../main/services/contacts/contactsService.ipc'
+import { eventsIpc } from '../main/services/calendar/eventsService.ipc'
 import { emailIpc } from '../main/services/email/emailService.ipc'
 import { ttsIpc } from '../main/services/tts/ttsService.ipc'
 
@@ -394,17 +396,18 @@ const api = {
   extension: extensionIpc.bindings,
 
   // Routines (built-in rose-routines extension's IPC surface). Bound flat on
-  // api.routines.* mirroring api.memory / api.email.
+  // api.routines.* mirroring api.contacts / api.email.
   routines: routinesIpc.bindings,
 
   // Channels (built-in rose-channels extension's IPC surface). Bound flat
   // on api.channels.* mirroring api.routines.
   channels: channelsIpc.bindings,
 
-  // Memory (~/.rose/memory/) — diary, behaviour records, contacts, scheduler.
-  // Bound flat on api.memory.* so renderer call sites mirror window.api.skills,
-  // window.api.session, etc.
-  memory: memoryIpc.bindings,
+  // Contacts (~/.rose/contact/) and Events (~/.rose/calendar/) — bound flat
+  // on api.contacts.* / api.events.* so renderer call sites mirror
+  // window.api.skills, window.api.session, etc.
+  contacts: contactsIpc.bindings,
+  events: eventsIpc.bindings,
 
   // Email — bound flat on api.email.* for the rose-email built-in's
   // InboxPage and EmailSettings views.
@@ -469,6 +472,7 @@ const api = {
     getStatus: kimiAuthIpc.bindings.getStatus,
     saveApiKey: kimiAuthIpc.bindings.saveApiKey,
     clearApiKey: kimiAuthIpc.bindings.clearApiKey,
+    listModels: kimiAuthIpc.bindings.listModels,
     onChanged: (callback: (data: { loggedIn: boolean; apiKeyStored: boolean }) => void): (() => void) => {
       const handler = (_e: unknown, data: { loggedIn: boolean; apiKeyStored: boolean }): void => callback(data)
       ipcRenderer.on(IPC.KIMI_AUTH_CHANGED, handler)
@@ -478,6 +482,21 @@ const api = {
       const handler = (_e: unknown, data: { url: string; userCode: string }): void => callback(data)
       ipcRenderer.on(IPC.KIMI_AUTH_PENDING, handler)
       return () => { ipcRenderer.removeListener(IPC.KIMI_AUTH_PENDING, handler) }
+    }
+  },
+
+  // Amazon Bedrock — request methods from the manifest; the change
+  // subscription stays hand-written. No onPending counterpart: SigV4 needs
+  // only a stored key pair, so there's no interactive flow to report on.
+  bedrockAuth: {
+    getStatus: bedrockAuthIpc.bindings.getStatus,
+    saveCredentials: bedrockAuthIpc.bindings.saveCredentials,
+    clearCredentials: bedrockAuthIpc.bindings.clearCredentials,
+    listModels: bedrockAuthIpc.bindings.listModels,
+    onChanged: (callback: (data: { credentialsStored: boolean; region: string }) => void): (() => void) => {
+      const handler = (_e: unknown, data: { credentialsStored: boolean; region: string }): void => callback(data)
+      ipcRenderer.on(IPC.BEDROCK_AUTH_CHANGED, handler)
+      return () => { ipcRenderer.removeListener(IPC.BEDROCK_AUTH_CHANGED, handler) }
     }
   },
 

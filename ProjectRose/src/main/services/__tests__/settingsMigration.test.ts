@@ -46,7 +46,7 @@ describe('readSettings hostMode → lastModel migration', () => {
   it('kimi default honors the auth method when no model name was stored', async () => {
     stub({ hostMode: 'kimi', kimiModelName: '', kimiAuthMethod: 'apikey' })
     const s = await readSettings()
-    expect(s.lastModel).toEqual({ provider: 'kimi', modelName: 'kimi-k2-thinking' })
+    expect(s.lastModel).toEqual({ provider: 'kimi', modelName: 'kimi-k3' })
 
     stub({ hostMode: 'kimi', kimiModelName: '', kimiAuthMethod: 'oauth' })
     const s2 = await readSettings()

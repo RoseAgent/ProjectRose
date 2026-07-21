@@ -1,6 +1,6 @@
 import { readFile, writeFile, readdir, unlink, mkdir } from 'fs/promises'
-import { memoryContactDir } from '../../lib/agentHome'
-import type { ContactEntity, ContactKind, ContactSearchHit, ContactSearchResult } from '../../../shared/memory'
+import { agentContactDir } from '../../lib/agentHome'
+import type { ContactEntity, ContactKind, ContactSearchHit, ContactSearchResult } from '../../../shared/contacts'
 import { contactPath, safeEntityName } from './paths'
 
 // File format per the user's spec, plus one typed line lifted from the bullet
@@ -61,7 +61,7 @@ function parseFile(entity: string, content: string): ContactEntity {
 
 export async function listContacts(): Promise<string[]> {
   let files: string[]
-  try { files = await readdir(memoryContactDir()) } catch { return [] }
+  try { files = await readdir(agentContactDir()) } catch { return [] }
   return files
     .filter((f) => f.endsWith('.md') && f !== '.gitkeep')
     .map((f) => f.replace(/\.md$/, ''))
@@ -101,7 +101,7 @@ export async function readContactParsed(entity: string): Promise<ContactEntity |
 export async function writeContact(entity: string, content: string): Promise<void> {
   const safe = safeEntityName(entity)
   if (!safe) throw new Error('Invalid entity name')
-  await mkdir(memoryContactDir(), { recursive: true })
+  await mkdir(agentContactDir(), { recursive: true })
   await writeFile(contactPath(safe), content, 'utf-8')
 }
 
@@ -121,7 +121,7 @@ export async function newContact(
 ): Promise<ContactEntity> {
   const safe = safeEntityName(entity)
   if (!safe) throw new Error('Invalid entity name')
-  await mkdir(memoryContactDir(), { recursive: true })
+  await mkdir(agentContactDir(), { recursive: true })
   const existing = await readContactParsed(safe)
   if (existing) return existing
   await writeFile(contactPath(safe), buildFile(safe, kind, []), 'utf-8')
@@ -133,7 +133,7 @@ export async function addContactNote(entity: string, note: string): Promise<Cont
   if (!safe) throw new Error('Invalid entity name')
   const trimmed = note.trim()
   if (!trimmed) throw new Error('Empty note')
-  await mkdir(memoryContactDir(), { recursive: true })
+  await mkdir(agentContactDir(), { recursive: true })
   const current = await readContactParsed(safe)
   const kind = current?.kind ?? 'other'
   const notes = current ? [...current.notes] : []
@@ -160,7 +160,7 @@ export async function removeContactNote(entity: string, note: string): Promise<C
 export async function setContactKind(entity: string, kind: ContactKind): Promise<ContactEntity> {
   const safe = safeEntityName(entity)
   if (!safe) throw new Error('Invalid entity name')
-  await mkdir(memoryContactDir(), { recursive: true })
+  await mkdir(agentContactDir(), { recursive: true })
   const current = await readContactParsed(safe)
   const notes = current?.notes ?? []
   await writeFile(contactPath(safe), buildFile(safe, kind, notes), 'utf-8')

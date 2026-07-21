@@ -29,7 +29,7 @@ vi.mock('../google/googleAuth', () => ({
   })),
   buildAuthedClient: vi.fn(async () => null)
 }))
-vi.mock('../memory/googleCalendar', () => ({
+vi.mock('../calendar/googleCalendar', () => ({
   googleCalendarGetStatus: vi.fn(async () => ({
     credentialsConfigured: false,
     signedIn: false,
@@ -55,7 +55,7 @@ import { buildSettingsSnapshot } from '../settingsSnapshot'
 import { readSettings } from '../settingsService'
 import { getAuthStatus, fetchUsage } from '../authService'
 import { googleAuthGetStatus, buildAuthedClient } from '../google/googleAuth'
-import { googleCalendarGetStatus } from '../memory/googleCalendar'
+import { googleCalendarGetStatus } from '../calendar/googleCalendar'
 import { hasImapPasswords } from '../email/imapCredentialsStore'
 import { verifyImapConnection, verifySmtpConnection } from '../email/imapTransport'
 
@@ -72,22 +72,20 @@ function baseSettings(overrides: Record<string, unknown> = {}): Record<string, u
     lastMainView: 'bloom',
     ollamaBaseUrl: '',
     kimiAuthMethod: 'oauth',
+    bedrockRegion: 'us-east-1',
     lastModel: null,
     roseSpeechSpeakerId: null,
     tts: { enabled: false, voice: 'en_US-amy-medium', speed: 1.0 },
-    memory: {
-      diaryEnabled: true,
-      diaryTime: '21:00',
-      diaryLastRun: null,
-      contactsUpdaterEnabled: true,
-      contactsUpdaterLastRun: null,
+    contacts: {
       googleSync: {
         accountEmail: null,
         lastPullAt: null,
         lastPushAt: null,
         syncKinds: { person: true, business: true, website: false, other: false }
-      },
-      googleCalendarSync: { lastPullAt: null, lastPushAt: null, syncCalendars: { primary: true } }
+      }
+    },
+    calendar: {
+      googleSync: { lastPullAt: null, lastPushAt: null, syncCalendars: { primary: true } }
     },
     email: {
       transport: null,
@@ -111,6 +109,7 @@ describe('buildSettingsSnapshot', () => {
     expect(snap.configuration).toBeDefined()
     expect(snap.connections).toBeDefined()
     expect(Object.keys(snap.connections).sort()).toEqual([
+      'bedrock',
       'googleAuth',
       'googleCalendar',
       'imap',
@@ -294,6 +293,20 @@ describe('buildSettingsSnapshot', () => {
     const snap = await buildSettingsSnapshot('/proj')
     expect(snap.configuration.provider.lastModel).toEqual({ provider: 'kimi', modelName: 'kimi-k2-thinking' })
     expect(snap.configuration.provider.kimiAuthMethod).toBe('apikey')
+  })
+
+  it('carries the Bedrock region in configuration.provider — but never the AWS keys', async () => {
+    settingsState.value = baseSettings({ bedrockRegion: 'eu-central-1' })
+    const snap = await buildSettingsSnapshot('/proj')
+    expect(snap.configuration.provider.bedrockRegion).toBe('eu-central-1')
+    // The key pair lives in userData/bedrock-credentials.bin and must never
+    // reach the agent-visible snapshot in any form.
+    expect(JSON.stringify(snap)).not.toMatch(/accessKeyId|secretAccessKey|AKIA/)
+  })
+
+  it('reports bedrock not-configured when no AWS credentials are stored', async () => {
+    const snap = await buildSettingsSnapshot('/proj')
+    expect(snap.connections.bedrock.status).toBe('not-configured')
   })
 
   it('forwards workspace project-settings into configuration.workspace', async () => {

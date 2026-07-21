@@ -7,8 +7,11 @@ function availability(overrides: Partial<PickerAvailability> = {}): PickerAvaila
     prLoggedIn: false,
     kimiAvailable: false,
     kimiAuthMethod: 'oauth',
+    kimiModels: [],
     ollamaConfigured: false,
     ollamaModels: [],
+    bedrockConfigured: false,
+    bedrockModels: [],
     ...overrides
   }
 }
@@ -39,12 +42,61 @@ describe('buildPickerGroups', () => {
     expect(codex[0].label).toBe('Codex')
   })
 
-  it('kimi model list follows the auth method', () => {
-    const oauth = buildPickerGroups(availability({ kimiAvailable: true, kimiAuthMethod: 'oauth' }))
-    expect(oauth[0].options.some((o) => o.id.includes('kimi-for-coding'))).toBe(true)
-    const apikey = buildPickerGroups(availability({ kimiAvailable: true, kimiAuthMethod: 'apikey' }))
-    expect(apikey[0].options.some((o) => o.id.includes('kimi-for-coding'))).toBe(false)
-    expect(apikey[0].options.some((o) => o.id.includes('kimi-k2-thinking'))).toBe(true)
+  it('lists one Kimi option per fetched model id, only when available', () => {
+    const groups = buildPickerGroups(
+      availability({ kimiAvailable: true, kimiModels: ['kimi-k3', 'kimi-k2.6'] })
+    )
+    expect(groups[0].label).toBe('Kimi')
+    expect(groups[0].options.map((o) => o.label)).toEqual(['kimi-k3', 'kimi-k2.6'])
+  })
+
+  it('shows no Kimi group until models have been fetched', () => {
+    // Available but the live /models fetch hasn't landed yet → no stale guess.
+    expect(buildPickerGroups(availability({ kimiAvailable: true, kimiModels: [] }))).toEqual([])
+  })
+
+  it('lists one Bedrock option per fetched model id, only when configured', () => {
+    const groups = buildPickerGroups(
+      availability({
+        bedrockConfigured: true,
+        bedrockModels: ['anthropic.claude-sonnet-4-5-20250929-v1:0', 'us.amazon.nova-pro-v1:0']
+      })
+    )
+    expect(groups[0].label).toBe('Amazon Bedrock')
+    expect(groups[0].options.map((o) => o.label)).toEqual([
+      'anthropic.claude-sonnet-4-5-20250929-v1:0',
+      'us.amazon.nova-pro-v1:0'
+    ])
+    expect(groups[0].options[0].choice).toEqual({
+      kind: 'rose',
+      model: { provider: 'bedrock', modelName: 'anthropic.claude-sonnet-4-5-20250929-v1:0' }
+    })
+  })
+
+  it('shows no Bedrock group until models have been fetched', () => {
+    // Credentials stored but the control-plane listing hasn't landed (or
+    // failed) → no stale guess, same contract as Kimi.
+    expect(buildPickerGroups(availability({ bedrockConfigured: true }))).toEqual([])
+  })
+
+  it('orders Bedrock between Kimi and Ollama', () => {
+    const groups = buildPickerGroups(
+      availability({
+        prLoggedIn: true,
+        kimiAvailable: true,
+        kimiModels: ['kimi-k3'],
+        bedrockConfigured: true,
+        bedrockModels: ['anthropic.claude-sonnet-4-5-20250929-v1:0'],
+        ollamaConfigured: true,
+        ollamaModels: ['llama3']
+      })
+    )
+    expect(groups.map((g) => g.label)).toEqual([
+      'ProjectRose',
+      'Kimi',
+      'Amazon Bedrock',
+      'Ollama'
+    ])
   })
 
   it('lists one option per installed Ollama model, only when configured', () => {

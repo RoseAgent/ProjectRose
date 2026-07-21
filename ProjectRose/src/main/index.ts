@@ -17,7 +17,6 @@ import { ensureAgentRoseMd } from './services/roseSetupService'
 import { ensureAgentHome } from './lib/agentHome'
 import { migrateAllKnownWorkspaces } from './services/conversationStore'
 import { startAlwaysOnRuntimes } from './services/alwaysOnRuntimes'
-import { initMemorySubsystem } from './services/memory'
 import { startEmailSyncLoop } from './services/email/emailSyncLoop'
 import { IPC } from '../shared/ipcChannels'
 import log from 'electron-log/main'
@@ -111,10 +110,6 @@ app.whenReady().then(async () => {
   createWindow()
   createTray()
   initAutoUpdater()
-  // Memory subsystem — starts the daily diary scheduler. Path scaffold for
-  // ~/.rose/memory/{diary,behavior-records,contact,conversations,agent-activity}
-  // was already created by ensureAgentHome() above.
-  initMemorySubsystem()
 
   // Email background sync — polls the inbox and emits `new-message` so other
   // built-ins (rose-channels) can react to arrivals. Idempotent; a no-op

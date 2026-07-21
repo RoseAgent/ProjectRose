@@ -51,9 +51,13 @@ export interface SettingsSnapshot {
       // The most recent provider+model pair picked in the chat composer.
       // There is no global "active provider" — each Conversation carries its
       // own pick; this is the fallback for background work.
-      lastModel: { provider: 'ollama' | 'projectrose' | 'kimi'; modelName: string } | null
+      lastModel: {
+        provider: 'ollama' | 'projectrose' | 'kimi' | 'bedrock'
+        modelName: string
+      } | null
       ollamaBaseUrl: string
       kimiAuthMethod: 'oauth' | 'apikey'
+      bedrockRegion: string
     }
     search: {
       provider: 'brave' | 'tavily' | 'browserbase' | null
@@ -63,20 +67,20 @@ export interface SettingsSnapshot {
       credentialsBundled: boolean
       signedInEmail: string | null
     }
-    memory: {
-      diary: { enabled: boolean; time: string; lastRunAt: number | null }
-      contactsUpdater: { enabled: boolean; lastRunAt: number | null }
-      googleContactsSync: {
+    contacts: {
+      googleSync: {
         accountEmail: string | null
         lastPullAt: number | null
         lastPushAt: number | null
         syncKinds: Record<string, boolean>
       }
-      googleCalendarSync: {
+    }
+    calendar: {
+      googleSync: {
         lastPullAt: number | null
         lastPushAt: number | null
         syncCalendars: Record<string, boolean>
-      } | null
+      }
     }
     email: {
       transport: 'imap' | 'google' | null
@@ -95,6 +99,7 @@ export interface SettingsSnapshot {
     projectRose: ProjectRoseConnection
     ollama: OllamaConnection
     kimi: ConnectionResult
+    bedrock: ConnectionResult
     googleAuth: GoogleAuthConnection
     googleCalendar: ConnectionResult
     imap: ConnectionResult

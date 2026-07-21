@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const sessionState: { token: string | null } = { token: null }
 const kimiState: { tokens: object | null; apiKey: boolean } = { tokens: null, apiKey: false }
+const bedrockState: { credentials: boolean } = { credentials: false }
 
 vi.mock('../../lib/session', () => ({
   loadSession: vi.fn(async () => (sessionState.token ? { token: sessionState.token } : null))
@@ -9,6 +10,9 @@ vi.mock('../../lib/session', () => ({
 vi.mock('../../lib/kimiSession', () => ({
   loadKimiTokens: vi.fn(async () => kimiState.tokens),
   hasKimiApiKey: vi.fn(async () => kimiState.apiKey)
+}))
+vi.mock('../../lib/bedrockCredentials', () => ({
+  hasBedrockCredentials: vi.fn(async () => bedrockState.credentials)
 }))
 
 import { validateModelCredentials, pickActiveModel } from '../modelSelection'
@@ -23,6 +27,7 @@ beforeEach(() => {
   sessionState.token = null
   kimiState.tokens = null
   kimiState.apiKey = false
+  bedrockState.credentials = false
 })
 
 describe('validateModelCredentials', () => {
@@ -63,6 +68,13 @@ describe('validateModelCredentials', () => {
         settings({ kimiAuthMethod: 'apikey' })
       )
     ).resolves.toBeUndefined()
+  })
+
+  it('bedrock requires a stored AWS key pair', async () => {
+    const model = { provider: 'bedrock' as const, modelName: 'anthropic.claude-sonnet-4-5-20250929-v1:0' }
+    await expect(validateModelCredentials(model, settings())).rejects.toThrow(/AWS credentials/)
+    bedrockState.credentials = true
+    await expect(validateModelCredentials(model, settings())).resolves.toBeUndefined()
   })
 
   it('ollama needs no credentials', async () => {

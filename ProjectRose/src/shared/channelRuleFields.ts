@@ -13,7 +13,7 @@
 //   - created: 2026-05-25T11:32:00
 //   - last-fired: 2026-05-25T14:08:14
 //   - tools:
-//     - memory_append
+//     - channels_reply_discord
 //     - email_draft
 //
 //   ## Prompt

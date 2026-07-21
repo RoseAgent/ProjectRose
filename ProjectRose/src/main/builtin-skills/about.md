@@ -21,7 +21,7 @@ When the user asks…
 | The user asks about… | Load this skill |
 |---|---|
 | What version they're on, or what's new | `rose:patch-notes` |
-| What you remember about them, the diary, contacts, or calendar | `rose:memory` |
+| Contacts they keep, or their calendar | `rose:contacts-calendar` |
 | Writing or designing an extension | `rose:extensions` |
 | What tools you have, or how to turn one on/off | `rose:tools` |
 | Where to change a setting | `rose:settings` |

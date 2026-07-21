@@ -1,5 +1,5 @@
 // Agent tool handlers for the rose-email built-in. Same signature as
-// memory/tools.ts — (input, ...) => Promise<string> — so they can be wrapped
+// contacts/tools.ts — (input, ...) => Promise<string> — so they can be wrapped
 // by `wrapExecute` and registered in `buildCoreTools` in llmClient.ts.
 //
 // Off-by-default destructive tools (send / reply / forward) are declared in

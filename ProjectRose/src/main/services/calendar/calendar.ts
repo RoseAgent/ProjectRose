@@ -1,5 +1,5 @@
-// Memory.Event service — one file per event under
-// `~/.rose/memory/calendar/{yyyy}/{mm}/{dd}/{slug}.md`. Recurring masters are
+// Event service — one file per event under
+// `~/.rose/calendar/{yyyy}/{mm}/{dd}/{slug}.md`. Recurring masters are
 // filed at the first-occurrence date and carry the RRULE in a bullet; the
 // runtime expands occurrences via the `rrule` library when callers ask for a
 // date range. Exception instances (Google's single-occurrence overrides) are
@@ -9,7 +9,7 @@ import { readFile, writeFile, mkdir, readdir, unlink } from 'fs/promises'
 import { dirname } from 'path'
 import { RRule, RRuleSet } from 'rrule'
 
-import { memoryCalendarDir } from '../../lib/agentHome'
+import { agentCalendarDir } from '../../lib/agentHome'
 import {
   buildEventMarkdown,
   parseEventContent,
@@ -24,7 +24,7 @@ import type {
   EventTime,
   ResolvedEventOccurrence,
   UpdateEventPatch
-} from '../../../shared/memory'
+} from '../../../shared/calendar'
 import {
   calendarDayDir,
   calendarEventPath,
@@ -138,7 +138,7 @@ export async function eventExists(ref: EventRef): Promise<boolean> {
 
 export async function listAllEvents(): Promise<CalendarEvent[]> {
   const out: CalendarEvent[] = []
-  const root = memoryCalendarDir()
+  const root = agentCalendarDir()
   const years = (await safeReaddir(root)).filter((y) => /^\d{4}$/.test(y))
   for (const year of years) {
     const months = (await safeReaddir(calendarYearDir(year))).filter((m) => /^\d{2}$/.test(m))

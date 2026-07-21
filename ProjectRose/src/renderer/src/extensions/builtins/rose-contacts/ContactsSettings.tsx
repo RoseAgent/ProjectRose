@@ -2,19 +2,17 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   CONTACT_KINDS,
   type ContactKind,
-  type ContactsUpdaterStatus,
+  type ContactsSettings as ContactsSettingsBlock,
   type GooglePullPlan,
   type GooglePushPlan,
-  type GoogleSyncStatus,
-  type MemorySettings
-} from '@shared/memory'
+  type GoogleSyncStatus
+} from '@shared/contacts'
 import { useViewStore } from '../../../stores/useViewStore'
 import { useAppsDrawerStore } from '../../../stores/useAppsDrawerStore'
 import styles from './ContactsPage.module.css'
 
 // Drawer-cog SettingsView for the rose-contacts built-in extension.
-// Contains the Google Contacts sync card and the LLM contacts-updater card,
-// lifted verbatim from the old Settings → Contacts tab so behaviour matches.
+// Contains the Google Contacts sync card.
 //
 // The page view (list + per-field detail) remounts on mode switch, so any
 // pull/push changes show up automatically when the user clicks back to the
@@ -25,7 +23,6 @@ export function ContactsSettings(): JSX.Element {
     <div className={styles.settingsScroll}>
       <div className={styles.cardRow}>
         <GoogleSyncCard />
-        <ContactsUpdaterCard />
       </div>
     </div>
   )
@@ -38,107 +35,6 @@ function kindBadgeClass(kind: ContactKind): string {
     case 'website':  return `${styles.kindBadge} ${styles.kindWebsite}`
     case 'other':    return `${styles.kindBadge} ${styles.kindOther}`
   }
-}
-
-// ── Contacts updater card ────────────────────────────────────────────────
-
-function ContactsUpdaterCard(): JSX.Element {
-  const [memory, setMemory] = useState<MemorySettings | null>(null)
-  const [status, setStatus] = useState<ContactsUpdaterStatus | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
-  const [sweepResult, setSweepResult] = useState<string | null>(null)
-
-  const refresh = useCallback(async () => {
-    const [cs, settings] = await Promise.all([
-      window.api.memory.getContactsUpdaterStatus(),
-      window.api.getSettings()
-    ])
-    setStatus(cs)
-    setMemory((settings.memory as MemorySettings | undefined) ?? null)
-  }, [])
-
-  useEffect(() => {
-    void refresh()
-    const id = setInterval(() => { void refresh() }, 30_000)
-    return () => clearInterval(id)
-  }, [refresh])
-
-  const enabled = memory?.contactsUpdaterEnabled ?? true
-
-  const setEnabled = async (next: boolean): Promise<void> => {
-    if (!memory) return
-    setBusy('Saving…')
-    try {
-      const updated: MemorySettings = { ...memory, contactsUpdaterEnabled: next }
-      await window.api.setSettings({ memory: updated })
-      setMemory(updated)
-      void refresh()
-    } finally { setBusy(null) }
-  }
-
-  const sweepNow = async (): Promise<void> => {
-    setBusy('Sweeping…')
-    setSweepResult(null)
-    try {
-      const out = await window.api.memory.runContactsUpdaterNow()
-      const noun = out.swept === 1 ? 'message' : 'messages'
-      const firstLine = out.result?.split('\n').map((l) => l.trim()).find((l) => l) ?? null
-      if (out.swept === 0) setSweepResult('No new messages since last sweep.')
-      else if (firstLine) setSweepResult(`Swept ${out.swept} ${noun} — ${firstLine}`)
-      else setSweepResult(`Swept ${out.swept} ${noun}.`)
-      void refresh()
-    } finally { setBusy(null) }
-  }
-
-  const fmtTime = (ms: number | null | undefined): string =>
-    !ms ? '—' : new Date(ms).toLocaleString()
-
-  return (
-    <div className={styles.card}>
-      <div className={styles.row}>
-        <span className={styles.cardTitle}>Contacts updater</span>
-        <span className={enabled ? styles.statusOk : styles.statusOff}>
-          {enabled ? 'enabled' : 'disabled'}
-        </span>
-      </div>
-      <div className={styles.cardSub}>
-        Every {status?.intervalMinutes ?? 30} minutes the agent sweeps recent
-        chat messages and updates the contact notes for anyone mentioned.
-      </div>
-
-      <div className={styles.row}>
-        <span className={styles.label}>Enabled</span>
-        <input
-          type="checkbox"
-          checked={enabled}
-          disabled={!memory}
-          onChange={(e) => void setEnabled(e.target.checked)}
-        />
-      </div>
-      <div className={styles.row}>
-        <span className={styles.label}>Last run</span>
-        <span className={styles.value}>{fmtTime(status?.lastRun)}</span>
-      </div>
-      <div className={styles.row}>
-        <span className={styles.label}>Next run</span>
-        <span className={styles.value}>{fmtTime(status?.nextRun)}</span>
-      </div>
-
-      <div className={styles.btnRow}>
-        <button
-          className={`${styles.btn} ${styles.btnPrimary}`}
-          onClick={sweepNow}
-          disabled={busy !== null}
-        >
-          Sweep now
-        </button>
-        {busy && <span className={styles.busy}>{busy}</span>}
-      </div>
-      {!busy && sweepResult && (
-        <div className={styles.sweepResult}>{sweepResult}</div>
-      )}
-    </div>
-  )
 }
 
 // ── Google Sync card ─────────────────────────────────────────────────────
@@ -156,18 +52,18 @@ function GoogleSyncCard(): JSX.Element {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
-  const [memory, setMemory] = useState<MemorySettings | null>(null)
+  const [contacts, setContacts] = useState<ContactsSettingsBlock | null>(null)
   const setActiveView = useViewStore((s) => s.setActiveView)
   const setSettingsTarget = useViewStore((s) => s.setSettingsTarget)
   const closeDrawer = useAppsDrawerStore((s) => s.close)
 
   const refresh = useCallback(async () => {
     const [s, settings] = await Promise.all([
-      window.api.memory.googleGetStatus(),
+      window.api.contacts.googleGetStatus(),
       window.api.getSettings()
     ])
     setStatus(s)
-    setMemory((settings.memory as MemorySettings | undefined) ?? null)
+    setContacts((settings.contacts as ContactsSettingsBlock | undefined) ?? null)
   }, [])
 
   useEffect(() => {
@@ -180,19 +76,19 @@ function GoogleSyncCard(): JSX.Element {
   }, [refresh])
 
   const patchGoogle = async (patch: { syncKinds?: Record<ContactKind, boolean> }): Promise<void> => {
-    if (!memory) return
-    const next: MemorySettings = {
-      ...memory,
-      googleSync: { ...memory.googleSync, ...patch }
+    if (!contacts) return
+    const next: ContactsSettingsBlock = {
+      ...contacts,
+      googleSync: { ...contacts.googleSync, ...patch }
     }
-    await window.api.setSettings({ memory: next })
-    setMemory(next)
+    await window.api.setSettings({ contacts: next })
+    setContacts(next)
     void refresh()
   }
 
   const toggleKind = (kind: ContactKind, on: boolean): void => {
-    if (!memory) return
-    const current = memory.googleSync.syncKinds
+    if (!contacts) return
+    const current = contacts.googleSync.syncKinds
     void patchGoogle({ syncKinds: { ...current, [kind]: on } })
   }
 
@@ -206,7 +102,7 @@ function GoogleSyncCard(): JSX.Element {
     setBusy('Previewing pull from Google…')
     setError(null)
     try {
-      const pullPlan = await window.api.memory.googlePreviewPull()
+      const pullPlan = await window.api.contacts.googlePreviewPull()
       setConfirm({ direction: 'pull', pullPlan })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Preview failed')
@@ -217,7 +113,7 @@ function GoogleSyncCard(): JSX.Element {
     setBusy('Previewing push to Google…')
     setError(null)
     try {
-      const pushPlan = await window.api.memory.googlePreviewPush()
+      const pushPlan = await window.api.contacts.googlePreviewPush()
       setConfirm({ direction: 'push', pushPlan })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Preview failed')
@@ -229,10 +125,10 @@ function GoogleSyncCard(): JSX.Element {
     setBusy(confirm.direction === 'pull' ? 'Pulling…' : 'Pushing…')
     try {
       if (confirm.direction === 'pull' && confirm.pullPlan) {
-        const result = await window.api.memory.googleApplyPull(confirm.pullPlan)
+        const result = await window.api.contacts.googleApplyPull(confirm.pullPlan)
         if (!result.ok) setError(result.message)
       } else if (confirm.direction === 'push' && confirm.pushPlan) {
-        const result = await window.api.memory.googleApplyPush(confirm.pushPlan)
+        const result = await window.api.contacts.googleApplyPush(confirm.pushPlan)
         if (!result.ok) setError(result.message)
       }
       setConfirm(null)
@@ -245,7 +141,7 @@ function GoogleSyncCard(): JSX.Element {
 
   const signedIn = status?.signedIn ?? false
   const credsConfigured = status?.credentialsConfigured ?? false
-  const syncKinds = memory?.googleSync?.syncKinds ?? { person: true, business: true, website: false, other: false }
+  const syncKinds = contacts?.googleSync?.syncKinds ?? { person: true, business: true, website: false, other: false }
 
   return (
     <div className={styles.card}>
@@ -264,9 +160,9 @@ function GoogleSyncCard(): JSX.Element {
         </span>
       </div>
       <div className={styles.cardSub}>
-        Pull contacts from Google into your Memory, or push Memory entities to
-        Google. Each direction is a separate, confirmed action — nothing syncs
-        in the background.
+        Pull contacts from Google into your local contacts, or push local
+        contacts to Google. Each direction is a separate, confirmed action —
+        nothing syncs in the background.
       </div>
 
       {signedIn && status?.accountEmail && (
@@ -292,7 +188,7 @@ function GoogleSyncCard(): JSX.Element {
               <input
                 type="checkbox"
                 checked={!!syncKinds[k]}
-                disabled={!memory}
+                disabled={!contacts}
                 onChange={(e) => toggleKind(k, e.target.checked)}
               />
               <span className={kindBadgeClass(k)}>{k}</span>
@@ -383,7 +279,7 @@ function ConfirmModal({
           <div className={styles.modalBody}>
             <div className={styles.modalSection}>
               Google returned <strong>{fetched}</strong> contact{fetched === 1 ? '' : 's'}.
-              {' '}{hasChanges ? 'The following changes will be applied to your local Memory:' : 'Nothing to apply — every contact is already in sync.'}
+              {' '}{hasChanges ? 'The following changes will be applied to your local contacts:' : 'Nothing to apply — every contact is already in sync.'}
             </div>
             {create.length > 0 && (
               <div className={styles.modalSection}>
@@ -458,10 +354,10 @@ function ConfirmModal({
           </div>
           <div className={styles.modalBody}>
             <div className={styles.modalSection}>
-              You have <strong>{localCount}</strong> Memory contact{localCount === 1 ? '' : 's'}.
+              You have <strong>{localCount}</strong> local contact{localCount === 1 ? '' : 's'}.
               {' '}{hasChanges
                 ? 'The following will be applied to your Google Contacts (additive — Google\'s existing fields are never removed):'
-                : 'Nothing to push — every eligible Memory contact is already in sync with Google.'}
+                : 'Nothing to push — every eligible local contact is already in sync with Google.'}
             </div>
             {create.length > 0 && (
               <div className={styles.modalSection}>

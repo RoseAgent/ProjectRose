@@ -19,20 +19,13 @@ import {
 import { getConversationToolState } from './conversationToolState'
 import type { TodoItem } from '../../shared/todos'
 import {
-  handleMemoryReadDiary,
-  handleMemoryListDiary,
-  handleMemoryWriteDiary,
-  handleMemoryAddBehaviorRecord,
-  handleMemoryListBehaviorRecords,
-  handleMemoryReadBehaviorRecord,
-  handleMemoryRemoveBehaviorRecord,
-  handleMemoryNewContact,
-  handleMemoryReadContact,
-  handleMemorySearchContacts,
-  handleMemoryAddContactNote,
-  handleMemoryRemoveContactNote,
-  handleMemorySetContactKind
-} from './memory/tools'
+  handleContactsNew,
+  handleContactsRead,
+  handleContactsSearch,
+  handleContactsAddNote,
+  handleContactsRemoveNote,
+  handleContactsSetKind
+} from './contacts/tools'
 import {
   handleCalendarCreateEvent,
   handleCalendarEditEvent,
@@ -40,7 +33,7 @@ import {
   handleCalendarListEvents,
   handleCalendarInviteToEvent,
   handleCalendarDeleteEvent
-} from './memory/calendarTools'
+} from './calendar/calendarTools'
 import {
   handleEmailListMessages,
   handleEmailSearch,
@@ -284,110 +277,58 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       }),
       execute: wrapExecute('search_web', handleSearchWeb, projectRoot, emit, toolCtx, hookCtx)
     }),
-    // ── Memory subsystem (~/.rose/memory/) ────────────────────────────────
-    // Diary, behaviour records, and contacts are agent-global — they live in
-    // ~/.rose/ alongside ROSE.md so the Agent carries them across every
-    // Workspace it operates in.
-    memory_read_diary: tool({
-      description: 'Read your diary entry for a given date. Use this to recall what happened on a previous day.',
-      inputSchema: z.object({
-        date: z.string().describe('Date key in yyyy-mm-dd format')
-      }),
-      execute: wrapExecute('memory_read_diary', handleMemoryReadDiary, projectRoot, emit, toolCtx, hookCtx)
-    }),
-    memory_list_diary: tool({
-      description: 'List the dates of your existing diary entries. Optional from/to bounds (yyyy-mm-dd, inclusive).',
-      inputSchema: z.object({
-        from: z.string().optional().describe('Inclusive lower bound, yyyy-mm-dd'),
-        to: z.string().optional().describe('Inclusive upper bound, yyyy-mm-dd')
-      }),
-      execute: wrapExecute('memory_list_diary', handleMemoryListDiary, projectRoot, emit, toolCtx, hookCtx)
-    }),
-    memory_write_diary: tool({
-      description: 'Write or overwrite your diary entry for a given date. Normally called only by the daily scheduler — use sparingly outside of that flow.',
-      inputSchema: z.object({
-        date: z.string().optional().describe('Date key in yyyy-mm-dd format (defaults to today)'),
-        content: z.string().describe('Full markdown body of the diary entry')
-      }),
-      execute: wrapExecute('memory_write_diary', handleMemoryWriteDiary, projectRoot, emit, toolCtx, hookCtx)
-    }),
-    memory_add_behavior_record: tool({
-      description: 'Record a standing behaviour directive the user has given you ("from now on, always X"; "don\'t Y"; "prefer Z"). Use when the user expresses a durable preference about how you should act. The decision + details are written to a dated markdown file the user can review later.',
-      inputSchema: z.object({
-        slug: z.string().describe('Short kebab-case identifier for the behaviour, e.g. "ask-before-pushing-main"'),
-        decision: z.string().describe('One-line summary of the behaviour the user wants'),
-        details: z.string().describe('Longer explanation: why the user wants this, when it applies, what the impact on your behaviour should be')
-      }),
-      execute: wrapExecute('memory_add_behavior_record', handleMemoryAddBehaviorRecord, projectRoot, emit, toolCtx, hookCtx)
-    }),
-    memory_list_behavior_records: tool({
-      description: 'List every behaviour record the user has given you. Use at the start of work in an unfamiliar context to refresh your standing directives.',
-      inputSchema: z.object({}),
-      execute: wrapExecute('memory_list_behavior_records', handleMemoryListBehaviorRecords, projectRoot, emit, toolCtx, hookCtx)
-    }),
-    memory_read_behavior_record: tool({
-      description: 'Read the full text of a behaviour record by filename.',
-      inputSchema: z.object({
-        filename: z.string().describe('Filename returned by memory_list_behavior_records, e.g. 2026-05-21-ask-before-pushing-main.md')
-      }),
-      execute: wrapExecute('memory_read_behavior_record', handleMemoryReadBehaviorRecord, projectRoot, emit, toolCtx, hookCtx)
-    }),
-    memory_remove_behavior_record: tool({
-      description: 'Delete a behaviour record. Use only when the user explicitly retracts a directive.',
-      inputSchema: z.object({
-        filename: z.string().describe('Filename of the record to remove')
-      }),
-      execute: wrapExecute('memory_remove_behavior_record', handleMemoryRemoveBehaviorRecord, projectRoot, emit, toolCtx, hookCtx)
-    }),
-    memory_new_contact: tool({
-      description: 'Create an empty contact entry for a person, business, website, or other entity. Notes are added separately via memory_add_contact_note. The `kind` classification is what gates Google Contacts sync — set it accurately if you can.',
+    // ── Contacts (~/.rose/contact/) ───────────────────────────────────────
+    // Contacts are agent-global — they live in ~/.rose/ alongside ROSE.md so
+    // the Agent carries them across every Workspace it operates in.
+    contacts_new: tool({
+      description: 'Create an empty contact entry for a person, business, website, or other entity. Notes are added separately via contacts_add_note. The `kind` classification is what gates Google Contacts sync — set it accurately if you can.',
       inputSchema: z.object({
         entity: z.string().describe('Name of the person/business/website/other'),
         kind: z.enum(['person', 'business', 'website', 'other']).optional().describe('Classification — defaults to "other" if omitted. Set this when you know.')
       }),
-      execute: wrapExecute('memory_new_contact', handleMemoryNewContact, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('contacts_new', handleContactsNew, projectRoot, emit, toolCtx, hookCtx)
     }),
-    memory_set_contact_kind: tool({
+    contacts_set_kind: tool({
       description: 'Update the kind classification of an existing contact (person / business / website / other). Use this when you learn a contact you previously created is actually a different kind than you initially assumed.',
       inputSchema: z.object({
         entity: z.string().describe('Name of the contact'),
         kind: z.enum(['person', 'business', 'website', 'other']).describe('New classification')
       }),
-      execute: wrapExecute('memory_set_contact_kind', handleMemorySetContactKind, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('contacts_set_kind', handleContactsSetKind, projectRoot, emit, toolCtx, hookCtx)
     }),
-    memory_read_contact: tool({
+    contacts_read: tool({
       description: 'Read every note you have about a person/place/thing by name.',
       inputSchema: z.object({
         entity: z.string().describe('Name of the contact to read')
       }),
-      execute: wrapExecute('memory_read_contact', handleMemoryReadContact, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('contacts_read', handleContactsRead, projectRoot, emit, toolCtx, hookCtx)
     }),
-    memory_search_contacts: tool({
+    contacts_search: tool({
       description: 'Search your contacts using one or more query strings (case-insensitive substring). Each query is checked against every contact\'s name and notes; a contact becomes a hit if at least one query matches anywhere. Returns JSON: { queries: string[], hits: [{ entity, kind, matchedQueryCount, totalMatches, nameMatches: string[], noteMatches: [{ note, queries }], contact: <markdown if a query matched the name, else null> }] }. Hits are ranked highest first — more distinct queries matched is the primary signal, then total match count, then alphabetical. Pass multiple queries to look up several candidates at once (e.g. variant spellings, related people, related topics).',
       inputSchema: z.object({
         queries: z.array(z.string()).min(1).describe('One or more terms to search for in contact names and notes. Each is matched independently; results combine and rank by match count.')
       }),
-      execute: wrapExecute('memory_search_contacts', handleMemorySearchContacts, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('contacts_search', handleContactsSearch, projectRoot, emit, toolCtx, hookCtx)
     }),
-    memory_add_contact_note: tool({
+    contacts_add_note: tool({
       description: 'Append a note to a contact. Creates the contact if it does not yet exist. Notes are bullets in the contact\'s markdown file.',
       inputSchema: z.object({
         entity: z.string().describe('Name of the contact'),
         note: z.string().describe('The note to add (one line, no leading bullet)')
       }),
-      execute: wrapExecute('memory_add_contact_note', handleMemoryAddContactNote, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('contacts_add_note', handleContactsAddNote, projectRoot, emit, toolCtx, hookCtx)
     }),
-    memory_remove_contact_note: tool({
+    contacts_remove_note: tool({
       description: 'Remove a note from a contact. Matches notes case-insensitively against the supplied text.',
       inputSchema: z.object({
         entity: z.string().describe('Name of the contact'),
         note: z.string().describe('The note text to remove')
       }),
-      execute: wrapExecute('memory_remove_contact_note', handleMemoryRemoveContactNote, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('contacts_remove_note', handleContactsRemoveNote, projectRoot, emit, toolCtx, hookCtx)
     }),
-    // ─── rose-calendar (Memory.Event) ──────────────────────────────────
-    memory_create_event: tool({
-      description: 'Create a calendar event in agent memory. Events store as markdown under ~/.rose/memory/calendar/{yyyy}/{mm}/{dd}/. Times are ISO 8601 — `2026-05-22T14:00` for timed events (pair with `timeZone`), `2026-05-22` for all-day (set `allDay: true`). For recurring events pass `recurrence` as an array of RRULE/RDATE/EXDATE strings (e.g. ["RRULE:FREQ=WEEKLY;BYDAY=TU"]).',
+    // ─── Events (~/.rose/calendar/, rose-calendar) ─────────────────────
+    events_create: tool({
+      description: 'Create a calendar event. Events store as markdown under ~/.rose/calendar/{yyyy}/{mm}/{dd}/. Times are ISO 8601 — `2026-05-22T14:00` for timed events (pair with `timeZone`), `2026-05-22` for all-day (set `allDay: true`). For recurring events pass `recurrence` as an array of RRULE/RDATE/EXDATE strings (e.g. ["RRULE:FREQ=WEEKLY;BYDAY=TU"]).',
       inputSchema: z.object({
         summary: z.string().describe('Event title'),
         start: z.string().describe('ISO 8601 start time (or date for all-day)'),
@@ -400,10 +341,10 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
         recurrence: z.array(z.string()).optional().describe('Array of RRULE/RDATE/EXDATE strings, e.g. ["RRULE:FREQ=WEEKLY;BYDAY=TU"]'),
         calendarId: z.string().optional().describe('Target Google calendar id (defaults to "primary" on push)')
       }),
-      execute: wrapExecute('memory_create_event', handleCalendarCreateEvent, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('events_create', handleCalendarCreateEvent, projectRoot, emit, toolCtx, hookCtx)
     }),
-    memory_edit_event: tool({
-      description: 'Edit an existing event. Identify it either by `date` + `slug` (the local ref returned by memory_list_events) or by `google_id`. Pass only the fields you want to change.',
+    events_edit: tool({
+      description: 'Edit an existing event. Identify it either by `date` + `slug` (the local ref returned by events_list) or by `google_id`. Pass only the fields you want to change.',
       inputSchema: z.object({
         date: z.string().optional().describe('yyyy-mm-dd of the event\'s storage directory'),
         slug: z.string().optional().describe('Filename slug without .md'),
@@ -419,18 +360,18 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
         attendees: z.array(z.union([z.string(), z.object({ email: z.string(), displayName: z.string().optional(), responseStatus: z.string().optional() })])).optional(),
         recurrence: z.array(z.string()).optional()
       }),
-      execute: wrapExecute('memory_edit_event', handleCalendarEditEvent, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('events_edit', handleCalendarEditEvent, projectRoot, emit, toolCtx, hookCtx)
     }),
-    memory_get_event: tool({
+    events_get: tool({
       description: 'Fetch the full record of an event (summary, times, description, attendees, recurrence, google ids). Identify by date+slug or google_id.',
       inputSchema: z.object({
         date: z.string().optional(),
         slug: z.string().optional(),
         google_id: z.string().optional()
       }),
-      execute: wrapExecute('memory_get_event', handleCalendarGetEvent, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('events_get', handleCalendarGetEvent, projectRoot, emit, toolCtx, hookCtx)
     }),
-    memory_list_events: tool({
+    events_list: tool({
       description: 'List events whose occurrences fall inside a date-time range. Recurring events are expanded via RRULE — you see one row per occurrence. Both bounds are ISO 8601; the upper bound is exclusive.',
       inputSchema: z.object({
         start: z.string().describe('Inclusive lower bound, ISO 8601'),
@@ -438,9 +379,9 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
         calendarIds: z.array(z.string()).optional().describe('Restrict to specific Google calendarIds. Local-only events are always included.'),
         limit: z.number().optional().describe('Max occurrences to return (default 100)')
       }),
-      execute: wrapExecute('memory_list_events', handleCalendarListEvents, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('events_list', handleCalendarListEvents, projectRoot, emit, toolCtx, hookCtx)
     }),
-    memory_invite_to_event: tool({
+    events_invite: tool({
       description: 'Add attendees to a synced event and trigger Google\'s native invitation email (Google sends the standard calendar invite to each new attendee). The event must already be synced — push it first if it has no google-id.',
       inputSchema: z.object({
         date: z.string().optional(),
@@ -448,16 +389,16 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
         google_id: z.string().optional(),
         attendees: z.array(z.union([z.string(), z.object({ email: z.string(), displayName: z.string().optional() })])).describe('Attendees to invite — email strings or {email, displayName?} objects')
       }),
-      execute: wrapExecute('memory_invite_to_event', handleCalendarInviteToEvent, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('events_invite', handleCalendarInviteToEvent, projectRoot, emit, toolCtx, hookCtx)
     }),
-    memory_delete_event: tool({
+    events_delete: tool({
       description: 'Delete an event. If the event is synced to Google, the remote copy is removed first (and attendees are notified). Local-only events are removed from disk.',
       inputSchema: z.object({
         date: z.string().optional(),
         slug: z.string().optional(),
         google_id: z.string().optional()
       }),
-      execute: wrapExecute('memory_delete_event', handleCalendarDeleteEvent, projectRoot, emit, toolCtx, hookCtx)
+      execute: wrapExecute('events_delete', handleCalendarDeleteEvent, projectRoot, emit, toolCtx, hookCtx)
     }),
     // ─── rose-email: read group ───────────────────────────────────────
     email_list_messages: tool({

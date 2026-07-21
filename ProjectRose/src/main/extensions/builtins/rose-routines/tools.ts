@@ -124,7 +124,7 @@ export function buildRoutinesTools(): ExtensionToolEntry[] {
           tools: {
             type: 'string',
             description:
-              'Comma-separated tool names the routine may use (e.g. "email_list_messages,memory_list_events"). Empty = text-only run.'
+              'Comma-separated tool names the routine may use (e.g. "email_list_messages,events_list"). Empty = text-only run.'
           },
           enabled: {
             type: 'string',
