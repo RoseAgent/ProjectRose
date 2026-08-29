@@ -13,10 +13,7 @@
 
 import { readSettings } from './settingsService'
 import { readProjectSettings } from './projectSettingsService'
-import { getAuthStatus, fetchUsage } from './authService'
-import { getKimiAccessToken, loadKimiTokens, hasKimiApiKey } from '../lib/kimiSession'
-import { hasBedrockCredentials } from '../lib/bedrockCredentials'
-import { listBedrockModels } from './bedrockAuthService'
+import { loadOpenAICompatibleApiKey } from '../lib/openaiCompatibleCredentials'
 import { buildAuthedClient, googleAuthGetStatus } from './google/googleAuth'
 import { googleCalendarGetStatus } from './calendar/googleCalendar'
 import { hasImapPasswords } from './email/imapCredentialsStore'
@@ -26,7 +23,6 @@ import type {
   ConnectionResult,
   GoogleAuthConnection,
   OllamaConnection,
-  ProjectRoseConnection,
   SettingsSnapshot
 } from '../../shared/settingsSnapshot'
 
@@ -50,20 +46,6 @@ async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   }
 }
 
-async function checkProjectRose(): Promise<ProjectRoseConnection> {
-  const auth = await getAuthStatus().catch(() => null)
-  if (!auth?.loggedIn) return { status: 'not-configured' }
-  try {
-    const usage = await withTimeout(fetchUsage(), CONNECTION_TIMEOUT_MS)
-    if (usage.ok) {
-      return { status: 'ok', loggedInEmail: auth.email, detail: `plan: ${usage.usage.plan}` }
-    }
-    return { status: `failed: ${usage.error}`, loggedInEmail: auth.email }
-  } catch (err) {
-    return { status: `failed: ${shortError(err)}`, loggedInEmail: auth.email }
-  }
-}
-
 async function checkOllama(baseUrl: string): Promise<OllamaConnection> {
   const trimmed = baseUrl.trim()
   if (!trimmed) return { status: 'not-configured', detail: 'ollamaBaseUrl is empty' }
@@ -83,38 +65,28 @@ async function checkOllama(baseUrl: string): Promise<OllamaConnection> {
   }
 }
 
-async function checkKimi(authMethod: 'oauth' | 'apikey'): Promise<ConnectionResult> {
-  if (authMethod === 'apikey') {
-    const stored = await hasKimiApiKey().catch(() => false)
-    return stored
-      ? { status: 'ok', detail: 'Moonshot API key stored' }
-      : { status: 'not-configured', detail: 'no Moonshot API key stored' }
-  }
-  const tokens = await loadKimiTokens().catch(() => null)
-  if (!tokens) return { status: 'not-configured', detail: 'not signed in' }
+async function checkOpenAICompatible(
+  baseUrl: string,
+  modelName: string
+): Promise<ConnectionResult> {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '')
+  if (!trimmed) return { status: 'not-configured', detail: 'base URL is empty' }
+  if (!modelName.trim()) return { status: 'not-configured', detail: 'model name is empty' }
+  const apiKey = await loadOpenAICompatibleApiKey().catch(() => null)
   try {
-    const token = await withTimeout(getKimiAccessToken(), CONNECTION_TIMEOUT_MS)
-    if (!token) return { status: 'failed: token refresh failed — sign in again' }
-    return { status: 'ok', detail: 'signed in, token valid' }
+    const response = await withTimeout(
+      fetch(`${trimmed}/models`, {
+        headers: apiKey ? { authorization: `Bearer ${apiKey}` } : undefined
+      }),
+      CONNECTION_TIMEOUT_MS
+    )
+    return response.ok
+      ? { status: 'ok' }
+      : { status: `failed: HTTP ${response.status}` }
   } catch (err) {
     return { status: `failed: ${shortError(err)}` }
   }
 }
-
-async function checkBedrock(region: string): Promise<ConnectionResult> {
-  if (!(await hasBedrockCredentials().catch(() => false))) {
-    return { status: 'not-configured', detail: 'no AWS credentials stored' }
-  }
-  try {
-    // Listing models is the cheapest call that actually exercises the SigV4
-    // signature and the region — a stored key pair alone proves nothing.
-    const models = await withTimeout(listBedrockModels(), CONNECTION_TIMEOUT_MS)
-    return { status: 'ok', detail: `${region}, ${models.length} model(s) listable` }
-  } catch (err) {
-    return { status: `failed: ${shortError(err)}` }
-  }
-}
-
 async function checkGoogleAuth(): Promise<GoogleAuthConnection> {
   const status = await googleAuthGetStatus().catch(() => null)
   if (!status?.credentialsConfigured) return { status: 'not-configured' }
@@ -206,8 +178,8 @@ export async function buildSettingsSnapshot(rootPath: string): Promise<SettingsS
     provider: {
       lastModel: settings.lastModel ?? null,
       ollamaBaseUrl: settings.ollamaBaseUrl,
-      kimiAuthMethod: settings.kimiAuthMethod ?? 'oauth',
-      bedrockRegion: settings.bedrockRegion
+      openaiCompatibleBaseUrl: settings.openaiCompatibleBaseUrl,
+      openaiCompatibleModel: settings.openaiCompatibleModel
     },
     google: googleConfig,
     search: {
@@ -260,11 +232,12 @@ export async function buildSettingsSnapshot(rootPath: string): Promise<SettingsS
   // Each individual check already swallows its own errors and returns a
   // ConnectionResult, but allSettled is the belt to the suspenders in case a
   // checker throws unexpectedly.
-  const [projectRose, ollama, kimi, bedrock, googleAuth, googleCalendar, imap, smtp, search] = await Promise.all([
-    checkProjectRose().catch((err) => ({ status: `failed: ${shortError(err)}` } as ProjectRoseConnection)),
+  const [ollama, openaiCompatible, googleAuth, googleCalendar, imap, smtp, search] = await Promise.all([
     checkOllama(settings.ollamaBaseUrl).catch((err) => ({ status: `failed: ${shortError(err)}` } as OllamaConnection)),
-    checkKimi(settings.kimiAuthMethod ?? 'oauth').catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
-    checkBedrock(settings.bedrockRegion).catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
+    checkOpenAICompatible(
+      settings.openaiCompatibleBaseUrl,
+      settings.openaiCompatibleModel
+    ).catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
     checkGoogleAuth().catch((err) => ({ status: `failed: ${shortError(err)}` } as GoogleAuthConnection)),
     checkGoogleCalendar().catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
     checkImap(settings.email.transport).catch((err) => ({ status: `failed: ${shortError(err)}` } as ConnectionResult)),
@@ -274,6 +247,6 @@ export async function buildSettingsSnapshot(rootPath: string): Promise<SettingsS
 
   return {
     configuration,
-    connections: { projectRose, ollama, kimi, bedrock, googleAuth, googleCalendar, imap, smtp, search }
+    connections: { ollama, openaiCompatible, googleAuth, googleCalendar, imap, smtp, search }
   }
 }

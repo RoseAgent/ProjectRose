@@ -25,7 +25,7 @@ export function agentExtensionsDir(): string {
 }
 
 // Conversations live agent-global (not inside each Workspace) so the whole
-// history can be listed and grouped in one scan. Layout mirrors Claude Code:
+// history can be listed and grouped in one scan:
 // <conversations>/<encoded-workspace>/<sessionId>/main.json.
 export function conversationsDir(): string {
   return join(agentHomePath(), 'conversations')

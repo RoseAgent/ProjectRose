@@ -79,8 +79,8 @@ export async function streamChat(params: {
   // Only the user-visible main chat passes this; subagents and one-shot
   // background runs leave it undefined to keep hooks scoped to the main chat.
   turnId?: string
-  // Host chat session id forwarded to extension tool execute() as toolCtx.sessionId.
-  // Required so extensions can scope state (e.g. CLI session resume) per chat.
+  // Host chat session id forwarded to extension tool execute() as
+  // toolCtx.sessionId so extensions can scope state per conversation.
   sessionId: string
   collectInjections?: (rec: InjectionRecord) => void
   // Escape hatch for the auto-injection loop: when set, skip the Message[] →

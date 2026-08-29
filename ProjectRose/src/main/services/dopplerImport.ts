@@ -2,7 +2,7 @@
 //
 // One-shot flow: the user pastes a Doppler token in Settings, we download the
 // config's secrets, detect names we know how to use (search providers, the
-// Moonshot/Kimi API key, the Google OAuth pair), and write the selected ones
+// OpenAI-compatible API key, the Google OAuth pair), and write the selected ones
 // into the same safeStorage-backed stores the manual Settings fields use.
 //
 // The Doppler token is transient — it crosses IPC for the preview and apply
@@ -11,14 +11,8 @@
 // re-downloads from Doppler in the main process.
 
 import { saveSearchCredentials } from './search/searchCredentialsStore'
-import { saveKimiApiKey } from '../lib/kimiSession'
-// Deliberately the service, not lib/bedrockCredentials directly: saving
-// through it broadcasts BEDROCK_AUTH_CHANGED, which is what makes the
-// Settings card and the composer's model picker pick the import up without a
-// restart. Writing to the raw store leaves both stale.
-import { bedrockSaveCredentials } from './bedrockAuthService'
+import { saveOpenAICompatibleApiKey } from '../lib/openaiCompatibleCredentials'
 import { saveGoogleOAuthCredentials } from './google/googleOAuthCredentialsStore'
-import { applySettingsPatch } from './settingsService'
 import { loadDopplerToken } from '../lib/dopplerSession'
 
 const DOPPLER_DOWNLOAD_URL = 'https://api.doppler.com/v3/configs/config/secrets/download'
@@ -41,9 +35,8 @@ export type ImportTarget =
   | 'search-brave'
   | 'search-tavily'
   | 'search-browserbase'
-  | 'kimi-apikey'
+  | 'openai-api-key'
   | 'google-oauth'
-  | 'bedrock-aws'
 
 const SEARCH_TARGETS: ImportTarget[] = ['search-brave', 'search-tavily', 'search-browserbase']
 
@@ -68,13 +61,9 @@ export interface DopplerApplyResult {
 const BRAVE_NAMES = ['BRAVE_API_KEY', 'BRAVE_SEARCH_API_KEY', 'BRAVE_SEARCH_KEY']
 const TAVILY_NAMES = ['TAVILY_API_KEY', 'TAVILY_KEY']
 const BROWSERBASE_NAMES = ['BROWSERBASE_API_KEY', 'BROWSER_BASE_API_KEY', 'BROWSERBASE_KEY']
-const KIMI_NAMES = ['MOONSHOT_API_KEY', 'KIMI_API_KEY', 'MOONSHOT_KEY']
+const OPENAI_NAMES = ['OPENAI_API_KEY', 'OPENAI_COMPATIBLE_API_KEY']
 const GOOGLE_ID_NAMES = ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_CLIENT_ID']
 const GOOGLE_SECRET_NAMES = ['GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_CLIENT_SECRET']
-const AWS_ACCESS_KEY_NAMES = ['AWS_ACCESS_KEY_ID', 'AWS_ACCESS_KEY']
-const AWS_SECRET_KEY_NAMES = ['AWS_SECRET_ACCESS_KEY', 'AWS_SECRET_KEY']
-const AWS_SESSION_TOKEN_NAMES = ['AWS_SESSION_TOKEN']
-const AWS_REGION_NAMES = ['AWS_REGION', 'AWS_DEFAULT_REGION', 'BEDROCK_REGION']
 
 function mask(value: string): string {
   if (value.length <= 8) return '••••'
@@ -146,21 +135,13 @@ function detectCandidates(secrets: Record<string, string>): ImportCandidate[] {
   if (browserbase) {
     candidates.push({ target: 'search-browserbase', label: 'Web search — Browserbase API key', secretName: browserbase.name, maskedValue: mask(browserbase.value) })
   }
-  const kimi = findByNames(secrets, KIMI_NAMES)
-  if (kimi) {
-    candidates.push({ target: 'kimi-apikey', label: 'Kimi — Moonshot platform API key', secretName: kimi.name, maskedValue: mask(kimi.value) })
-  }
-  // Like the Google pair below, the AWS key pair is all-or-nothing — an
-  // access key ID without its secret can't sign anything. The session token
-  // and region are optional extras picked up alongside it.
-  const awsAccessKey = findByNames(secrets, AWS_ACCESS_KEY_NAMES)
-  const awsSecretKey = findByNames(secrets, AWS_SECRET_KEY_NAMES)
-  if (awsAccessKey && awsSecretKey) {
+  const openai = findByNames(secrets, OPENAI_NAMES)
+  if (openai) {
     candidates.push({
-      target: 'bedrock-aws',
-      label: 'Amazon Bedrock — AWS access key pair',
-      secretName: `${awsAccessKey.name} + ${awsSecretKey.name}`,
-      maskedValue: mask(awsSecretKey.value)
+      target: 'openai-api-key',
+      label: 'OpenAI-compatible endpoint — API key',
+      secretName: openai.name,
+      maskedValue: mask(openai.value)
     })
   }
   // The Google pair is all-or-nothing: importing half a credential would
@@ -217,40 +198,11 @@ export async function dopplerApply(access: DopplerAccess, targets: ImportTarget[
         applied.push({ target, detail: `search_web now uses Browserbase (${found.name})` })
         break
       }
-      case 'kimi-apikey': {
-        const found = findByNames(secrets, KIMI_NAMES)
-        if (!found) throw new Error('Moonshot key no longer present in the Doppler config.')
-        await saveKimiApiKey(found.value)
-        // A stored key only takes effect in API-key mode — flip the method so
-        // the import is immediately usable.
-        await applySettingsPatch({ kimiAuthMethod: 'apikey' })
-        applied.push({ target, detail: `Kimi API key saved, auth method set to API key (${found.name})` })
-        break
-      }
-      case 'bedrock-aws': {
-        const accessKey = findByNames(secrets, AWS_ACCESS_KEY_NAMES)
-        const secretKey = findByNames(secrets, AWS_SECRET_KEY_NAMES)
-        if (!accessKey || !secretKey) {
-          throw new Error('AWS key pair no longer complete in the Doppler config.')
-        }
-        const sessionToken = findByNames(secrets, AWS_SESSION_TOKEN_NAMES)
-        // Region rides along when the config carries one — without it Bedrock
-        // would silently stay on whatever region was configured before, and
-        // the model list is region-scoped. It has to be patched BEFORE the
-        // credential save: saving broadcasts a status that carries the region
-        // and triggers the renderer's model refresh, so patching afterwards
-        // would list models against the previous region.
-        const region = findByNames(secrets, AWS_REGION_NAMES)
-        if (region) await applySettingsPatch({ bedrockRegion: region.value })
-        await bedrockSaveCredentials({
-          accessKeyId: accessKey.value,
-          secretAccessKey: secretKey.value,
-          sessionToken: sessionToken?.value
-        })
-        applied.push({
-          target,
-          detail: `AWS credentials saved (${accessKey.name})${region ? `, region set to ${region.value}` : ''}`
-        })
+      case 'openai-api-key': {
+        const found = findByNames(secrets, OPENAI_NAMES)
+        if (!found) throw new Error('OpenAI API key no longer present in the Doppler config.')
+        await saveOpenAICompatibleApiKey(found.value)
+        applied.push({ target, detail: `OpenAI-compatible API key saved (${found.name})` })
         break
       }
       case 'google-oauth': {

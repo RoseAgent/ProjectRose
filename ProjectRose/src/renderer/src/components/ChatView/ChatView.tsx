@@ -3,12 +3,10 @@ import { SessionSidebar } from './SessionSidebar'
 import { BloomStage } from './BloomStage'
 import { ChatPanel } from './ChatPanel'
 import { SessionPrepModal } from './SessionPrepModal'
-import { ExternalTranscriptView } from './ExternalTranscriptView'
 import { useActiveListen } from '../../hooks/useActiveListen'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useViewStore } from '../../stores/useViewStore'
-import { useChat } from '../../stores/useChat'
 import styles from './ChatView.module.css'
 
 export function ChatView(): JSX.Element {
@@ -17,23 +15,14 @@ export function ChatView(): JSX.Element {
   useActiveListen({ enabled: isActive, projectPath: rootPath })
   const isChatFullWidth = useViewStore((s) => s.isChatFullWidth)
   const activeView = useViewStore((s) => s.activeView)
-  const externalView = useChat((s) => s.externalView)
   return (
     <div className={clsx(styles.chatView, isChatFullWidth && styles.chatViewFullWidth)}>
       <SessionSidebar />
-      {externalView ? (
-        // Read-only External Session (Claude Code / Codex) replaces the live
-        // conversation area; the sidebar stays for navigation.
-        <ExternalTranscriptView transcript={externalView} />
-      ) : (
-        <>
-          {!isChatFullWidth && <BloomStage />}
-          {/* ChatView stays mounted while the editor is showing, so only claim
-              the TTS/compression singletons when chat is actually the active
-              view (the editor rail owns them otherwise). */}
-          <ChatPanel primary={activeView === 'chat'} />
-        </>
-      )}
+      {!isChatFullWidth && <BloomStage />}
+      {/* ChatView stays mounted while the editor is showing, so only claim
+          the TTS/compression singletons when chat is actually the active
+          view (the editor rail owns them otherwise). */}
+      <ChatPanel primary={activeView === 'chat'} />
       <SessionPrepModal />
     </div>
   )

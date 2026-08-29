@@ -1,14 +1,8 @@
-import type { ExternalSource } from './externalSession'
-
 // The sidebar's data model: conversations grouped by the Workspace folder they
-// belong to. Rose conversations and read-only External Sessions (Claude Code,
-// Codex) interleave chronologically inside each group. Computed in the main
-// process (one filesystem scan) and sent to the renderer as-is.
-
-export type ConversationSource = 'rose' | ExternalSource
+// belong to. Computed in the main process (one filesystem scan) and sent to
+// the renderer as-is.
 
 export interface ConversationListItem {
-  source: ConversationSource
   id: string
   title: string
   createdAt: number
@@ -16,16 +10,14 @@ export interface ConversationListItem {
 }
 
 export interface WorkspaceGroup {
-  // Real absolute path (or, for external sessions with no recorded cwd, the
-  // lossy decoded directory name — see `approximatePath`).
+  // Real absolute path of the Workspace folder.
   workspacePath: string
   // Display label — the folder basename.
   name: string
   existsOnDisk: boolean
-  approximatePath?: boolean
   // Max updatedAt across the group's items; drives group sort order.
   lastActivity: number
-  // Interleaved, newest-first.
+  // Newest-first.
   items: ConversationListItem[]
 }
 
@@ -40,5 +32,4 @@ export interface KnownWorkspace {
   name: string
   lastActivity: number
   existsOnDisk: boolean
-  sources: Array<'rose' | ExternalSource | 'recent'>
 }

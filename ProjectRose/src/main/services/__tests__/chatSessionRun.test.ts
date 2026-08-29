@@ -82,10 +82,10 @@ describe('ChatSession.run', () => {
     const session = new ChatSession({ sessionId: 's1', rootPath: '/proj' })
     const response = await session.run({
       messages: [{ role: 'user', content: 'hi' }],
-      model: { provider: 'kimi', modelName: 'kimi-k2-thinking' },
+      model: { provider: 'openai-compatible', modelName: 'example-model' },
       runOnce,
     })
-    expect(response.modelDisplay).toBe('kimi-k2-thinking')
+    expect(response.modelDisplay).toBe('example-model')
   })
 
   it('throws when no model is passed and no lastModel is stored', async () => {

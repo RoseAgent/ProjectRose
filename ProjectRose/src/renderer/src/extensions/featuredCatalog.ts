@@ -22,13 +22,6 @@ export const FEATURED_CATALOG: CatalogEntry[] = [
     repoUrl: 'https://github.com/RoseAgent/projectrose-qwen-director.git'
   },
   {
-    id: 'rose-coding-agents',
-    name: 'Coding Agents',
-    description: 'Headless harnesses for Claude Code, Codex, and OpenCode. Lets the host agent delegate tasks to other coding agents.',
-    author: 'ProjectRose',
-    repoUrl: 'https://github.com/RoseAgent/roseproject-coding-agents.git'
-  },
-  {
     id: 'rose-wordpress',
     name: 'WordPress',
     description: 'Manage one or more self-hosted WordPress sites via Application Passwords. Posts, pages, custom post types, media, comments, users, taxonomies, plugins, themes, and site settings — for both the user and the AI agent.',

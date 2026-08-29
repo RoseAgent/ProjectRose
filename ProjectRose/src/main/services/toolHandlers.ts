@@ -549,9 +549,7 @@ async function braveSearch(apiKey: string, query: string, numResults: number): P
   }))
 }
 
-// Same endpoint + auth header the ProjectRose server's /api/search
-// pass-through used (server/app.py) — the app now calls it directly with the
-// user's own Browserbase key.
+// Browserbase is called directly with the user's own API key.
 async function browserbaseSearch(apiKey: string, query: string, numResults: number): Promise<NormalizedSearchResult[]> {
   const res = await fetch('https://api.browserbase.com/v1/search', {
     method: 'POST',

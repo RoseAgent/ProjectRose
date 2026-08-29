@@ -5,20 +5,16 @@ ProjectRose is an **Agent Desktop** — a desktop OS-like layer that agents live
 ## Language
 
 **Agent Desktop**:
-The product itself — the Electron app that hosts agents and the extensions they use. Preferred over "IDE" or "personal assistant", both of which describe a *configuration* of the desktop (which extensions are installed), not the desktop itself.
+The product itself — the standalone Electron app that hosts agents and the extensions they use. Preferred over "IDE" or "personal assistant", both of which describe a *configuration* of the desktop (which extensions are installed), not the desktop itself.
 _Avoid_: IDE, assistant, harness, app (when referring to ProjectRose as a whole)
 
 **Agent**:
-A single persistent identity on a machine, stored at `~/.rose/`, that operates on **Workspaces**. One Agent per machine — there is no notion of multiple Agents to switch between. The Agent owns its system prompt (`~/.rose/ROSE.md`), provider credentials/config (sign-ins, Ollama base URL, Kimi auth method), and its agent-global records (**Contacts**, **Events**); the model itself is chosen per **Conversation** in the chat composer's ModelPicker (there is no global "active provider" — `settings.lastModel` records only the most recent pick, as the default for new Conversations and the fallback for background LLM work). A **Workspace** contributes optional project-specific operating instructions and per-project enable/disable + settings for installed **Extensions**. Running an agent means starting a **Turn** inside a **Conversation** with it; the LLM-loop instance is the **Turn**, not the agent itself.
+A single persistent identity on a machine, stored at `~/.rose/`, that operates on **Workspaces**. One Agent per machine — there is no notion of multiple Agents to switch between. The Agent owns its system prompt (`~/.rose/ROSE.md`), provider credentials/config (Ollama or an OpenAI-compatible endpoint), and its agent-global records (**Contacts**, **Events**); the model itself is chosen per **Conversation** in the chat composer's ModelPicker (there is no global "active provider" — `settings.lastModel` records only the most recent pick, as the default for new Conversations and the fallback for background LLM work). A **Workspace** contributes optional project-specific operating instructions and per-project enable/disable + settings for installed **Extensions**. Running an agent means starting a **Turn** inside a **Conversation** with it; the LLM-loop instance is the **Turn**, not the agent itself.
 _Avoid_: bot, assistant (lowercase), AI
 
 **Conversation**:
 A persistent, resumable thread of turns the user holds with an agent in the chat panel. Identified in the code as `sessionId`. Always bound to exactly one **Workspace** (`workspacePath` on its meta) — the active Conversation is what determines the active Workspace, not the other way round (see ADR 0016). Carries its own provider+model pair (`model` on its meta), picked in the chat composer's ModelPicker and pinned across reloads. Persisted agent-global at `~/.rose/conversations/<encoded-workspace>/<sessionId>/main.json`, with the real Workspace path recorded in the group's `workspace.json` (the encoded directory name is lossy and never decoded).
 _Avoid_: chat, session (bare), thread, history
-
-**External Session**:
-A read-only transcript discovered in another agent CLI's on-disk store — Claude Code at `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`, Codex at `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`. Surfaced in the sidebar grouped under its Workspace (the real cwd, read from inside the file — never decoded from the lossy directory name) alongside Rose **Conversations**, badged by source. The on-disk transcript is never mutated. The viewer shows the same chat composer as a Rose Conversation; "continuing" one depends on the ModelPicker choice: the session's own CLI (Claude/Codex) resumes it in the integrated terminal (`claude --resume` / `codex resume`, optional `--model`, typed message passed as the first prompt), while a Rose provider forks the transcript into a brand-new Rose Conversation seeded with the converted history. Parsed by `src/main/services/externalSessions/{claudeReader,codexReader}.ts` into the shared `ExternalTranscript` shape (`src/shared/externalSession.ts`), whose entry kinds mirror the Detached Run transcript so the same renderer cells apply. See ADR 0016.
-_Avoid_: foreign session, imported chat, legacy session
 
 **Turn**:
 A single cycle of "one user message → one agent response", together with the per-turn scratch state (abort signal, pending ask-user resolvers, modified-files list, per-extension injection budget). Constructed at the start of the cycle, disposed at the end.
@@ -116,6 +112,10 @@ _Avoid_: spam, junk, blocklist, filter
 ## Flagged ambiguities
 
 - **"Memory" is a retired term — do not reuse it.** The host-memory subsystem (Diary, Behavior Records, their feeder logs, and the background contacts-updater sweep) was deliberately deleted in July 2026 (ADR 0019) to clear the ground for a future, completely different memory system. **Contact** and **Event** were part of the old "Memory" umbrella but survive as standalone concepts at `~/.rose/contact/` and `~/.rose/calendar/`; never describe them as "memory". The word — and the `~/.rose/memory/` path, the `memory_*` tool prefix, and the `memory.*` IPC namespace — are reserved for the future system. Until it exists, the Agent has no durable self-writable record: standing directives ("from now on always X") are user-managed via ROSE.md in Settings → Prompts, by design.
+
+- **Conversation history is native-only.** ProjectRose reads and writes its own `~/.rose/conversations` store. It does not discover, parse, import, resume, or display third-party agent session stores.
+
+- **Inference is standalone.** Every model call goes directly to either Ollama or one user-configured OpenAI-compatible endpoint. There is no ProjectRose-managed inference backend or account dependency.
 
 - **"channel" is overloaded.** Discord and Slack use the word for a chatroom (e.g. `#alerts`); rose-channels uses it for the extension as a whole. When talking about the per-source-prompt binding, the canonical noun is **Channel Rule**, never "channel" alone. When referring to a Discord/Slack chatroom, the canonical phrasing is "Discord channel #alerts" or "Slack channel #general" — never "channel" alone.
 

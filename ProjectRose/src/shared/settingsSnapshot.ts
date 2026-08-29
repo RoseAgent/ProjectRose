@@ -16,10 +16,6 @@ export interface ConnectionResult {
   detail?: string
 }
 
-export interface ProjectRoseConnection extends ConnectionResult {
-  loggedInEmail?: string
-}
-
 export interface OllamaConnection extends ConnectionResult {
   modelsReachable?: number
 }
@@ -52,12 +48,12 @@ export interface SettingsSnapshot {
       // There is no global "active provider" — each Conversation carries its
       // own pick; this is the fallback for background work.
       lastModel: {
-        provider: 'ollama' | 'projectrose' | 'kimi' | 'bedrock'
+        provider: 'ollama' | 'openai-compatible'
         modelName: string
       } | null
       ollamaBaseUrl: string
-      kimiAuthMethod: 'oauth' | 'apikey'
-      bedrockRegion: string
+      openaiCompatibleBaseUrl: string
+      openaiCompatibleModel: string
     }
     search: {
       provider: 'brave' | 'tavily' | 'browserbase' | null
@@ -96,10 +92,8 @@ export interface SettingsSnapshot {
     }
   }
   connections: {
-    projectRose: ProjectRoseConnection
     ollama: OllamaConnection
-    kimi: ConnectionResult
-    bedrock: ConnectionResult
+    openaiCompatible: ConnectionResult
     googleAuth: GoogleAuthConnection
     googleCalendar: ConnectionResult
     imap: ConnectionResult

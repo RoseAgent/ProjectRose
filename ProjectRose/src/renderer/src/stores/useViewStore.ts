@@ -18,9 +18,8 @@ interface ViewState {
 }
 
 // ActiveView is BaseView ('editor' | 'chat' | 'settings') | extension id.
-// We also recognize 'account' as a base view at the app level (see App.tsx).
 // Any other string is an extension id.
-const BASE_VIEWS = new Set(['editor', 'chat', 'settings', 'account'])
+const BASE_VIEWS = new Set(['editor', 'chat', 'settings'])
 
 export const useViewStore = create<ViewState>()((set, get) => ({
   activeView: 'chat',

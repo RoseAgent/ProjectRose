@@ -2,13 +2,18 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipcChannels'
 import type { FileNode, RecentProject, ToolMeta } from '../shared/types'
 import type { Message } from '../shared/roseModelTypes'
-import { sessionIpc, externalIpc, workspacesIpc } from '../main/services/conversation.ipc'
+import { sessionIpc, workspacesIpc } from '../main/services/conversation.ipc'
 import { promptIpc } from '../main/services/promptService.ipc'
 import { skillIpc } from '../main/services/skillService.ipc'
 import { interactionLogIpc } from '../main/services/interactionLog.ipc'
 import { fileIpc } from '../main/services/fileService.ipc'
 import { recentProjectsIpc } from '../main/services/recentProjects.ipc'
-import { settingsIpc, healthIpc, searchIpc } from '../main/services/settingsService.ipc'
+import {
+  settingsIpc,
+  healthIpc,
+  searchIpc,
+  openAICompatibleIpc
+} from '../main/services/settingsService.ipc'
 import { dopplerIpc } from '../main/services/dopplerImport.ipc'
 import type { TodoItem } from '../shared/todos'
 import type { ModelConfig } from '../shared/modelConfig'
@@ -16,9 +21,6 @@ import { projectSettingsIpc, toolsIpc } from '../main/services/projectSettingsSe
 import { roseSetupIpc } from '../main/services/roseSetupService.ipc'
 import { whisperIpc } from '../main/services/whisperService.ipc'
 import { updaterIpc } from '../main/services/updaterService.ipc'
-import { authIpc } from '../main/services/authService.ipc'
-import { kimiAuthIpc } from '../main/services/kimiAuthService.ipc'
-import { bedrockAuthIpc } from '../main/services/bedrockAuthService.ipc'
 import { aiIpc } from '../main/services/aiService.ipc'
 import { activeSpeechIpc } from '../main/services/speech/activeSpeechService.ipc'
 import { extensionIpc } from '../main/services/extensionService.ipc'
@@ -378,10 +380,9 @@ const api = {
     }
   },
 
-  // Chat Sessions (Conversations), read-only External Sessions, and the
-  // known-workspace registry for the New Conversation picker.
+  // Chat Sessions (Conversations) and the known-workspace registry for the
+  // New Conversation picker.
   session: sessionIpc.bindings,
-  external: externalIpc.bindings,
   workspaces: workspacesIpc.bindings,
 
   // Tools + Project settings — the hard-coded channel strings ('tools:list',
@@ -443,62 +444,7 @@ const api = {
     }
   },
 
-  // Account auth — request methods from the manifest; event subscriptions
-  // (onChanged, onPairingPending) stay hand-written.
-  auth: {
-    login: authIpc.bindings.login,
-    logout: authIpc.bindings.logout,
-    cancel: authIpc.bindings.cancel,
-    getStatus: authIpc.bindings.getStatus,
-    getUsage: authIpc.bindings.getUsage,
-    onChanged: (callback: (data: { loggedIn: boolean; email: string; name: string; avatar: string }) => void): (() => void) => {
-      const handler = (_e: unknown, data: { loggedIn: boolean; email: string; name: string; avatar: string }): void => callback(data)
-      ipcRenderer.on(IPC.AUTH_CHANGED, handler)
-      return () => { ipcRenderer.removeListener(IPC.AUTH_CHANGED, handler) }
-    },
-    onPairingPending: (callback: (data: { url: string }) => void): (() => void) => {
-      const handler = (_e: unknown, data: { url: string }): void => callback(data)
-      ipcRenderer.on(IPC.AUTH_PAIRING_PENDING, handler)
-      return () => { ipcRenderer.removeListener(IPC.AUTH_PAIRING_PENDING, handler) }
-    }
-  },
-
-  // Kimi OAuth (device flow) — request methods from the manifest; event
-  // subscriptions (onChanged, onPending) stay hand-written.
-  kimiAuth: {
-    login: kimiAuthIpc.bindings.login,
-    logout: kimiAuthIpc.bindings.logout,
-    cancel: kimiAuthIpc.bindings.cancel,
-    getStatus: kimiAuthIpc.bindings.getStatus,
-    saveApiKey: kimiAuthIpc.bindings.saveApiKey,
-    clearApiKey: kimiAuthIpc.bindings.clearApiKey,
-    listModels: kimiAuthIpc.bindings.listModels,
-    onChanged: (callback: (data: { loggedIn: boolean; apiKeyStored: boolean }) => void): (() => void) => {
-      const handler = (_e: unknown, data: { loggedIn: boolean; apiKeyStored: boolean }): void => callback(data)
-      ipcRenderer.on(IPC.KIMI_AUTH_CHANGED, handler)
-      return () => { ipcRenderer.removeListener(IPC.KIMI_AUTH_CHANGED, handler) }
-    },
-    onPending: (callback: (data: { url: string; userCode: string }) => void): (() => void) => {
-      const handler = (_e: unknown, data: { url: string; userCode: string }): void => callback(data)
-      ipcRenderer.on(IPC.KIMI_AUTH_PENDING, handler)
-      return () => { ipcRenderer.removeListener(IPC.KIMI_AUTH_PENDING, handler) }
-    }
-  },
-
-  // Amazon Bedrock — request methods from the manifest; the change
-  // subscription stays hand-written. No onPending counterpart: SigV4 needs
-  // only a stored key pair, so there's no interactive flow to report on.
-  bedrockAuth: {
-    getStatus: bedrockAuthIpc.bindings.getStatus,
-    saveCredentials: bedrockAuthIpc.bindings.saveCredentials,
-    clearCredentials: bedrockAuthIpc.bindings.clearCredentials,
-    listModels: bedrockAuthIpc.bindings.listModels,
-    onChanged: (callback: (data: { credentialsStored: boolean; region: string }) => void): (() => void) => {
-      const handler = (_e: unknown, data: { credentialsStored: boolean; region: string }): void => callback(data)
-      ipcRenderer.on(IPC.BEDROCK_AUTH_CHANGED, handler)
-      return () => { ipcRenderer.removeListener(IPC.BEDROCK_AUTH_CHANGED, handler) }
-    }
-  },
+  openAICompatible: openAICompatibleIpc.bindings,
 
   // Auto-updater — request methods come from the manifest; the on* event
   // subscriptions stay hand-written because broadcasts aren't manifest-covered.

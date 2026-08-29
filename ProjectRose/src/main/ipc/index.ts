@@ -7,7 +7,7 @@ import { registerSkillHandlers } from './skillHandlers'
 import { registerScreenHandlers } from './screenHandlers'
 import { registerTtsManifest } from './ttsHandlers'
 
-import { sessionIpc, externalIpc, workspacesIpc } from '../services/conversation.ipc'
+import { sessionIpc, workspacesIpc } from '../services/conversation.ipc'
 import {
   loadConversation,
   saveConversation,
@@ -17,7 +17,6 @@ import {
 import { reapConversationProcesses } from '../services/backgroundProcesses'
 import { clearConversationToolState } from '../services/conversationToolState'
 import { buildWorkspaceGroupedList, listKnownWorkspaces } from '../services/workspaceRegistry'
-import { getExternalTranscript, getExternalTranscriptUpdate } from '../services/externalSessions'
 
 import { promptIpc } from '../services/promptService.ipc'
 import {
@@ -54,7 +53,13 @@ import {
   removeRecentProject
 } from '../services/recentProjects'
 
-import { settingsIpc, healthIpc, searchIpc, type SearchProviderStatus } from '../services/settingsService.ipc'
+import {
+  settingsIpc,
+  healthIpc,
+  searchIpc,
+  openAICompatibleIpc,
+  type SearchProviderStatus
+} from '../services/settingsService.ipc'
 import { readSettings, applySettingsPatch, checkServicesHealth } from '../services/settingsService'
 import {
   saveSearchCredentials,
@@ -94,27 +99,12 @@ import {
   skipVersion
 } from '../services/updaterService'
 
-import { authIpc, loginViaAuthWindow } from '../services/authService.ipc'
-import { handleLogout, cancelPairing, getAuthStatus, fetchUsage } from '../services/authService'
-
-import { kimiAuthIpc } from '../services/kimiAuthService.ipc'
 import {
-  kimiSignIn,
-  kimiSignOut,
-  cancelKimiSignIn,
-  getKimiAuthStatus,
-  kimiSaveApiKey,
-  kimiClearApiKey,
-  listKimiModels
-} from '../services/kimiAuthService'
-
-import { bedrockAuthIpc } from '../services/bedrockAuthService.ipc'
-import {
-  getBedrockAuthStatus,
-  bedrockSaveCredentials,
-  bedrockClearCredentials,
-  listBedrockModels
-} from '../services/bedrockAuthService'
+  clearOpenAICompatibleApiKey,
+  hasOpenAICompatibleApiKey,
+  loadOpenAICompatibleApiKey,
+  saveOpenAICompatibleApiKey
+} from '../lib/openaiCompatibleCredentials'
 
 import { aiIpc } from '../services/aiService.ipc'
 import { chat, compressToolNoise, getContextStatus } from '../services/aiService'
@@ -283,10 +273,6 @@ export function registerIpcManifests(): void {
       clearConversationToolState(sessionId)
     }
   })
-  externalIpc.register({
-    getTranscript: getExternalTranscript,
-    getTranscriptUpdate: getExternalTranscriptUpdate
-  })
   workspacesIpc.register({
     listKnown: listKnownWorkspaces
   })
@@ -374,27 +360,33 @@ export function registerIpcManifests(): void {
     install: installUpdateAndRestart,
     skipVersion: skipVersion
   })
-  authIpc.register({
-    login: loginViaAuthWindow,
-    logout: handleLogout,
-    cancel: cancelPairing,
-    getStatus: getAuthStatus,
-    getUsage: fetchUsage
-  })
-  kimiAuthIpc.register({
-    login: kimiSignIn,
-    logout: kimiSignOut,
-    cancel: cancelKimiSignIn,
-    getStatus: getKimiAuthStatus,
-    saveApiKey: ({ apiKey }) => kimiSaveApiKey(apiKey),
-    clearApiKey: kimiClearApiKey,
-    listModels: listKimiModels
-  })
-  bedrockAuthIpc.register({
-    getStatus: getBedrockAuthStatus,
-    saveCredentials: bedrockSaveCredentials,
-    clearCredentials: bedrockClearCredentials,
-    listModels: listBedrockModels
+  openAICompatibleIpc.register({
+    getStatus: async () => ({ apiKeyStored: await hasOpenAICompatibleApiKey() }),
+    saveApiKey: async (apiKey) => {
+      await saveOpenAICompatibleApiKey(apiKey)
+      return { apiKeyStored: true }
+    },
+    clearApiKey: async () => {
+      await clearOpenAICompatibleApiKey()
+      return { apiKeyStored: false }
+    },
+    test: async () => {
+      const settings = await readSettings()
+      const baseUrl = settings.openaiCompatibleBaseUrl.trim().replace(/\/+$/, '')
+      if (!baseUrl) return { ok: false, error: 'Base URL is empty.' }
+      const apiKey = await loadOpenAICompatibleApiKey()
+      try {
+        const response = await fetch(`${baseUrl}/models`, {
+          headers: apiKey ? { authorization: `Bearer ${apiKey}` } : undefined,
+          signal: AbortSignal.timeout(10_000)
+        })
+        return response.ok
+          ? { ok: true }
+          : { ok: false, error: `HTTP ${response.status}` }
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    }
   })
   extensionIpc.register({
     list: listExtensions,

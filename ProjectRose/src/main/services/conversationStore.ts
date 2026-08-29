@@ -199,6 +199,15 @@ export async function loadConversation(sessionId: string): Promise<LoadedConvers
   try {
     const raw = await fs.readFile(mainPath(groupDir, sessionId), 'utf-8')
     const conversation = JSON.parse(raw) as Conversation
+    // Conversations persisted by retired providers remain readable, but their
+    // stale model pin is dropped so the composer uses a configured standalone
+    // provider instead of trying to resolve removed credentials.
+    if (
+      conversation.model?.provider !== 'ollama' &&
+      conversation.model?.provider !== 'openai-compatible'
+    ) {
+      delete conversation.model
+    }
     const pendingEvents = await readTurnLog(groupDir, sessionId, conversation.appliedSeq ?? 0)
     return { ...conversation, pendingEvents }
   } catch {

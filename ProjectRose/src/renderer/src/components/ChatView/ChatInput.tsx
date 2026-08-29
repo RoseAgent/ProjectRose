@@ -16,11 +16,6 @@ export function ChatInput(): JSX.Element {
   const isLoading = useChat((s) => s.isLoading)
   const sendMessage = useChat((s) => s.send)
   const cancelGeneration = useChat((s) => s.cancel)
-  // On an external session with a CLI choice selected, Send works with an
-  // empty input: it resumes the session interactively in the terminal.
-  const cliResume = useChat(
-    (s) => s.externalView !== null && s.composerChoice?.kind === 'cli'
-  )
   const micDeviceId = useSettingsStore((s) => s.micDeviceId)
   const isDrafting = useActiveListeningStore((s) => s.isDrafting)
   const draftSecondsLeft = useActiveListeningStore((s) => s.draftSecondsLeft)
@@ -171,9 +166,9 @@ export function ChatInput(): JSX.Element {
           <button
             className={styles.sendBtn}
             onClick={sendMessage}
-            disabled={isLoading || (!inputValue.trim() && !cliResume)}
+            disabled={isLoading || !inputValue.trim()}
           >
-            {isLoading ? 'Thinking...' : cliResume && !inputValue.trim() ? 'Resume' : 'Send'}
+            {isLoading ? 'Thinking...' : 'Send'}
           </button>
         </div>
       </div>

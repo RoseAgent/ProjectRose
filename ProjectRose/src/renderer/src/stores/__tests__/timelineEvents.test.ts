@@ -16,7 +16,7 @@ function userMsg(id: string, content: string): ChatMessage {
 // The turn a crash interrupts: the model thinks, starts answering, calls a
 // tool, gets a result, then keeps answering.
 const TURN: TurnEvent[] = [
-  { kind: 'model-selected', modelDisplay: 'kimi-k2' },
+  { kind: 'model-selected', modelDisplay: 'example-model' },
   { kind: 'thinking', content: 'let me check ' },
   { kind: 'thinking', content: 'the file' },
   { kind: 'token', token: 'Reading' },
@@ -39,7 +39,7 @@ describe('replayTurnEvents', () => {
     ])
     expect((messages[1] as ThinkingMessage).content).toBe('let me check the file')
     expect((messages[2] as AssistantMessage).content).toBe('Reading it now.')
-    expect((messages[2] as AssistantMessage).modelDisplay).toBe('kimi-k2')
+    expect((messages[2] as AssistantMessage).modelDisplay).toBe('example-model')
     const tool = messages[3] as ToolMessage
     expect(tool.name).toBe('read_file')
     expect(tool.result).toBe('contents')
@@ -90,7 +90,7 @@ describe('replayTurnEvents', () => {
     const messages = replayTurnEvents(
       [userMsg('u1', 'go')],
       [
-        { kind: 'model-selected', modelDisplay: 'kimi-k2' },
+        { kind: 'model-selected', modelDisplay: 'example-model' },
         { kind: 'token', token: 'partial answer' },
         { kind: 'stream-reset', fallbackModel: 'sonnet', errorMessage: 'overloaded' },
         { kind: 'token', token: 'real answer' },

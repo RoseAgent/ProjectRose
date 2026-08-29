@@ -5,7 +5,6 @@ import { EditorView } from './components/EditorView/EditorView'
 import { ChatView } from './components/ChatView/ChatView'
 import { ChatPanel } from './components/ChatView/ChatPanel'
 import { SettingsView } from './components/SettingsView/SettingsView'
-import { AccountView } from './components/AccountView/AccountView'
 import { AppsDrawer } from './components/AppsDrawer/AppsDrawer'
 import { WorkspacePickerModal } from './components/ChatView/WorkspacePickerModal'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
@@ -37,7 +36,6 @@ function App(): JSX.Element {
   const refreshTree = useProjectStore((s) => s.refreshTree)
   const toggleTerminal = useViewStore((s) => s.toggleTerminal)
   const workspacePickerOpen = useChat((s) => s.workspacePickerOpen)
-  const externalView = useChat((s) => s.externalView)
 
   const { load: loadSettings } = useSettingsStore()
   const settingsLoaded = useSettingsStore((s) => s.loaded)
@@ -90,17 +88,15 @@ function App(): JSX.Element {
 
   // Reset stale activeView (e.g. an extension id persisted from a prior version
   // when extensions still rendered as the main view). The drawer now owns
-  // extensions; the main view only renders the four built-ins.
+  // extensions; the main view only renders the three built-ins.
   useEffect(() => {
     const v = useViewStore.getState().activeView
-    if (v !== 'editor' && v !== 'chat' && v !== 'settings' && v !== 'account') {
+    if (v !== 'editor' && v !== 'chat' && v !== 'settings') {
       useViewStore.getState().setActiveView('chat')
     }
   }, [])
 
-  // Track live provider availability (sign-in state) for the chat composer's
-  // ModelPicker. There is no global provider setting to reconcile anymore —
-  // each Conversation carries its own composer pick.
+  // Refresh locally installed Ollama models for the chat composer.
   useEffect(() => useProviderStore.getState().init(), [])
 
   // Load dynamic (third-party) extensions whenever the project changes
@@ -179,10 +175,9 @@ function App(): JSX.Element {
       setNeedsSetup(false)
       return
     }
-    // Don't scaffold a folder we're only viewing read-only (an external
-    // session's workspace) or one that's missing on disk — that would create
+    // Don't scaffold a folder that's missing on disk — that would create
     // .projectrose/ in a folder the user never chose for a Rose conversation.
-    if (externalView || useProjectStore.getState().workspaceMissing) {
+    if (useProjectStore.getState().workspaceMissing) {
       setNeedsSetup(false)
       return
     }
@@ -194,7 +189,7 @@ function App(): JSX.Element {
     window.api.checkRoseMd(rootPath).then((hasMd) => {
       setNeedsSetup(!hasMd)
     })
-  }, [rootPath, externalView])
+  }, [rootPath])
 
   // Poll the file tree every minute to catch external changes.
   useEffect(() => {
@@ -256,9 +251,8 @@ function App(): JSX.Element {
     return () => window.removeEventListener('keydown', handler)
   }, [rootPath, toggleTerminal])
 
-  // The editor/account chat rail is shown in editor and account views; in chat
-  // and settings it's hidden (chat has its own panel, settings has none).
-  const showChatRail = activeView === 'editor' || activeView === 'account'
+  // The editor chat rail is hidden in chat and settings views.
+  const showChatRail = activeView === 'editor'
 
   return (
     <div className={styles.app}>
@@ -297,16 +291,15 @@ function App(): JSX.Element {
             {viewMounted.chat && <ChatView />}
           </div>
           {activeView === 'settings' && <SettingsView />}
-          {activeView === 'account' && <AccountView />}
         </div>
-        {/* Editor/account chat rail — a second ChatPanel instance kept mounted
-            (once the editor has been shown) so its scroll survives; only the
-            visible panel owns the TTS/compression singletons via `primary`. */}
+        {/* Editor chat rail — a second ChatPanel instance kept mounted so its
+            scroll survives; only the visible panel owns the TTS/compression
+            singletons via `primary`. */}
         <div
           className={styles.chatPanelSlot}
           style={{ display: showChatRail ? 'flex' : 'none' }}
         >
-          {(viewMounted.editor || activeView === 'account') && <ChatPanel primary={showChatRail} />}
+          {viewMounted.editor && <ChatPanel primary={showChatRail} />}
         </div>
       </main>
       <AppsDrawer />

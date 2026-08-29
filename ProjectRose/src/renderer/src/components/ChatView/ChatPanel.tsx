@@ -11,7 +11,6 @@ import type {
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
-import { useProviderStore } from '../../stores/useProviderStore'
 import { useStatusStore } from '../../stores/useStatusStore'
 import { useViewStore } from '../../stores/useViewStore'
 import { ChatCell } from './ChatCell'
@@ -132,7 +131,7 @@ function partitionByCompression(
 }
 
 // `primary` marks the single visible ChatPanel. Two instances stay mounted at
-// once (the editor/account rail and the chat-mode panel) so their scroll
+// once (the editor rail and the chat-mode panel) so their scroll
 // survives view switches, but only the visible one may own the TTS/compression
 // singletons — otherwise TTS double-plays and toasts render twice. Both live
 // inside a positioned `.chatPanel`, so the singletons can't simply be hoisted
@@ -148,13 +147,9 @@ export function ChatPanel({ primary = true }: { primary?: boolean } = {}): JSX.E
   const setMode = useActiveListeningStore((s) => s.setMode)
 
   const settingsLoaded = useSettingsStore((s) => s.loaded)
-  const kimiAuthMethod = useSettingsStore((s) => s.kimiAuthMethod)
   const ollamaBaseUrl = useSettingsStore((s) => s.ollamaBaseUrl)
-  const providersLoaded = useProviderStore((s) => s.loaded)
-  const prLoggedIn = useProviderStore((s) => s.prLoggedIn)
-  const kimiOauth = useProviderStore((s) => s.kimiOauth)
-  const kimiKey = useProviderStore((s) => s.kimiKey)
-  const bedrockConfigured = useProviderStore((s) => s.bedrockConfigured)
+  const openaiCompatibleBaseUrl = useSettingsStore((s) => s.openaiCompatibleBaseUrl)
+  const openaiCompatibleModel = useSettingsStore((s) => s.openaiCompatibleModel)
   const setActiveView = useViewStore((s) => s.setActiveView)
   const setSettingsTarget = useViewStore((s) => s.setSettingsTarget)
   const activeView = useViewStore((s) => s.activeView)
@@ -162,18 +157,10 @@ export function ChatPanel({ primary = true }: { primary?: boolean } = {}): JSX.E
   const toggleChatFullWidth = useViewStore((s) => s.toggleChatFullWidth)
   const showExpandToggle = activeView === 'chat'
 
-  // With no provider available at all (not signed in to ProjectRose or Kimi,
-  // no AWS credentials for Bedrock, no Ollama URL configured) the composer
-  // picker is empty and chatting can't go anywhere. Model choice itself lives
-  // in the picker, not Settings.
-  const kimiAvailable = kimiAuthMethod === 'apikey' ? kimiKey : kimiOauth
   const setupNeeded =
     settingsLoaded &&
-    providersLoaded &&
-    !prLoggedIn &&
-    !kimiAvailable &&
-    !bedrockConfigured &&
-    !ollamaBaseUrl
+    !ollamaBaseUrl.trim() &&
+    !(openaiCompatibleBaseUrl.trim() && openaiCompatibleModel.trim())
 
   const openAgentSettings = (): void => {
     setSettingsTarget('providers')
@@ -256,8 +243,8 @@ export function ChatPanel({ primary = true }: { primary?: boolean } = {}): JSX.E
           <div className={styles.setupBannerText}>
             <div className={styles.setupBannerTitle}>SETUP REQUIRED</div>
             <div className={styles.setupBannerDesc}>
-              Sign in to a provider (ProjectRose or Kimi) or add a local Ollama URL before
-              chatting — then pick a model from the composer below.
+              Configure Ollama or an OpenAI-compatible endpoint before chatting,
+              then pick a model from the composer below.
             </div>
             <button type="button" className={styles.setupBannerBtn} onClick={openAgentSettings}>
               OPEN PROVIDER SETTINGS →

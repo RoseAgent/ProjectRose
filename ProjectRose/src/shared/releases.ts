@@ -14,24 +14,19 @@ export const RELEASES: ReleaseEntry[] = [
     title: 'Per-conversation models and a smarter toolbox',
     highlights: [
       'The Memory system (diary and behavior records) has been removed to clear the way for a completely new memory system later — the daily diary writer, behavior records, their background logging, the 30-minute contacts sweeper, and the Settings → Memory tab are all gone, and existing diary/behavior data on disk is cleaned up on first launch. Contacts and Calendar stay, now living at ~/.rose/contact and ~/.rose/calendar with their agent tools renamed to contacts_* and events_* (update any routine or channel-rule tool allowlists that referenced memory_* names)',
-      'New Amazon Bedrock provider — add an AWS access key pair and region under Settings → Providers → Amazon Bedrock and every model your account can reach appears in the chat composer\'s model picker. The list is pulled live from your account, merging on-demand foundation models with cross-region inference profiles, so it reflects your actual model access and region rather than a hardcoded menu. Keys are stored encrypted on-device and never leave your machine; AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION also import straight from Doppler',
       'Conversations now survive a crash mid-answer. Every thought, token, tool call and result is written to a running log as it happens, so reopening the app replays the interrupted turn instead of losing it — you see everything up to the final fraction of a second, with the cut-off reply and any unfinished tool call marked as interrupted rather than hanging. Conversation files are also written atomically now, so a crash during a save can no longer corrupt one and make it vanish from the sidebar',
-      'Pick your provider and model per conversation — the chat composer now has a model picker (left of the context meter) listing whatever you have signed in or configured: ProjectRose, Kimi models, and your installed Ollama models. Each conversation remembers its own pick, new conversations start from your last one, and the old global "active provider" is gone — Settings keeps just the credentials',
-      'Claude Code and Codex sessions are no longer view-only — the same composer appears on an external transcript. With Claude or Codex selected, sending resumes the session in its own CLI (your message becomes the first prompt, with Opus/Sonnet/Haiku selectable via --model); with a Rose provider selected, the transcript is forked into a new conversation and continues in-app',
-      'CLI resumes run in a background terminal — you stay in the view you\'re in, and the terminal replays everything you missed when you open the editor. Terminal sessions now survive leaving the editor view entirely. Resumes use --dangerously-skip-permissions since no one is watching the background pty',
-      'External session transcripts auto-refresh — while an open Claude/Codex transcript is visible, new messages poll in every 3 seconds and land in place with auto-scroll. If you scroll up to read something, updates keep appearing but the view stays pinned where you left it. More than 10 messages below the fold shows a floating "Return" pill to jump back down',
+      'ProjectRose is now standalone for inference: configure either Ollama or one OpenAI-compatible endpoint, then pick the model per conversation. The managed ProjectRose backend, Kimi-specific integration, and Amazon Bedrock integration have been removed',
+      'Terminal sessions now survive leaving the editor view entirely — the shell keeps running in the background and the terminal replays everything you missed when you come back',
       'Agent coding tools overhauled — run_command is now async with a timeout and can launch background processes (paired with new read_process_output / kill_process tools), read_file returns line numbers with offset/limit paging for big files, edit_file gains replace_all and both edit tools require reading the file first, and new delete_file / move_file tools round out file management',
       'Code search rebuilt on bundled ripgrep — grep now respects .gitignore, skips binaries, and takes context-line, case, and file-filter options, plus a new glob tool for fast file finding by pattern',
       'New fetch_url tool lets the agent read a web page as text directly, and todo_write shows the agent\'s running task list as a live checklist above the composer',
-      'Web search is now bring-your-own — choose Brave, Tavily, or Browserbase under Settings → Providers → Search and paste that provider\'s API key (stored encrypted on-device); search no longer routes through the ProjectRose backend',
-      'Kimi accepts an API key too — use kimi.com OAuth or a Moonshot platform key (api.moonshot.ai), switchable under Settings → Providers → Kimi; each mode lists its own model set',
-      'Import keys from Doppler — sign in with your Doppler account (or paste a token), preview which secrets the app recognizes (search providers, Moonshot key, Google OAuth pair) in a selectable table, and import them into the encrypted stores in one click',
+      'Web search is bring-your-own — choose Brave, Tavily, or Browserbase under Settings → Providers → Search and store that provider\'s API key encrypted on-device',
+      'Import keys from Doppler — sign in with your Doppler account (or paste a token), preview recognized search, OpenAI-compatible, and Google OAuth secrets, and import them into encrypted stores in one click',
       'The bloom view now always opens with the chat full screen, and switching to the editor reliably shows the editor — an expanded chat no longer hides it. The "Start expanded" setting is retired since it\'s now the default',
       'Fix: language-server startup failures now report their real error instead of timing out silently, and the app no longer crashes on launch from the bundled search binary',
-      'New Kimi provider — sign in with your kimi.com account under Settings → Providers → Kimi (browser-based OAuth, no API keys) and chats route through Kimi Code, with models subject to your kimi.com plan',
       'The agent can now manage Routines for you — ask it in chat to create, edit, enable/disable, delete, or immediately run a routine, and to read a routine\'s run history and transcripts. Eight new routines_* tools, all toggleable under Settings → Tools',
       'Chats now pick their own folder — the app opens straight to your conversations instead of gating on "open a project." Start a new conversation and choose its workspace from the picker; the file tree, terminal, and editor follow whichever conversation you\'re in',
-      'Conversations are grouped by folder in the sidebar, and your Claude Code and Codex sessions for those same folders show up right alongside them — badged and browsable, so your whole history for a project lives in one place',
+      'Conversations are grouped by folder in the sidebar, so your ProjectRose history for a workspace lives in one place',
       'Routines and channel rules are now always-on — they run at launch for every folder that has them, so a scheduled routine fires and a Discord/Slack rule reacts even when you\'re working in a different conversation'
     ]
   },
@@ -65,7 +60,6 @@ export const RELEASES: ReleaseEntry[] = [
     date: null,
     title: 'Provider trim and chat timeline fixes',
     highlights: [
-      'Providers narrowed to ProjectRose (managed) and Ollama (local) — Anthropic, OpenAI, Amazon Bedrock, and OpenAI-compatible options have been removed',
       'Ollama now holds a single model name instead of a list — pick it once under Settings → Providers → Ollama',
       'Router removed entirely; every chat goes to the configured model with no classification step',
       'Settings → Providers loses the Behavior & Context section; the compression toast still fires automatically and the never-used thinking-in-context and inline-tool-result toggles are gone',
@@ -126,7 +120,6 @@ export const RELEASES: ReleaseEntry[] = [
     date: null,
     title: 'Account sign-in, Concrete CMS, and compression-toast fix',
     highlights: [
-      'Sign in to your ProjectRose account from Settings → Providers — no API keys to copy around',
       'When you\'re signed in, chats automatically use your account; sign out and your other providers come back',
       'Your sign-in is saved securely on your device',
       'New Concrete CMS extension in the in-app discovery page',
@@ -165,7 +158,6 @@ export const RELEASES: ReleaseEntry[] = [
       'Auto-update no longer forced — users can defer or skip versions',
       'Extensions can ship their own prompts',
       'Session id is passed to extensions so they can react to fresh user turns',
-      'Coding harness extension added',
       'System tray supports closing the app',
       'Chat panel is now expandable',
       'adjustable active listening timer'

@@ -7,7 +7,6 @@ import { useProjectStore } from '../../stores/useProjectStore'
 import { useStatusStore } from '../../stores/useStatusStore'
 import { useViewStore } from '../../stores/useViewStore'
 import { useWhisperPreloadStore } from '../../stores/useWhisperPreloadStore'
-import { useProviderStore } from '../../stores/useProviderStore'
 import { subscribeToExtensionsChange } from '../../extensions/registry'
 import type { ToolMeta } from '@shared/types'
 import type { GoogleSyncStatus } from '@shared/contacts'
@@ -46,6 +45,10 @@ interface FieldDef {
 }
 
 const PROVIDER_FIELD_DEFS: Record<string, FieldDef[]> = {
+  'openai-compatible': [
+    { key: 'baseUrl', label: 'BASE URL', placeholder: 'https://api.openai.com/v1', secret: false, hint: 'OpenAI Chat Completions compatible' },
+    { key: 'model', label: 'MODEL', placeholder: 'gpt-4.1-mini', secret: false, hint: 'exact model id exposed by the endpoint' },
+  ],
   ollama: [
     { key: 'baseUrl', label: 'BASE URL', placeholder: 'http://localhost:11434', secret: false, hint: 'no key required · local' },
   ],
@@ -59,10 +62,8 @@ interface ProviderMeta {
 }
 
 const PROVIDERS: ProviderMeta[] = [
-  { kind: 'projectrose', spec: '00', name: 'ProjectRose',       latin: 'Rosa managed'    },
-  { kind: 'ollama',      spec: '01', name: 'Ollama',            latin: 'Rosa localis'    },
-  { kind: 'kimi',        spec: '02', name: 'Kimi',              latin: 'Rosa lunaris'    },
-  { kind: 'bedrock',     spec: '03', name: 'Amazon Bedrock',    latin: 'Rosa fluminis'   },
+  { kind: 'openai-compatible', spec: '00', name: 'OpenAI-compatible', latin: 'Rosa aperta' },
+  { kind: 'ollama',            spec: '01', name: 'Ollama',            latin: 'Rosa localis' },
 ]
 
 // Doppler import — recognized secret names and where each one lands. Shown
@@ -72,8 +73,7 @@ const DOPPLER_KEY_ROWS: Array<{ secret: string; importsTo: string }> = [
   { secret: 'BRAVE_API_KEY',                        importsTo: 'Web Search — Brave' },
   { secret: 'TAVILY_API_KEY',                       importsTo: 'Web Search — Tavily' },
   { secret: 'BROWSERBASE_API_KEY',                  importsTo: 'Web Search — Browserbase' },
-  { secret: 'MOONSHOT_API_KEY',                     importsTo: 'Kimi — platform API key' },
-  { secret: 'AWS_ACCESS_KEY_ID + _SECRET_ACCESS_KEY', importsTo: 'Amazon Bedrock — AWS key pair' },
+  { secret: 'OPENAI_API_KEY',                       importsTo: 'OpenAI-compatible endpoint' },
   { secret: 'GOOGLE_OAUTH_CLIENT_ID + _SECRET',     importsTo: 'Google — OAuth pair' },
 ]
 
@@ -99,14 +99,11 @@ const dopplerTh: React.CSSProperties = {
 function ProviderGlyph({ kind, size = 28 }: { kind: string; size?: number }): JSX.Element | null {
   const c = 'var(--color-accent)'
   switch (kind) {
-    case 'projectrose':
+    case 'openai-compatible':
       return (
         <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
-          <circle cx="16" cy="16" r="6" fill={c} stroke="none" />
-          <path d="M16 4 C20 8 20 12 16 16 C12 12 12 8 16 4 Z" opacity="0.7" />
-          <path d="M28 16 C24 20 20 20 16 16 C20 12 24 12 28 16 Z" opacity="0.7" />
-          <path d="M16 28 C12 24 12 20 16 16 C20 20 20 24 16 28 Z" opacity="0.7" />
-          <path d="M4 16 C8 12 12 12 16 16 C12 20 8 20 4 16 Z" opacity="0.7" />
+          <circle cx="16" cy="16" r="10" />
+          <path d="M10 16 H22 M16 10 V22" strokeLinecap="round" />
         </svg>
       )
     case 'ollama':
@@ -117,26 +114,6 @@ function ProviderGlyph({ kind, size = 28 }: { kind: string; size?: number }): JS
           <ellipse cx="21" cy="10" rx="3" ry="4" fill={c} stroke="none"/>
           <circle cx="13" cy="17" r="1" fill={c} stroke="none"/>
           <circle cx="19" cy="17" r="1" fill={c} stroke="none"/>
-        </svg>
-      )
-    case 'kimi':
-      // Crescent moon — nod to Moonshot AI, kept single-colour like the rest.
-      return (
-        <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
-          <path d="M21 5 A12 12 0 1 0 27 17 A9.5 9.5 0 0 1 21 5 Z" />
-          <circle cx="23.5" cy="8.5" r="1.2" fill={c} stroke="none" />
-        </svg>
-      )
-    case 'bedrock':
-      // Layered strata over a river bend — "bedrock", kept single-colour and
-      // deliberately not the AWS wordmark (trademark/brand-guideline reasons,
-      // same call as the Google glyph below).
-      return (
-        <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
-          <path d="M4 11 H28" strokeLinecap="round" />
-          <path d="M4 17 H28" strokeLinecap="round" opacity="0.7" />
-          <path d="M6 23 C11 20 21 26 26 23" strokeLinecap="round" />
-          <circle cx="16" cy="6" r="2" fill={c} stroke="none" />
         </svg>
       )
     case 'google':
@@ -286,92 +263,6 @@ function KeyInput({ value, placeholder, onChange, type = 'password' }: {
   )
 }
 
-interface UsageInfo {
-  plan: string
-  plan_budget_usd: number
-  month_cost_usd: number
-  month_remaining_usd: number
-  pct: number
-  over_budget: boolean
-}
-
-function UsageBar({ usage, loading, error, onRefresh }: {
-  usage: UsageInfo | null
-  loading: boolean
-  error: string
-  onRefresh: () => void
-}): JSX.Element {
-  const fillPct = usage ? Math.max(0, Math.min(100, usage.pct)) : 0
-  const fillColor = usage?.over_budget
-    ? 'var(--color-error)'
-    : fillPct >= 80
-      ? 'var(--color-unsaved)'
-      : 'var(--color-saved)'
-
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-        <span style={{ fontSize: 9, letterSpacing: 1.4, color: 'var(--color-text-muted)', fontWeight: 500 }}>
-          MONTHLY USAGE{usage ? ` · ${usage.plan.toUpperCase()}` : ''}
-        </span>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={loading}
-          style={{
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            color: 'var(--color-text-muted)',
-            cursor: loading ? 'default' : 'pointer',
-            fontSize: 9,
-            letterSpacing: 1.4,
-            fontFamily: 'inherit',
-            fontWeight: 500,
-            opacity: loading ? 0.5 : 1,
-          }}
-        >
-          {loading ? 'LOADING…' : '↻ REFRESH'}
-        </button>
-      </div>
-      <div
-        style={{
-          height: 6,
-          background: 'var(--color-bg-secondary)',
-          borderRadius: 3,
-          overflow: 'hidden',
-          marginBottom: 6,
-        }}
-      >
-        <div
-          style={{
-            height: '100%',
-            width: `${fillPct}%`,
-            background: fillColor,
-            transition: 'width 240ms ease',
-          }}
-        />
-      </div>
-      {usage ? (
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--color-text-muted)' }}>
-          <span style={{ color: usage.over_budget ? 'var(--color-error)' : 'var(--color-text-primary)' }}>
-            ${usage.month_cost_usd.toFixed(2)} of ${usage.plan_budget_usd.toFixed(2)}
-          </span>
-          <span>
-            {usage.over_budget
-              ? 'over budget'
-              : `${usage.pct.toFixed(1)}% · $${usage.month_remaining_usd.toFixed(2)} left`}
-          </span>
-        </div>
-      ) : error ? (
-        <div style={{ fontSize: 11, color: 'var(--color-error)' }}>{error}</div>
-      ) : loading ? (
-        <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Loading usage…</div>
-      ) : null}
-    </div>
-  )
-}
-
 // ─────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────
@@ -379,7 +270,7 @@ function UsageBar({ usage, loading, error, onRefresh }: {
 export function SettingsView(): JSX.Element {
   const {
     micDeviceId, userName, agentName, activeListeningDraftSeconds, whisperModel,
-    ollamaBaseUrl, kimiAuthMethod, bedrockRegion,
+    ollamaBaseUrl, openaiCompatibleBaseUrl, openaiCompatibleModel,
     tts,
     update,
   } = useSettingsStore()
@@ -405,241 +296,45 @@ export function SettingsView(): JSX.Element {
   const [testedProviders, setTestedProviders] = useState<Record<string, 'connected' | 'error'>>({})
   const [providerTesting, setProviderTesting] = useState<Record<string, boolean>>({})
 
-  // ── projectrose account state ──
-  const [prAccount, setPrAccount] = useState<{ loggedIn: boolean; email: string; name: string }>({ loggedIn: false, email: '', name: '' })
-  const [prMode, setPrMode] = useState<'idle' | 'pending'>('idle')
-  const [prPairingUrl, setPrPairingUrl] = useState('')
-  const [prError, setPrError] = useState('')
-  const [prUsage, setPrUsage] = useState<{
-    plan: string
-    plan_budget_usd: number
-    month_cost_usd: number
-    month_remaining_usd: number
-    pct: number
-    over_budget: boolean
-  } | null>(null)
-  const [prUsageLoading, setPrUsageLoading] = useState(false)
-  const [prUsageError, setPrUsageError] = useState('')
+  // ── OpenAI-compatible API key (optional, encrypted in main) ──
+  const [openaiApiKeyStored, setOpenaiApiKeyStored] = useState(false)
+  const [openaiApiKeyDraft, setOpenaiApiKeyDraft] = useState('')
+  const [openaiApiKeyBusy, setOpenaiApiKeyBusy] = useState(false)
+  const [openaiApiKeyError, setOpenaiApiKeyError] = useState('')
 
-  const loadProjectRoseUsage = useCallback(async () => {
-    setPrUsageLoading(true)
-    setPrUsageError('')
+  useEffect(() => {
+    window.api.openAICompatible.getStatus()
+      .then((status) => setOpenaiApiKeyStored(status.apiKeyStored))
+      .catch(() => setOpenaiApiKeyStored(false))
+  }, [])
+
+  async function saveOpenaiApiKey(): Promise<void> {
+    if (!openaiApiKeyDraft.trim()) return
+    setOpenaiApiKeyBusy(true)
+    setOpenaiApiKeyError('')
     try {
-      const result = await window.api.auth.getUsage()
-      if (result.ok) {
-        setPrUsage(result.usage)
-      } else {
-        setPrUsage(null)
-        setPrUsageError(result.error)
-      }
+      const status = await window.api.openAICompatible.saveApiKey(openaiApiKeyDraft)
+      setOpenaiApiKeyStored(status.apiKeyStored)
+      setOpenaiApiKeyDraft('')
+    } catch (err) {
+      setOpenaiApiKeyError(err instanceof Error ? err.message : 'Could not save API key')
     } finally {
-      setPrUsageLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    window.api.auth.getStatus().then((s) => { if (!cancelled) setPrAccount({ loggedIn: s.loggedIn, email: s.email, name: s.name }) })
-    const offChanged = window.api.auth.onChanged((d) => {
-      setPrAccount({ loggedIn: d.loggedIn, email: d.email, name: d.name })
-      setPrMode('idle')
-      setPrPairingUrl('')
-      setPrError('')
-    })
-    const offPending = window.api.auth.onPairingPending((d) => {
-      setPrPairingUrl(d.url)
-      setPrMode('pending')
-      setPrError('')
-    })
-    return () => { cancelled = true; offChanged(); offPending() }
-  }, [])
-
-  useEffect(() => {
-    if (expandedProvider !== 'projectrose' || !prAccount.loggedIn) return
-    loadProjectRoseUsage()
-  }, [expandedProvider, prAccount.loggedIn, loadProjectRoseUsage])
-
-  useEffect(() => {
-    if (!prAccount.loggedIn) {
-      setPrUsage(null)
-      setPrUsageError('')
-    }
-  }, [prAccount.loggedIn])
-
-  async function projectroseSignIn(): Promise<void> {
-    setPrError('')
-    setPrMode('pending')
-    try {
-      await window.api.auth.login()
-    } catch (e) {
-      setPrError(e instanceof Error ? e.message : 'Sign-in failed')
-      setPrMode('idle')
-      setPrPairingUrl('')
+      setOpenaiApiKeyBusy(false)
     }
   }
 
-  async function projectroseCancel(): Promise<void> {
-    try { await window.api.auth.cancel() } catch { /* ignore */ }
-    setPrMode('idle')
-    setPrPairingUrl('')
-  }
-
-  async function projectroseSignOut(): Promise<void> {
-    try { await window.api.auth.logout() } catch { /* ignore */ }
-  }
-
-  // ── kimi account state ──
-  const [kimiAccount, setKimiAccount] = useState<{ loggedIn: boolean; apiKeyStored: boolean }>({
-    loggedIn: false,
-    apiKeyStored: false,
-  })
-  const [kimiMode, setKimiMode] = useState<'idle' | 'pending'>('idle')
-  const [kimiPending, setKimiPending] = useState<{ url: string; userCode: string } | null>(null)
-  const [kimiError, setKimiError] = useState('')
-  // BYO Moonshot API key draft — write-only across IPC, so the field starts
-  // blank on every load (same pattern as the Google client secret).
-  const [kimiKeyDraft, setKimiKeyDraft] = useState('')
-  const [kimiKeyBusy, setKimiKeyBusy] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    window.api.kimiAuth.getStatus().then((s) => {
-      if (!cancelled) setKimiAccount({ loggedIn: s.loggedIn, apiKeyStored: s.apiKeyStored })
-    })
-    const offChanged = window.api.kimiAuth.onChanged((d) => {
-      setKimiAccount({ loggedIn: d.loggedIn, apiKeyStored: d.apiKeyStored })
-      setKimiMode('idle')
-      setKimiPending(null)
-      setKimiError('')
-    })
-    const offPending = window.api.kimiAuth.onPending((d) => {
-      setKimiPending(d)
-      setKimiMode('pending')
-      setKimiError('')
-    })
-    return () => { cancelled = true; offChanged(); offPending() }
-  }, [])
-
-  async function kimiSignIn(): Promise<void> {
-    setKimiError('')
-    setKimiMode('pending')
+  async function clearOpenaiApiKey(): Promise<void> {
+    setOpenaiApiKeyBusy(true)
+    setOpenaiApiKeyError('')
     try {
-      await window.api.kimiAuth.login()
-    } catch (e) {
-      setKimiError(e instanceof Error ? e.message : 'Sign-in failed')
-      setKimiMode('idle')
-      setKimiPending(null)
+      const status = await window.api.openAICompatible.clearApiKey()
+      setOpenaiApiKeyStored(status.apiKeyStored)
+      setOpenaiApiKeyDraft('')
+    } catch (err) {
+      setOpenaiApiKeyError(err instanceof Error ? err.message : 'Could not clear API key')
+    } finally {
+      setOpenaiApiKeyBusy(false)
     }
-  }
-
-  async function kimiCancel(): Promise<void> {
-    try { await window.api.kimiAuth.cancel() } catch { /* ignore */ }
-    setKimiMode('idle')
-    setKimiPending(null)
-  }
-
-  async function kimiSignOut(): Promise<void> {
-    try { await window.api.kimiAuth.logout() } catch { /* ignore */ }
-  }
-
-  // Flip auth method. Model choice lives in the chat composer's ModelPicker,
-  // which reads the option table matching the active method.
-  function kimiSetAuthMethod(method: 'oauth' | 'apikey'): void {
-    void update({ kimiAuthMethod: method })
-  }
-
-  async function kimiSaveApiKey(): Promise<void> {
-    const apiKey = kimiKeyDraft.trim()
-    if (!apiKey) {
-      setKimiError('An API key is required.')
-      return
-    }
-    setKimiKeyBusy(true)
-    setKimiError('')
-    try {
-      const s = await window.api.kimiAuth.saveApiKey({ apiKey })
-      setKimiAccount({ loggedIn: s.loggedIn, apiKeyStored: s.apiKeyStored })
-      setKimiKeyDraft('')
-    } catch (e) {
-      setKimiError(e instanceof Error ? e.message : 'Could not save the API key')
-    } finally { setKimiKeyBusy(false) }
-  }
-
-  async function kimiClearApiKey(): Promise<void> {
-    setKimiKeyBusy(true)
-    setKimiError('')
-    try {
-      const s = await window.api.kimiAuth.clearApiKey()
-      setKimiAccount({ loggedIn: s.loggedIn, apiKeyStored: s.apiKeyStored })
-      setKimiKeyDraft('')
-    } catch (e) {
-      setKimiError(e instanceof Error ? e.message : 'Could not clear the API key')
-    } finally { setKimiKeyBusy(false) }
-  }
-
-  // ── bedrock account state ──
-  // No sign-in flow: Bedrock authenticates per-request with SigV4, so
-  // "connecting" is just storing an AWS key pair. The drafts are write-only
-  // across IPC and start blank on every load (same pattern as the Kimi key
-  // and the Google client secret).
-  const [bedrockCreds, setBedrockCreds] = useState<{ credentialsStored: boolean }>({
-    credentialsStored: false,
-  })
-  const [bedrockAccessKeyDraft, setBedrockAccessKeyDraft] = useState('')
-  const [bedrockSecretKeyDraft, setBedrockSecretKeyDraft] = useState('')
-  const [bedrockSessionTokenDraft, setBedrockSessionTokenDraft] = useState('')
-  const [bedrockBusy, setBedrockBusy] = useState(false)
-  const [bedrockError, setBedrockError] = useState('')
-
-  useEffect(() => {
-    let cancelled = false
-    window.api.bedrockAuth.getStatus().then((s) => {
-      if (!cancelled) setBedrockCreds({ credentialsStored: s.credentialsStored })
-    })
-    const offChanged = window.api.bedrockAuth.onChanged((d) => {
-      setBedrockCreds({ credentialsStored: d.credentialsStored })
-      setBedrockError('')
-    })
-    return () => { cancelled = true; offChanged() }
-  }, [])
-
-  async function bedrockSaveCredentials(): Promise<void> {
-    const accessKeyId = bedrockAccessKeyDraft.trim()
-    const secretAccessKey = bedrockSecretKeyDraft.trim()
-    if (!accessKeyId || !secretAccessKey) {
-      setBedrockError('Both an access key ID and a secret access key are required.')
-      return
-    }
-    setBedrockBusy(true)
-    setBedrockError('')
-    try {
-      const sessionToken = bedrockSessionTokenDraft.trim()
-      const s = await window.api.bedrockAuth.saveCredentials({
-        accessKeyId,
-        secretAccessKey,
-        ...(sessionToken ? { sessionToken } : {}),
-      })
-      setBedrockCreds({ credentialsStored: s.credentialsStored })
-      setBedrockAccessKeyDraft('')
-      setBedrockSecretKeyDraft('')
-      setBedrockSessionTokenDraft('')
-    } catch (e) {
-      setBedrockError(e instanceof Error ? e.message : 'Could not save the AWS credentials')
-    } finally { setBedrockBusy(false) }
-  }
-
-  async function bedrockClearCredentials(): Promise<void> {
-    setBedrockBusy(true)
-    setBedrockError('')
-    try {
-      const s = await window.api.bedrockAuth.clearCredentials()
-      setBedrockCreds({ credentialsStored: s.credentialsStored })
-      setBedrockAccessKeyDraft('')
-      setBedrockSecretKeyDraft('')
-      setBedrockSessionTokenDraft('')
-    } catch (e) {
-      setBedrockError(e instanceof Error ? e.message : 'Could not clear the AWS credentials')
-    } finally { setBedrockBusy(false) }
   }
 
   // ── google account state ──
@@ -769,9 +464,8 @@ export function SettingsView(): JSX.Element {
       | 'search-brave'
       | 'search-tavily'
       | 'search-browserbase'
-      | 'kimi-apikey'
+      | 'openai-api-key'
       | 'google-oauth'
-      | 'bedrock-aws'
     label: string
     secretName: string
     maskedValue: string
@@ -788,7 +482,7 @@ export function SettingsView(): JSX.Element {
   const [dopplerSelected, setDopplerSelected] = useState<Set<string>>(new Set())
   const [dopplerApplied, setDopplerApplied] = useState<string[]>([])
 
-  // Sign-in state for the Doppler device flow (same shape as the Kimi flow).
+  // Sign-in state for the Doppler device flow.
   const [dopplerAuthed, setDopplerAuthed] = useState(false)
   const [dopplerAuthMode, setDopplerAuthMode] = useState<'idle' | 'pending'>('idle')
   const [dopplerPendingAuth, setDopplerPendingAuth] = useState<{ url: string; userCode: string } | null>(null)
@@ -931,7 +625,9 @@ export function SettingsView(): JSX.Element {
       // Imported credentials land in the other cards — refresh their status.
       void refreshSearchStatus()
       void refreshGoogleStatus()
-      window.api.kimiAuth.getStatus().then((s) => setKimiAccount({ loggedIn: s.loggedIn, apiKeyStored: s.apiKeyStored })).catch(() => {})
+      window.api.openAICompatible.getStatus()
+        .then((status) => setOpenaiApiKeyStored(status.apiKeyStored))
+        .catch(() => {})
       void useSettingsStore.getState().load()
     } catch (e) {
       setDopplerError(e instanceof Error ? e.message : 'Import failed')
@@ -1286,43 +982,38 @@ export function SettingsView(): JSX.Element {
   // ─────────────────────────────────────────────────────────
 
   function getProviderFields(kind: string): Record<string, string> {
-    switch (kind) {
-      case 'ollama':      return { baseUrl: ollamaBaseUrl }
-      case 'projectrose': return {}
-      default:            return {}
+    if (kind === 'ollama') return { baseUrl: ollamaBaseUrl }
+    if (kind === 'openai-compatible') {
+      return { baseUrl: openaiCompatibleBaseUrl, model: openaiCompatibleModel }
     }
+    return {}
   }
 
   function getProviderStatus(kind: string): ProviderStatus {
-    if (kind === 'projectrose') return prAccount.loggedIn ? 'connected' : 'missing'
-    if (kind === 'kimi') {
-      return kimiAuthMethod === 'apikey'
-        ? kimiAccount.apiKeyStored ? 'connected' : 'missing'
-        : kimiAccount.loggedIn ? 'connected' : 'missing'
-    }
-    // 'connected' here means "keys are stored", not "keys are valid" — the
-    // only way to prove validity is a signed call, which VERIFY does (and
-    // which then lands in testedProviders, taking priority below).
-    if (kind === 'bedrock') {
-      if (testedProviders[kind] === 'error') return 'error'
-      if (!bedrockCreds.credentialsStored) return 'missing'
-      return testedProviders[kind] === 'connected' ? 'connected' : 'unverified'
-    }
     if (testedProviders[kind] === 'connected') return 'connected'
     if (testedProviders[kind] === 'error') return 'error'
     const fields = getProviderFields(kind)
-    const hasContent = Object.values(fields).some((v) => v && v !== '')
-    return hasContent ? 'unverified' : 'missing'
+    const complete = Object.values(fields).every((value) => value.trim().length > 0)
+    return complete ? 'unverified' : 'missing'
   }
 
-  function handleProviderFieldChange(kind: string, _key: string, value: string): void {
-    setTestedProviders((prev) => { const n = { ...prev }; delete n[kind]; return n })
+  function handleProviderFieldChange(kind: string, key: string, value: string): void {
+    setTestedProviders((prev) => { const next = { ...prev }; delete next[kind]; return next })
     if (kind === 'ollama') update({ ollamaBaseUrl: value })
+    if (kind === 'openai-compatible' && key === 'baseUrl') {
+      update({ openaiCompatibleBaseUrl: value })
+    }
+    if (kind === 'openai-compatible' && key === 'model') {
+      update({ openaiCompatibleModel: value })
+    }
   }
 
   function clearProvider(kind: string): void {
-    setTestedProviders((prev) => { const n = { ...prev }; delete n[kind]; return n })
+    setTestedProviders((prev) => { const next = { ...prev }; delete next[kind]; return next })
     if (kind === 'ollama') update({ ollamaBaseUrl: '' })
+    if (kind === 'openai-compatible') {
+      update({ openaiCompatibleBaseUrl: '', openaiCompatibleModel: '' })
+    }
   }
 
   async function verifyProvider(kind: string): Promise<void> {
@@ -1331,29 +1022,19 @@ export function SettingsView(): JSX.Element {
       let ok = false
       if (kind === 'ollama') {
         const url = (ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '')
-        const res = await fetch(`${url}/api/tags`)
-        ok = res.ok
+        const response = await fetch(`${url}/api/tags`)
+        ok = response.ok
         if (ok) fetchOllamaModels('__ollama_provider__', ollamaBaseUrl)
-      } else if (kind === 'bedrock') {
-        // Listing models is the cheapest call that actually exercises the
-        // SigV4 signature, the region, and the IAM policy. It runs in main —
-        // the renderer has no credentials to sign with. Refresh the picker's
-        // list off the same call so a successful verify populates it.
-        setBedrockError('')
-        try {
-          await useProviderStore.getState().refreshBedrockModels()
-          const err = useProviderStore.getState().bedrockModelsError
-          ok = !err
-          if (err) setBedrockError(err)
-        } catch (e) {
-          setBedrockError(e instanceof Error ? e.message : 'Could not reach Bedrock')
-        }
+      } else if (kind === 'openai-compatible') {
+        const result = await window.api.openAICompatible.test()
+        ok = result.ok
+        setOpenaiApiKeyError(result.error ?? '')
       }
       setTestedProviders((prev) => ({ ...prev, [kind]: ok ? 'connected' : 'error' }))
     } catch {
       setTestedProviders((prev) => ({ ...prev, [kind]: 'error' }))
     } finally {
-      setProviderTesting((prev) => { const n = { ...prev }; delete n[kind]; return n })
+      setProviderTesting((prev) => { const next = { ...prev }; delete next[kind]; return next })
     }
   }
 
@@ -1825,7 +1506,7 @@ export function SettingsView(): JSX.Element {
             const status = getProviderStatus(p.kind)
             const isExpanded = expandedProvider === p.kind
             const isTesting = !!providerTesting[p.kind]
-            const filledCount = Object.values(fields).filter((v) => v && v !== '').length
+            const filledCount = Object.values(fields).filter((value) => value.trim()).length
             const totalFields = fieldDefs.length
 
             return (
@@ -1852,25 +1533,8 @@ export function SettingsView(): JSX.Element {
                       <div className={styles.providerStatusRow}>
                         <StatusBadge state={status} />
                         <span className={styles.providerFieldInfo}>
-                          {p.kind === 'projectrose'
-                            ? prAccount.loggedIn
-                              ? 'signed in'
-                              : 'sign in to use the managed endpoint'
-                            : p.kind === 'kimi'
-                              ? kimiAuthMethod === 'apikey'
-                                ? kimiAccount.apiKeyStored
-                                  ? 'API key saved'
-                                  : 'add a Kimi API key'
-                                : kimiAccount.loggedIn
-                                  ? 'signed in'
-                                  : 'sign in with your kimi.com account'
-                            : p.kind === 'bedrock'
-                              ? bedrockCreds.credentialsStored
-                                ? `AWS credentials saved · ${bedrockRegion}`
-                                : 'add AWS credentials'
-                              : status === 'connected' || status === 'unverified'
-                                ? `${filledCount}/${totalFields} field${totalFields === 1 ? '' : 's'}`
-                                : `${totalFields} field${totalFields === 1 ? '' : 's'} required`}
+                          {filledCount}/{totalFields} fields
+                          {p.kind === 'openai-compatible' && openaiApiKeyStored ? ' · API key saved' : ''}
                         </span>
                       </div>
                     </div>
@@ -1885,299 +1549,80 @@ export function SettingsView(): JSX.Element {
 
                 {isExpanded && (
                   <div className={`${styles.providerCardBody} ${styles.drawerIn}`}>
-                    {p.kind === 'projectrose' ? (
-                      <div style={{ padding: '12px 16px 4px' }}>
-                        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
-                          {prAccount.loggedIn
-                            ? 'Signed in — pick ProjectRose from the model picker in the chat composer to use the managed endpoint.'
-                            : 'Sign in to make the managed ProjectRose endpoint (backed by your subscription) available in the chat composer — no API keys needed.'}
-                        </p>
-                        {prAccount.loggedIn ? (
-                          <>
-                            <div style={{ fontSize: 12, color: 'var(--color-text-primary)', marginBottom: 4 }}>
-                              {prAccount.name || prAccount.email}
-                            </div>
-                            {prAccount.name && (
-                              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>
-                                {prAccount.email}
-                              </div>
-                            )}
-                            <UsageBar
-                              usage={prUsage}
-                              loading={prUsageLoading}
-                              error={prUsageError}
-                              onRefresh={loadProjectRoseUsage}
-                            />
-                          </>
-                        ) : prMode === 'pending' ? (
-                          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
-                            Browser opened — finish authorization there.
-                            {prPairingUrl && (
-                              <>
-                                {' '}
-                                <button
-                                  type="button"
-                                  onClick={() => navigator.clipboard.writeText(prPairingUrl).catch(() => {})}
-                                  style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-accent)', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, fontFamily: 'inherit' }}
-                                >
-                                  COPY LINK
-                                </button>
-                              </>
-                            )}
-                          </p>
-                        ) : null}
-                        {prError && (
-                          <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{prError}</p>
-                        )}
-                      </div>
-                    ) : p.kind === 'kimi' ? (
-                      <div style={{ padding: '12px 16px 4px' }}>
-                        {/* Auth-method toggle: kimi.com OAuth vs BYO Moonshot API key */}
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                          {([
-                            { id: 'oauth' as const, label: 'KIMI.COM ACCOUNT' },
-                            { id: 'apikey' as const, label: 'API KEY' },
-                          ]).map((m) => (
-                            <button
-                              key={m.id}
-                              type="button"
-                              className={kimiAuthMethod === m.id ? styles.primaryBtn : styles.ghostBtn}
-                              style={{ flex: 1, fontSize: 10 }}
-                              onClick={() => kimiSetAuthMethod(m.id)}
-                            >
-                              {m.label}
-                            </button>
-                          ))}
-                        </div>
-                        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
-                          {kimiAuthMethod === 'apikey'
-                            ? kimiAccount.apiKeyStored
-                              ? 'API key saved — pick a Kimi model from the model picker in the chat composer.'
-                              : 'Paste a Kimi Coding key (sk-kimi-…, from kimi.com) or a Moonshot platform key (sk-…, from platform.moonshot.ai). The key type is detected automatically and routed to the right API.'
-                            : kimiAccount.loggedIn
-                              ? 'Signed in — pick a Kimi Code model from the model picker in the chat composer (backed by your kimi.com subscription).'
-                              : 'Sign in with your kimi.com account to make Kimi Code available in the chat composer — no API keys needed.'}
-                        </p>
-                        {kimiAuthMethod === 'apikey' ? (
-                          <FieldRow label="API KEY" hint="stored in system keychain">
-                            <KeyInput
-                              value={kimiKeyDraft}
-                              placeholder={kimiAccount.apiKeyStored ? '••••••••  (key saved — paste to replace)' : 'sk-…'}
-                              onChange={setKimiKeyDraft}
-                            />
-                          </FieldRow>
-                        ) : kimiAccount.loggedIn ? null : kimiMode === 'pending' ? (
-                          <div style={{ margin: '0 0 12px' }}>
-                            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 8px' }}>
-                              Browser opened — approve this device on kimi.com.
-                              {kimiPending?.url && (
-                                <>
-                                  {' '}
-                                  <button
-                                    type="button"
-                                    onClick={() => navigator.clipboard.writeText(kimiPending.url).catch(() => {})}
-                                    style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-accent)', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, fontFamily: 'inherit' }}
-                                  >
-                                    COPY LINK
-                                  </button>
-                                </>
-                              )}
-                            </p>
-                            {kimiPending?.userCode && (
-                              <p style={{ fontSize: 12, margin: 0, color: 'var(--color-text-primary)' }}>
-                                Confirmation code:{' '}
-                                <span style={{ fontFamily: 'inherit', letterSpacing: '0.15em', color: 'var(--color-accent)' }}>
-                                  {kimiPending.userCode}
-                                </span>
-                              </p>
-                            )}
-                          </div>
-                        ) : null}
-                        {kimiError && (
-                          <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{kimiError}</p>
-                        )}
-                      </div>
-                    ) : p.kind === 'bedrock' ? (
-                      <div style={{ padding: '12px 16px 4px' }}>
-                        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
-                          {bedrockCreds.credentialsStored
-                            ? 'AWS credentials saved — pick a Bedrock model from the model picker in the chat composer.'
-                            : 'Paste an AWS access key pair for an IAM identity with bedrock:InvokeModelWithResponseStream, bedrock:ListFoundationModels, and bedrock:ListInferenceProfiles. Keys are stored in the system keychain and never leave this machine.'}
-                        </p>
-                        <FieldRow label="REGION" hint="model availability is region-scoped">
-                          <KeyInput
-                            value={bedrockRegion}
-                            placeholder="us-east-1"
-                            onChange={(v) => update({ bedrockRegion: v })}
-                          />
-                        </FieldRow>
-                        <FieldRow label="ACCESS KEY ID" hint="stored in system keychain">
-                          <KeyInput
-                            value={bedrockAccessKeyDraft}
-                            placeholder={bedrockCreds.credentialsStored ? '••••••••  (saved — paste to replace)' : 'AKIA…'}
-                            onChange={setBedrockAccessKeyDraft}
-                          />
-                        </FieldRow>
-                        <FieldRow label="SECRET ACCESS KEY" hint="stored in system keychain">
-                          <KeyInput
-                            value={bedrockSecretKeyDraft}
-                            placeholder={bedrockCreds.credentialsStored ? '••••••••  (saved — paste to replace)' : ''}
-                            type="password"
-                            onChange={setBedrockSecretKeyDraft}
-                          />
-                        </FieldRow>
-                        <FieldRow label="SESSION TOKEN" hint="only for temporary / STS credentials">
-                          <KeyInput
-                            value={bedrockSessionTokenDraft}
-                            placeholder="optional"
-                            type="password"
-                            onChange={setBedrockSessionTokenDraft}
-                          />
-                        </FieldRow>
-                        {bedrockError && (
-                          <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{bedrockError}</p>
-                        )}
-                      </div>
-                    ) : (
+                    {fieldDefs.map((field) => (
+                      <FieldRow key={field.key} label={field.label} hint={field.hint}>
+                        <KeyInput
+                          value={fields[field.key] ?? ''}
+                          placeholder={field.placeholder}
+                          type={field.secret ? 'password' : 'text'}
+                          onChange={(value) => handleProviderFieldChange(p.kind, field.key, value)}
+                        />
+                      </FieldRow>
+                    ))}
+
+                    {p.kind === 'openai-compatible' && (
                       <>
-                        {fieldDefs.map((f) => (
-                          <FieldRow key={f.key} label={f.label} hint={f.hint}>
-                            <KeyInput
-                              value={fields[f.key] ?? ''}
-                              placeholder={f.placeholder}
-                              type={f.secret ? 'password' : 'text'}
-                              onChange={(v) => handleProviderFieldChange(p.kind, f.key, v)}
-                            />
-                          </FieldRow>
-                        ))}
-                        {p.kind === 'ollama' && (
-                          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '12px 16px 4px' }}>
-                            Installed models appear in the model picker in the chat composer.
+                        <FieldRow label="API KEY" hint="optional · stored in system keychain">
+                          <KeyInput
+                            value={openaiApiKeyDraft}
+                            placeholder={openaiApiKeyStored ? '••••••••  (saved — paste to replace)' : 'optional'}
+                            type="password"
+                            onChange={setOpenaiApiKeyDraft}
+                          />
+                        </FieldRow>
+                        {openaiApiKeyError && (
+                          <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 16px 12px' }}>
+                            {openaiApiKeyError}
                           </p>
                         )}
                       </>
                     )}
-                    {p.kind === 'projectrose' ? (
-                      <div className={styles.providerCardFooter} style={{ justifyContent: 'stretch' }}>
-                        {prAccount.loggedIn ? (
-                          <button type="button" className={styles.ghostBtn} style={{ width: '100%' }} onClick={projectroseSignOut}>
-                            SIGN OUT
-                          </button>
-                        ) : prMode === 'pending' ? (
-                          <button type="button" className={styles.ghostBtn} style={{ width: '100%' }} onClick={projectroseCancel}>
-                            CANCEL
-                          </button>
-                        ) : (
-                          <button type="button" className={styles.primaryBtn} style={{ width: '100%' }} onClick={projectroseSignIn}>
-                            SIGN IN
-                          </button>
-                        )}
-                      </div>
-                    ) : p.kind === 'kimi' ? (
-                      <div className={styles.providerCardFooter} style={{ justifyContent: 'stretch' }}>
-                        {kimiAuthMethod === 'apikey' ? (
-                          <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-                            <button
-                              type="button"
-                              className={styles.ghostBtn}
-                              style={{ flex: 1 }}
-                              onClick={kimiClearApiKey}
-                              disabled={!kimiAccount.apiKeyStored || kimiKeyBusy}
-                              title="Wipes the saved Kimi API key."
-                            >
-                              CLEAR
-                            </button>
-                            <button
-                              type="button"
-                              className={styles.primaryBtn}
-                              style={{ flex: 2 }}
-                              onClick={kimiSaveApiKey}
-                              disabled={kimiKeyDraft.trim().length === 0 || kimiKeyBusy}
-                            >
-                              {kimiKeyBusy ? 'SAVING…' : 'SAVE KEY'}
-                            </button>
-                          </div>
-                        ) : kimiAccount.loggedIn ? (
-                          <button type="button" className={styles.ghostBtn} style={{ width: '100%' }} onClick={kimiSignOut}>
-                            SIGN OUT
-                          </button>
-                        ) : kimiMode === 'pending' ? (
-                          <button type="button" className={styles.ghostBtn} style={{ width: '100%' }} onClick={kimiCancel}>
-                            CANCEL
-                          </button>
-                        ) : (
-                          <button type="button" className={styles.primaryBtn} style={{ width: '100%' }} onClick={kimiSignIn}>
-                            SIGN IN
-                          </button>
-                        )}
-                      </div>
-                    ) : p.kind === 'bedrock' ? (
-                      <div className={styles.providerCardFooter} style={{ justifyContent: 'stretch' }}>
-                        <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-                          <button
-                            type="button"
-                            className={styles.ghostBtn}
-                            style={{ flex: 1 }}
-                            onClick={bedrockClearCredentials}
-                            disabled={!bedrockCreds.credentialsStored || bedrockBusy}
-                            title="Wipes the saved AWS credentials."
-                          >
-                            CLEAR
-                          </button>
-                          {/* Verify is only meaningful once keys are stored —
-                              it signs a real control-plane call. With unsaved
-                              drafts in the fields, SAVE takes priority. */}
-                          {bedrockCreds.credentialsStored &&
-                          bedrockAccessKeyDraft.trim().length === 0 &&
-                          bedrockSecretKeyDraft.trim().length === 0 ? (
-                            <button
-                              type="button"
-                              className={styles.primaryBtn}
-                              style={{ flex: 2 }}
-                              disabled={isTesting}
-                              onClick={() => verifyProvider(p.kind)}
-                            >
-                              {isTesting ? 'TESTING…' : status === 'connected' ? '↻ TEST AGAIN' : 'VERIFY'}
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className={styles.primaryBtn}
-                              style={{ flex: 2 }}
-                              onClick={bedrockSaveCredentials}
-                              disabled={
-                                bedrockAccessKeyDraft.trim().length === 0 ||
-                                bedrockSecretKeyDraft.trim().length === 0 ||
-                                bedrockBusy
-                              }
-                            >
-                              {bedrockBusy ? 'SAVING…' : 'SAVE CREDENTIALS'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className={styles.providerCardFooter}>
-                        <div className={styles.providerFooterBtns}>
-                          <button
-                            type="button"
-                            className={styles.ghostBtn}
-                            onClick={() => clearProvider(p.kind)}
-                          >
-                            CLEAR
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.primaryBtn}
-                            disabled={filledCount < totalFields || isTesting}
-                            onClick={() => verifyProvider(p.kind)}
-                          >
-                            {isTesting ? 'TESTING…' : status === 'connected' ? '↻ TEST AGAIN' : 'VERIFY & SAVE'}
-                          </button>
-                        </div>
-                      </div>
+
+                    {p.kind === 'ollama' && (
+                      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '12px 16px 4px' }}>
+                        Installed models appear in the model picker in the chat composer.
+                      </p>
                     )}
 
+                    <div className={styles.providerCardFooter}>
+                      <div className={styles.providerFooterBtns}>
+                        <button
+                          type="button"
+                          className={styles.ghostBtn}
+                          onClick={() => clearProvider(p.kind)}
+                        >
+                          CLEAR CONFIG
+                        </button>
+                        {p.kind === 'openai-compatible' && openaiApiKeyStored && (
+                          <button
+                            type="button"
+                            className={styles.ghostBtn}
+                            onClick={clearOpenaiApiKey}
+                            disabled={openaiApiKeyBusy}
+                          >
+                            CLEAR KEY
+                          </button>
+                        )}
+                        {p.kind === 'openai-compatible' && openaiApiKeyDraft.trim() && (
+                          <button
+                            type="button"
+                            className={styles.ghostBtn}
+                            onClick={saveOpenaiApiKey}
+                            disabled={openaiApiKeyBusy}
+                          >
+                            {openaiApiKeyBusy ? 'SAVING…' : 'SAVE KEY'}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className={styles.primaryBtn}
+                          disabled={filledCount < totalFields || isTesting}
+                          onClick={() => verifyProvider(p.kind)}
+                        >
+                          {isTesting ? 'TESTING…' : status === 'connected' ? '↻ TEST AGAIN' : 'VERIFY'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2475,7 +1920,7 @@ export function SettingsView(): JSX.Element {
                     <div style={{ padding: '12px 16px 4px' }}>
                       <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
                         The agent&apos;s search_web tool calls this provider directly from your
-                        machine — no ProjectRose account needed. Get a key at{' '}
+                        machine. Get a key at{' '}
                         <span style={{ fontFamily: 'var(--font-mono)' }}>
                           {searchProviderDraft === 'brave'
                             ? 'brave.com/search/api'

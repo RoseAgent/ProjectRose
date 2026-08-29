@@ -1,21 +1,7 @@
 import type { ModelConfig } from '@shared/modelConfig'
-import type { ExternalSource } from '@shared/externalSession'
-import {
-  PROJECTROSE_MODEL,
-  CLAUDE_MODEL_ALIASES,
-  CODEX_MODEL_ALIASES
-} from '@shared/modelConfig'
 
-// Pure option-list construction for the composer's ModelPicker. Kept free of
-// stores/React so the group rules (CLI options only on matching external
-// sessions, availability filtering, default precedence) are unit-testable.
-
-export type PickerChoice =
-  // A Rose provider pair — the Conversation runs in-process with this model.
-  | { kind: 'rose'; model: ModelConfig }
-  // Resume the external session via its CLI in the integrated terminal.
-  // `modelFlag` is the --model value; null omits the flag (CLI default).
-  | { kind: 'cli'; cli: 'claude' | 'codex'; modelFlag: string | null }
+// Pure option-list construction for the composer's ModelPicker.
+export type PickerChoice = ModelConfig
 
 export interface PickerOption {
   id: string
@@ -29,94 +15,28 @@ export interface PickerGroup {
 }
 
 export function choiceId(choice: PickerChoice): string {
-  return choice.kind === 'rose'
-    ? `rose:${choice.model.provider}:${choice.model.modelName}`
-    : `cli:${choice.cli}:${choice.modelFlag ?? 'default'}`
+  return `${choice.provider}:${choice.modelName}`
 }
 
 export interface PickerAvailability {
-  // Which external session (if any) the composer is attached to — decides
-  // whether a CLI group appears, and which one.
-  externalSource: ExternalSource | null
-  prLoggedIn: boolean
-  kimiAvailable: boolean
-  kimiAuthMethod: 'oauth' | 'apikey'
-  // Model ids fetched live from Kimi's /models endpoint for the active auth
-  // method. One picker option per id; empty → no Kimi options shown.
-  kimiModels: string[]
+  openaiCompatibleBaseUrl: string
+  openaiCompatibleModel: string
   ollamaConfigured: boolean
   ollamaModels: string[]
-  // Whether an AWS key pair is stored. Bedrock has no sign-in flow, so stored
-  // credentials are the whole of "available".
-  bedrockConfigured: boolean
-  // Model ids fetched live from Bedrock's control plane for the configured
-  // account + region. One picker option per id; empty → no Bedrock options.
-  bedrockModels: string[]
 }
 
 export function buildPickerGroups(a: PickerAvailability): PickerGroup[] {
   const groups: PickerGroup[] = []
 
-  // CLI resume options come first — on an external session they're the
-  // natural default. Never offered on Rose conversations (there's no session
-  // to resume).
-  if (a.externalSource === 'claude-code') {
+  const compatibleModel = a.openaiCompatibleModel.trim()
+  if (a.openaiCompatibleBaseUrl.trim() && compatibleModel) {
+    const choice: ModelConfig = {
+      provider: 'openai-compatible',
+      modelName: compatibleModel
+    }
     groups.push({
-      label: 'Claude',
-      options: CLAUDE_MODEL_ALIASES.map((m) => ({
-        id: choiceId({ kind: 'cli', cli: 'claude', modelFlag: m.flag }),
-        label: m.label,
-        choice: { kind: 'cli', cli: 'claude', modelFlag: m.flag }
-      }))
-    })
-  } else if (a.externalSource === 'codex') {
-    groups.push({
-      label: 'Codex',
-      options: CODEX_MODEL_ALIASES.map((m) => ({
-        id: choiceId({ kind: 'cli', cli: 'codex', modelFlag: m.flag }),
-        label: m.label,
-        choice: { kind: 'cli', cli: 'codex', modelFlag: m.flag }
-      }))
-    })
-  }
-
-  if (a.prLoggedIn) {
-    groups.push({
-      label: 'ProjectRose',
-      options: [
-        {
-          id: choiceId({ kind: 'rose', model: PROJECTROSE_MODEL }),
-          label: 'Managed',
-          choice: { kind: 'rose', model: PROJECTROSE_MODEL }
-        }
-      ]
-    })
-  }
-
-  // Kimi options come straight from the provider's live /models list — the id
-  // is the label, same as Ollama. Suppress the group until a fetch lands so we
-  // never show a stale hardcoded guess.
-  if (a.kimiAvailable && a.kimiModels.length > 0) {
-    groups.push({
-      label: 'Kimi',
-      options: a.kimiModels.map((id) => {
-        const model: ModelConfig = { provider: 'kimi', modelName: id }
-        return { id: choiceId({ kind: 'rose', model }), label: id, choice: { kind: 'rose', model } }
-      })
-    })
-  }
-
-  // Bedrock ids come straight from the account's live control-plane listing —
-  // the id is the label, same as Kimi and Ollama. Suppressed until a fetch
-  // lands: the reachable set is account- and region-scoped, so any hardcoded
-  // guess would offer models the user can't invoke.
-  if (a.bedrockConfigured && a.bedrockModels.length > 0) {
-    groups.push({
-      label: 'Amazon Bedrock',
-      options: a.bedrockModels.map((id) => {
-        const model: ModelConfig = { provider: 'bedrock', modelName: id }
-        return { id: choiceId({ kind: 'rose', model }), label: id, choice: { kind: 'rose', model } }
-      })
+      label: 'OpenAI-compatible',
+      options: [{ id: choiceId(choice), label: compatibleModel, choice }]
     })
   }
 
@@ -124,8 +44,8 @@ export function buildPickerGroups(a: PickerAvailability): PickerGroup[] {
     groups.push({
       label: 'Ollama',
       options: a.ollamaModels.map((name) => {
-        const model: ModelConfig = { provider: 'ollama', modelName: name }
-        return { id: choiceId({ kind: 'rose', model }), label: name, choice: { kind: 'rose', model } }
+        const choice: ModelConfig = { provider: 'ollama', modelName: name }
+        return { id: choiceId(choice), label: name, choice }
       })
     })
   }
@@ -133,19 +53,11 @@ export function buildPickerGroups(a: PickerAvailability): PickerGroup[] {
   return groups
 }
 
-/**
- * The picker's initial selection. External sessions default to resuming with
- * their own CLI; Rose conversations use the user's most recent pick (trusted
- * even before the Ollama model list has been fetched — a stale pick fails the
- * send with an actionable message, which beats silently switching provider),
- * then the first available option in group order (ProjectRose → Kimi →
- * Amazon Bedrock → Ollama). Null when nothing is available.
- */
-export function defaultChoice(groups: PickerGroup[], lastModel: ModelConfig | null): PickerChoice | null {
-  const flat = groups.flatMap((g) => g.options)
-  const cliDefault = flat.find((o) => o.choice.kind === 'cli' && o.choice.modelFlag === null)
-  if (cliDefault) return cliDefault.choice
-
-  if (lastModel) return { kind: 'rose', model: lastModel }
-  return flat.length > 0 ? flat[0].choice : null
+export function defaultChoice(
+  groups: PickerGroup[],
+  lastModel: ModelConfig | null
+): PickerChoice | null {
+  if (lastModel) return lastModel
+  const first = groups[0]?.options[0]
+  return first?.choice ?? null
 }

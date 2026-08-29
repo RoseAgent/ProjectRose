@@ -4,8 +4,8 @@ import { readFile, writeFile, unlink } from 'fs/promises'
 
 // Doppler CLI-style auth token (device flow against api.doppler.com — the
 // same flow `doppler login` uses; see dopplerAuthService.ts). Stored
-// encrypted in userData/doppler-token.bin, same safeStorage pattern as
-// kimiSession.ts. Unlike a pasted service token, this token is
+// encrypted in userData/doppler-token.bin with Electron safeStorage. Unlike
+// a pasted service token, this token is
 // workplace-scoped, so secrets downloads must name a project + config.
 
 export const DOPPLER_API_HOST = 'https://api.doppler.com'

@@ -58,6 +58,16 @@ describe('save / load / list', () => {
     expect(loaded?.messages).toHaveLength(1)
   })
 
+  it('drops a model pin from a retired provider when loading', async () => {
+    const ws = join(base, 'proj-a')
+    await saveConversation(
+      conv('legacy', ws, {
+        model: { provider: 'projectrose', modelName: 'managed' } as never
+      })
+    )
+    expect((await loadConversation('legacy'))?.model).toBeUndefined()
+  })
+
   it('lists conversations newest-first with workspacePath from workspace.json', async () => {
     const ws = join(base, 'proj-a')
     await saveConversation(conv('old', ws, { updatedAt: 10 }))

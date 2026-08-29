@@ -10,13 +10,8 @@ const appVersion = JSON.parse(readFileSync(resolve('package.json'), 'utf-8')).ve
 // Only keys we explicitly forward below are exposed to the main bundle.
 const env = loadEnv(process.env.NODE_ENV ?? 'development', resolve('.'), '')
 
-// Build a process.env replacement map for the main bundle. Skip empty values so
-// the `?? '<placeholder>'` fallbacks in src/main/lib/webConfig.ts still work in
-// production builds where no .env file is present.
+// Build a process.env replacement map for the main bundle.
 const mainProcessEnvDefines: Record<string, string> = {}
-if (env.WEB_BASE_URL) {
-  mainProcessEnvDefines['process.env.WEB_BASE_URL'] = JSON.stringify(env.WEB_BASE_URL)
-}
 
 // Optional bundled Google OAuth pair (ADR 0009 amendment 2026-05-24). CI release
 // builds inject these from GitHub Actions secrets so the app works without the

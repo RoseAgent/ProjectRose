@@ -14,10 +14,8 @@ interface SettingsState {
   whisperModel: string
   lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
-  kimiAuthMethod: 'oauth' | 'apikey'
-  // AWS region for Bedrock. The key pair never reaches the renderer — it's
-  // written through window.api.bedrockAuth and sealed in main.
-  bedrockRegion: string
+  openaiCompatibleBaseUrl: string
+  openaiCompatibleModel: string
   // Most recent composer pick — seeds the ModelPicker for new Conversations.
   // Written by the picker, never by the Settings page.
   lastModel: ModelConfig | null
@@ -44,8 +42,8 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   whisperModel: 'Xenova/whisper-tiny.en',
   lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
-  kimiAuthMethod: 'oauth',
-  bedrockRegion: 'us-east-1',
+  openaiCompatibleBaseUrl: '',
+  openaiCompatibleModel: '',
   lastModel: null,
   extensions: {},
   tts: DEFAULT_TTS_SETTINGS,

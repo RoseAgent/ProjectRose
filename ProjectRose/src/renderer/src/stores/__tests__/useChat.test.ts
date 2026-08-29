@@ -15,8 +15,6 @@ import { useChat, detectEmptyResponseError } from '../useChat'
 import type { UserMessage } from '../../types/chatMessages'
 import { useProjectStore } from '../useProjectStore'
 import { useStatusStore } from '../useStatusStore'
-import { useTerminalStore } from '../useTerminalStore'
-import { useViewStore } from '../useViewStore'
 
 const emptyTimeline = {
   messages: [],
@@ -52,7 +50,6 @@ interface ApiStub {
     listAll: ReturnType<typeof vi.fn>
     delete: ReturnType<typeof vi.fn>
   }
-  external: { getTranscript: ReturnType<typeof vi.fn> }
   workspaces: { listKnown: ReturnType<typeof vi.fn> }
   readDirectoryTree: ReturnType<typeof vi.fn>
   addRecentProject: ReturnType<typeof vi.fn>
@@ -61,19 +58,18 @@ interface ApiStub {
 
 // A single-group list holding the given conversations in `/proj`.
 function groupsWith(
-  items: Array<{ source: string; id: string; title: string; createdAt: number; updatedAt: number }>
+  items: Array<{ id: string; title: string; createdAt: number; updatedAt: number }>
 ): unknown[] {
   return [{ workspacePath: '/proj', name: 'proj', existsOnDisk: true, lastActivity: 0, items }]
 }
 
 function roseItem(id: string, title = 't'): {
-  source: string
   id: string
   title: string
   createdAt: number
   updatedAt: number
 } {
-  return { source: 'rose', id, title, createdAt: 0, updatedAt: 0 }
+  return { id, title, createdAt: 0, updatedAt: 0 }
 }
 
 function makeApi(): ApiStub {
@@ -106,7 +102,6 @@ function makeApi(): ApiStub {
       listAll: vi.fn(async () => ({ groups: [] })),
       delete: vi.fn(async () => {}),
     },
-    external: { getTranscript: vi.fn(async () => null) },
     workspaces: { listKnown: vi.fn(async () => []) },
     readDirectoryTree: vi.fn(async () => null),
     addRecentProject: vi.fn(async () => []),
@@ -122,7 +117,6 @@ function resetStores(): void {
     searchQuery: '',
     groups: [],
     currentSessionId: null,
-    externalView: null,
     workspacePickerOpen: false,
     composerChoice: null,
     snapshot: null,
@@ -272,7 +266,6 @@ describe('useChat slice', () => {
         groups: groupsWith([roseItem('s1')]) as never,
         currentSessionId: 's1',
         messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
-        externalView: { source: 'claude-code', id: 'x', title: 'x', workspacePath: '/proj', entries: [] } as never,
       })
 
       // Same workspace → bindWorkspace short-circuits (no readDirectoryTree).
@@ -280,7 +273,6 @@ describe('useChat slice', () => {
 
       expect(useChat.getState().currentSessionId).toBeNull()
       expect(useChat.getState().messages).toEqual([])
-      expect(useChat.getState().externalView).toBeNull()
     })
 
     it('compressNow → refreshContextStatus → send substitutes the snapshot on the outgoing wire', async () => {
@@ -488,7 +480,6 @@ describe('useChat slice', () => {
         lastMessageId: 'u1',
         userMsg,
         hasAttachment: false,
-        isManaged: false,
       })
       expect(result).toBeNull()
     })
@@ -508,30 +499,9 @@ describe('useChat slice', () => {
         lastMessageId: 'u1',
         userMsg,
         hasAttachment: true,
-        isManaged: false,
       })
       expect(result).toContain('Error: The model returned an empty response.')
       expect(result).toContain('vision-capable model')
-    })
-
-    it('detectEmptyResponseError hint for an attachment + managed host mentions server image support', () => {
-      const userMsg: UserMessage = {
-        id: 'u1',
-        role: 'user',
-        content: 'look',
-        timestamp: 0,
-        attachments: [
-          { kind: 'screen', dataUrl: 'data:image/jpeg;base64,xx', mimeType: 'image/jpeg' },
-        ],
-      }
-      const result = detectEmptyResponseError({
-        response: { content: '', modifiedFiles: [] },
-        lastMessageId: 'u1',
-        userMsg,
-        hasAttachment: true,
-        isManaged: true,
-      })
-      expect(result).toContain('Server image support is coming soon')
     })
 
     it('detectEmptyResponseError with no attachment returns the bare error (no hint suffix)', () => {
@@ -546,7 +516,6 @@ describe('useChat slice', () => {
         lastMessageId: 'u1',
         userMsg,
         hasAttachment: false,
-        isManaged: false,
       })
       expect(result).toBe('Error: The model returned an empty response.')
     })
@@ -575,133 +544,4 @@ describe('useChat slice', () => {
     })
   })
 
-  describe('external-session composer routes', () => {
-    const extTranscript = {
-      source: 'claude-code' as const,
-      id: 'ext-sess-1',
-      title: 'Fixing the parser',
-      workspacePath: '/proj',
-      entries: [
-        { kind: 'user_message' as const, content: 'original ask' },
-        { kind: 'assistant_message' as const, content: 'original answer' },
-      ],
-    }
-
-    function stubTerminalAndView(): {
-      setPendingCommand: ReturnType<typeof vi.fn>
-      initialize: ReturnType<typeof vi.fn>
-      setActiveView: ReturnType<typeof vi.fn>
-    } {
-      const setPendingCommand = vi.fn()
-      const initialize = vi.fn(async () => {})
-      const setActiveView = vi.fn()
-      useTerminalStore.setState({ setPendingCommand, initialize } as never)
-      useViewStore.setState({ setActiveView } as never)
-      return { setPendingCommand, initialize, setActiveView }
-    }
-
-    it('a CLI choice routes send() to the terminal with the resume command and message', async () => {
-      const { setPendingCommand, initialize, setActiveView } = stubTerminalAndView()
-      useChat.setState({
-        externalView: extTranscript as never,
-        composerChoice: { kind: 'cli', cli: 'claude', modelFlag: 'opus' },
-      })
-      useChat.getState().setInputValue("fix the bug in foo's parser")
-
-      await useChat.getState().send()
-
-      expect(setPendingCommand).toHaveBeenCalledWith(
-        "claude --resume ext-sess-1 --dangerously-skip-permissions --model opus 'fix the bug in foo''s parser'"
-      )
-      expect(initialize).toHaveBeenCalledWith('/proj')
-      // The resume runs in the background — the user stays in their current
-      // view and the transcript stays open.
-      expect(setActiveView).not.toHaveBeenCalled()
-      expect(useChat.getState().externalView).not.toBeNull()
-      expect(useChat.getState().inputValue).toBe('')
-      expect(api.aiChat).not.toHaveBeenCalled()
-    })
-
-    it('empty input still resumes interactively (no prompt argument)', async () => {
-      const { setPendingCommand } = stubTerminalAndView()
-      useChat.setState({
-        externalView: extTranscript as never,
-        composerChoice: { kind: 'cli', cli: 'claude', modelFlag: null },
-      })
-      useChat.getState().setInputValue('')
-
-      await useChat.getState().send()
-
-      expect(setPendingCommand).toHaveBeenCalledWith(
-        'claude --resume ext-sess-1 --dangerously-skip-permissions'
-      )
-    })
-
-    it('a missing workspace bails with an error toast and opens nothing', async () => {
-      const { setPendingCommand, initialize } = stubTerminalAndView()
-      const notify = captureNotify()
-      api.readDirectoryTree.mockRejectedValue(new Error('ENOENT'))
-      useChat.setState({
-        externalView: { ...extTranscript, workspacePath: '/gone' } as never,
-        composerChoice: { kind: 'cli', cli: 'claude', modelFlag: null },
-      })
-
-      await useChat.getState().send()
-
-      expect(notify).toHaveBeenCalledWith(expect.stringContaining('Workspace folder not found'), {
-        tone: 'error',
-      })
-      expect(setPendingCommand).not.toHaveBeenCalled()
-      expect(initialize).not.toHaveBeenCalled()
-    })
-
-    it('a Rose choice forks the transcript into a new conversation and sends with the picked model', async () => {
-      vi.useFakeTimers()
-      const model = { provider: 'kimi' as const, modelName: 'kimi-k2-thinking' }
-      useChat.setState({
-        externalView: extTranscript as never,
-        composerChoice: { kind: 'rose', model },
-      })
-      useChat.getState().setInputValue('continue from here')
-
-      const promise = useChat.getState().send()
-      await vi.advanceTimersByTimeAsync(0)
-
-      // The external view was forked into a live Rose conversation.
-      expect(useChat.getState().externalView).toBeNull()
-      expect(useChat.getState().currentSessionId).not.toBeNull()
-
-      // aiChat received the converted history plus the new prompt, and the
-      // picked model as the per-conversation override.
-      expect(api.aiChat).toHaveBeenCalledOnce()
-      const [messages, rootPath, , modelArg] = api.aiChat.mock.calls[0]
-      expect(rootPath).toBe('/proj')
-      expect(modelArg).toEqual(model)
-      expect(messages.map((m: { role: string }) => m.role)).toEqual(['user', 'assistant', 'user'])
-      expect(messages[0]).toMatchObject({ content: 'original ask' })
-      expect(messages[2]).toMatchObject({ content: 'continue from here' })
-
-      // The persisted conversation pins the picked model and external title.
-      const saved = api.session.save.mock.calls[0][0]
-      expect(saved.model).toEqual(model)
-      expect(saved.title).toBe('Fixing the parser')
-      expect(saved.workspacePath).toBe('/proj')
-
-      await vi.advanceTimersByTimeAsync(250)
-      await promise
-    })
-
-    it('a CLI choice on an external Codex session uses the codex resume form', async () => {
-      const { setPendingCommand } = stubTerminalAndView()
-      useChat.setState({
-        externalView: { ...extTranscript, source: 'codex', id: 'cx-1' } as never,
-        composerChoice: { kind: 'cli', cli: 'codex', modelFlag: null },
-      })
-      useChat.getState().setInputValue('keep going')
-
-      await useChat.getState().send()
-
-      expect(setPendingCommand).toHaveBeenCalledWith("codex resume cx-1 'keep going'")
-    })
-  })
 })

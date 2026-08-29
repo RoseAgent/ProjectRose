@@ -2,13 +2,11 @@ import { createHash } from 'crypto'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 
-// Conversations are grouped on disk by the Workspace they belong to. The group
-// directory name mirrors Claude Code's encoding scheme — every character that
-// is not an ASCII letter or digit becomes a dash — so ProjectRose's layout is
-// legible next to `~/.claude/projects`. The scheme is LOSSY (path separators,
-// colons, and literal dashes are indistinguishable), so we NEVER decode a
-// directory name back into a path: the real absolute path is stored verbatim
-// in each group's `workspace.json`.
+// Conversations are grouped on disk by the Workspace they belong to. Every
+// character in the absolute path that is not an ASCII letter or digit becomes
+// a dash. The scheme is LOSSY (path separators, colons, and literal dashes are
+// indistinguishable), so we NEVER decode a directory name back into a path:
+// the real absolute path is stored verbatim in each group's `workspace.json`.
 
 export const WORKSPACE_META_FILE = 'workspace.json'
 

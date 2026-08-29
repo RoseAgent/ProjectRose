@@ -64,9 +64,8 @@ export async function runAgentOnce(
   rootPath: string,
   systemPrompt: string,
 ): Promise<ChatResponse> {
-  // Background runs are not part of any user chat — give them their own
-  // ephemeral session so extension tools (e.g. coding-agent harnesses)
-  // treat each call as a fresh session.
+  // Background runs are not part of any user chat, so give each call its own
+  // ephemeral session and isolated extension-tool state.
   const session = new ChatSession({ sessionId: randomUUID(), rootPath, role: 'one-shot' })
   sessionRegistry.register(session)
   try {

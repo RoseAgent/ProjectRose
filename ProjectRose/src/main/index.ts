@@ -18,7 +18,6 @@ import { ensureAgentHome } from './lib/agentHome'
 import { migrateAllKnownWorkspaces } from './services/conversationStore'
 import { startAlwaysOnRuntimes } from './services/alwaysOnRuntimes'
 import { startEmailSyncLoop } from './services/email/emailSyncLoop'
-import { IPC } from '../shared/ipcChannels'
 import log from 'electron-log/main'
 
 // Without these listeners, Electron pops a modal dialog ("Uncaught
@@ -48,20 +47,6 @@ if (!gotLock) {
   })
 }
 
-// macOS delivers projectrose:// links via `open-url`. Must be registered as
-// early as possible — before `whenReady` — because the event can fire during
-// app launch when the user opens a link that triggers the app to start.
-app.on('open-url', (event, url) => {
-  event.preventDefault()
-  const [win] = BrowserWindow.getAllWindows()
-  if (win) {
-    if (win.isMinimized()) win.restore()
-    if (!win.isVisible()) win.show()
-    win.focus()
-    win.webContents.send(IPC.DEEPLINK_RECEIVED, url)
-  }
-})
-
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.projectrose.app')
 
@@ -79,12 +64,6 @@ app.whenReady().then(async () => {
   await migrateAllKnownWorkspaces().catch((err) =>
     log.error('[main] migrateAllKnownWorkspaces', err)
   )
-
-  // Register the projectrose:// scheme. electron-builder installs this for
-  // packaged Windows/Linux builds via the `protocols` config and for Mac via
-  // `extendInfo.CFBundleURLTypes`, but in dev mode nothing's installed it
-  // yet — calling this is a no-op when already registered.
-  app.setAsDefaultProtocolClient('projectrose')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

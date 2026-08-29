@@ -18,10 +18,10 @@ The Settings button is the cog in the app. Settings split into a few sections.
 ## Providers (who runs the model)
 
 Two choices:
-- **ProjectRose** — managed, just sign in. Recommended for most users.
-- **Ollama** — runs locally on their machine. They paste the URL (default is the standard local one) and pick a model name.
+- **OpenAI-compatible** — the user supplies a base URL, exact model id, and an optional encrypted API key.
+- **Ollama** — runs locally on their machine. They paste the URL and choose from installed models.
 
-When the user complains about responses being slow or weird, this is often where to look — are they on Ollama with a model their machine can't handle?
+When responses are slow or fail, verify the selected endpoint/model and use the provider card's connection test.
 
 ## Google
 

@@ -13,9 +13,8 @@ interface ProjectState {
   loadRecentProjects: () => Promise<void>
   // Bind the active Workspace to `path`. Selecting a conversation drives this;
   // there is no app-level "open workspace" independent of conversations.
-  // `viewOnly` binds without recording a recent (used for read-only external
-  // session viewing). Cheap-switch guard: rebinding the same path is a no-op.
-  bindWorkspace: (path: string, opts?: { viewOnly?: boolean }) => Promise<void>
+  // Cheap-switch guard: rebinding the same path is a no-op.
+  bindWorkspace: (path: string) => Promise<void>
   removeRecent: (path: string) => Promise<void>
   refreshTree: () => Promise<void>
   toggleDirExpanded: (path: string) => void
@@ -33,7 +32,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => ({
     set({ recentProjects: projects })
   },
 
-  bindWorkspace: async (path: string, opts?: { viewOnly?: boolean }) => {
+  bindWorkspace: async (path: string) => {
     // Same-workspace conversation switches must be instant: no tree rebuild,
     // no LSP re-index, no recents churn.
     if (get().rootPath === path && !get().workspaceMissing) return
@@ -53,12 +52,10 @@ export const useProjectStore = create<ProjectState>()((set, get) => ({
       return
     }
 
-    if (!opts?.viewOnly) {
-      const projects = await window.api.addRecentProject(path)
-      set({ recentProjects: projects })
-      // Start LSP servers for this workspace.
-      window.api.indexProject(path).catch(() => {})
-    }
+    const projects = await window.api.addRecentProject(path)
+    set({ recentProjects: projects })
+    // Start LSP servers for this workspace.
+    window.api.indexProject(path).catch(() => {})
 
     set({
       rootPath: path,

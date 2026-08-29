@@ -39,7 +39,7 @@ const CORE_TOOL_DISPLAY: Record<string, { displayName: string; description: stri
   ask_user: { displayName: 'Ask User', description: 'Pause generation to ask the user a clarifying question' },
   create_subagents: { displayName: 'Subagents', description: 'Spawn one or more subagents to run focused tasks in parallel' },
   explore: { displayName: 'Explore', description: 'Decompose a topic into parallel read-only sub-queries and return a combined report' },
-  search_web: { displayName: 'Web Search', description: 'Search the web via the ProjectRose search API' }
+  search_web: { displayName: 'Web Search', description: 'Search the web through the configured search provider' }
 }
 
 // Tools registered in `buildCoreTools` that belong, semantically, to a built-in

@@ -93,11 +93,10 @@ export function TerminalPanel(): JSX.Element {
 
     setTimeout(() => fitAddon.fit(), 100)
 
-    // Spawn a new pty session rooted at the currently-open project — unless a
-    // background session is already live (e.g. a Claude resume queued from the
-    // bloom view before the editor was ever shown). Respawning over it would
-    // kill the running process; instead just wire up to the existing session.
-    // The resize below sends a SIGWINCH, prompting TUI apps to redraw.
+    // Spawn a new pty session rooted at the currently-open project unless a
+    // background shell is already live. Respawning over it would kill its
+    // running process, so instead wire up to the existing session. The resize
+    // below sends a SIGWINCH, prompting TUI apps to redraw.
     if (!useTerminalStore.getState().sessionId) {
       const cwd = useProjectStore.getState().rootPath ?? undefined
       initialize(cwd)
@@ -105,10 +104,9 @@ export function TerminalPanel(): JSX.Element {
 
     return () => {
       // Clean up data listeners and the xterm view only. The pty session
-      // itself deliberately survives unmount — it may be running a resumed
-      // Claude/Codex CLI in the background (and StrictMode's dev double-mount
-      // would otherwise kill it). Ptys are reaped on re-root (initialize) and
-      // app quit (disposeAllTerminals in main).
+      // itself deliberately survives unmount so background shell processes
+      // keep running (and StrictMode's dev double-mount does not kill them).
+      // Ptys are reaped on re-root (initialize) and app quit.
       if (cleanupRef.current) {
         cleanupRef.current()
         cleanupRef.current = null

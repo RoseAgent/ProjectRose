@@ -6,7 +6,7 @@ import { useViewStore } from '../../stores/useViewStore'
 import { useAppsDrawerStore } from '../../stores/useAppsDrawerStore'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { VoiceEnrollmentModal } from './VoiceEnrollmentModal'
-import type { ConversationSource, ConversationListItem } from '@shared/conversationGroups'
+import type { ConversationListItem } from '@shared/conversationGroups'
 import styles from './SessionSidebar.module.css'
 
 function formatDate(ts: number): string {
@@ -16,17 +16,9 @@ function formatDate(ts: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-function SourceBadge({ source }: { source: ConversationSource }): JSX.Element | null {
-  if (source === 'rose') return null // Rose is the default — badge only foreign rows
-  const label = source === 'claude-code' ? 'CC' : 'CX'
-  const cls = source === 'claude-code' ? styles.badgeClaude : styles.badgeCodex
-  return <span className={clsx(styles.badge, cls)}>{label}</span>
-}
-
 export function SessionSidebar(): JSX.Element {
   const groups = useChat((s) => s.groups)
   const currentSessionId = useChat((s) => s.currentSessionId)
-  const externalView = useChat((s) => s.externalView)
   const searchQuery = useChat((s) => s.searchQuery)
   const setSearchQuery = useChat((s) => s.setSearchQuery)
   const openWorkspacePicker = useChat((s) => s.openWorkspacePicker)
@@ -51,7 +43,6 @@ export function SessionSidebar(): JSX.Element {
     if (renamingId) renameRef.current?.focus()
   }, [renamingId])
 
-  const activeExternalId = externalView?.id ?? null
   const query = searchQuery.toLowerCase()
 
   // Filter items by title, then drop empty groups.
@@ -64,7 +55,7 @@ export function SessionSidebar(): JSX.Element {
     // Default: open only the group holding the active conversation.
     return !!groups
       .find((g) => g.workspacePath === path)
-      ?.items.some((i) => i.id === currentSessionId || i.id === activeExternalId)
+      ?.items.some((i) => i.id === currentSessionId)
   }
 
   function toggleGroup(path: string): void {
@@ -73,7 +64,7 @@ export function SessionSidebar(): JSX.Element {
   }
 
   function handleSwitch(item: ConversationListItem): void {
-    if (item.id === currentSessionId || item.id === activeExternalId) return
+    if (item.id === currentSessionId) return
     switchSession(item.id)
   }
 
@@ -165,19 +156,16 @@ export function SessionSidebar(): JSX.Element {
               >
                 <span className={styles.groupCaret}>{groupOpen ? '▾' : '▸'}</span>
                 <span className={styles.groupName}>{group.name}</span>
-                {!group.existsOnDisk && !group.approximatePath && (
-                  <span className={styles.missingChip}>missing</span>
-                )}
+                {!group.existsOnDisk && <span className={styles.missingChip}>missing</span>}
                 <span className={styles.groupCount}>{group.items.length}</span>
               </button>
 
               {groupOpen &&
                 group.items.map((item, idx) => {
-                  const isActive = item.id === currentSessionId || item.id === activeExternalId
-                  const isRose = item.source === 'rose'
+                  const isActive = item.id === currentSessionId
                   return (
                     <div
-                      key={`${item.source}:${item.id}`}
+                      key={item.id}
                       className={clsx(styles.item, isActive && styles.itemActive)}
                       onClick={() => handleSwitch(item)}
                     >
@@ -186,7 +174,6 @@ export function SessionSidebar(): JSX.Element {
                           №{String(group.items.length - idx).padStart(2, '0')}
                         </span>
                         <span className={styles.itemDate}>{formatDate(item.updatedAt)}</span>
-                        <SourceBadge source={item.source} />
                         {isActive && <span className={styles.itemBadge}>active</span>}
                       </div>
                       {renamingId === item.id ? (
@@ -204,25 +191,22 @@ export function SessionSidebar(): JSX.Element {
                           {item.title}
                         </div>
                       )}
-                      {/* External sessions are read-only — no rename/delete. */}
-                      {isRose && (
-                        <div className={styles.actions}>
-                          <button
-                            className={styles.actionBtn}
-                            onClick={(e) => startRename(item, e)}
-                            title="Rename"
-                          >
-                            ✎
-                          </button>
-                          <button
-                            className={styles.actionBtn}
-                            onClick={(e) => handleDelete(item.id, e)}
-                            title="Delete"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )}
+                      <div className={styles.actions}>
+                        <button
+                          className={styles.actionBtn}
+                          onClick={(e) => startRename(item, e)}
+                          title="Rename"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          className={styles.actionBtn}
+                          onClick={(e) => handleDelete(item.id, e)}
+                          title="Delete"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   )
                 })}

@@ -57,22 +57,6 @@ export const IPC = {
   // list and delete are now declared via services/skillService.ipc.ts.)
   SKILLS_UPLOAD: 'skills:upload',
 
-  // Account auth event broadcasts (main → renderer). Request channels are
-  // declared by services/authService.ipc.ts.
-  AUTH_CHANGED: 'auth:changed',
-  AUTH_PAIRING_PENDING: 'auth:pairingPending',
-
-  // Kimi OAuth event broadcasts (main → renderer). Request channels are
-  // declared by services/kimiAuthService.ipc.ts.
-  KIMI_AUTH_CHANGED: 'kimiAuth:changed',
-  KIMI_AUTH_PENDING: 'kimiAuth:pending',
-
-  // Amazon Bedrock credential-change broadcast (main → renderer). There's no
-  // interactive sign-in flow to report progress for — SigV4 needs only a
-  // stored key pair — so unlike Kimi there's no matching PENDING channel.
-  // Request channels are declared by services/bedrockAuthService.ipc.ts.
-  BEDROCK_AUTH_CHANGED: 'bedrockAuth:changed',
-
   // Doppler CLI-flow auth broadcasts (main → renderer). Request channels are
   // declared by services/dopplerImport.ipc.ts.
   DOPPLER_AUTH_CHANGED: 'dopplerAuth:changed',
@@ -117,10 +101,5 @@ export const IPC = {
   TRAY_TOGGLE_LISTENING: 'tray:toggleListening',
   // Tray (renderer → main): renderer pushes the live `isActive` value so the
   // tray menu and icon stay in sync without main needing to introspect store.
-  LISTENING_STATE_CHANGED: 'tray:listeningStateChanged',
-
-  // Deep link (projectrose://...) delivered from main to renderer. On macOS
-  // this fires from `app.on('open-url')`; Windows/Linux delivery via argv is
-  // a follow-up.
-  DEEPLINK_RECEIVED: 'deeplink:received'
+  LISTENING_STATE_CHANGED: 'tray:listeningStateChanged'
 } as const

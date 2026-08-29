@@ -4,9 +4,9 @@ import styles from './ContextStatusBar.module.css'
 
 /**
  * The composer status row: ModelPicker on the left, context/tool-call
- * metrics plus the COMPRESS action on the right. The metrics only exist for
- * Rose conversations with an active context estimate; the picker always
- * renders (it's how external sessions choose Claude/Codex vs a Rose model).
+ * metrics plus the COMPRESS action on the right. The metrics only exist when
+ * the current conversation has an active context estimate; the picker always
+ * renders so a model can be selected before the first message.
  */
 export function ContextStatusBar(): JSX.Element {
   const status = useChat((s) => s.contextStatus)

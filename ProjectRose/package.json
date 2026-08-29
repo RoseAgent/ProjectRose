@@ -33,14 +33,6 @@
       "**/node_modules/@vscode/ripgrep*/**"
     ],
     "icon": "build/icon",
-    "protocols": [
-      {
-        "name": "ProjectRose",
-        "schemes": [
-          "projectrose"
-        ]
-      }
-    ],
     "publish": {
       "provider": "github",
       "owner": "RoseAgent",
@@ -78,22 +70,12 @@
         }
       ],
       "extendInfo": {
-        "CFBundleURLTypes": [
-          {
-            "CFBundleURLName": "ProjectRose Protocol",
-            "CFBundleURLSchemes": [
-              "projectrose"
-            ]
-          }
-        ],
         "NSMicrophoneUsageDescription": "ProjectRose uses the microphone for the Active Listening feature.",
         "NSCameraUsageDescription": "ProjectRose may use the camera when the chat requests screen or camera capture."
       }
     }
   },
   "dependencies": {
-    "@ai-sdk/amazon-bedrock": "^4.0.137",
-    "@ai-sdk/openai": "^3.0.53",
     "@ai-sdk/openai-compatible": "^2.0.62",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@fontsource/ibm-plex-mono": "^5.2.7",
@@ -107,7 +89,6 @@
     "@xterm/xterm": "^5.5.0",
     "ai": "^6.0.168",
     "ai-sdk-ollama": "^3.8.3",
-    "aws4fetch": "^1.0.20",
     "better-sqlite3": "^12.9.0",
     "clsx": "^2.1.1",
     "discord.js": "^14.26.3",

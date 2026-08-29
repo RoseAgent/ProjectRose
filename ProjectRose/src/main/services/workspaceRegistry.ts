@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs'
 import { basename } from 'path'
 import { listAllConversations } from './conversationStore'
-import { listExternalSessions } from './externalSessions'
 import { getRecentProjects } from './recentProjects'
 import type {
   ConversationListItem,
@@ -9,7 +8,6 @@ import type {
   WorkspaceGroup,
   WorkspaceGroupedList
 } from '../../shared/conversationGroups'
-import type { ExternalSource } from '../../shared/externalSession'
 
 // Canonical dedupe key for a workspace path (case-insensitive on win32).
 function pathKey(p: string): string {
@@ -32,48 +30,23 @@ async function existsDir(p: string): Promise<boolean> {
 
 interface GroupAcc {
   workspacePath: string
-  approximate: boolean
   items: ConversationListItem[]
 }
 
-// Build the grouped sidebar list: Rose conversations + external sessions,
-// grouped by Workspace, interleaved chronologically, groups newest-first.
+// Build the grouped sidebar list: conversations grouped by Workspace,
+// interleaved chronologically, groups newest-first.
 export async function buildWorkspaceGroupedList(): Promise<WorkspaceGroupedList> {
-  const [rose, external] = await Promise.all([listAllConversations(), listExternalSessions()])
+  const conversations = await listAllConversations()
 
   const accs = new Map<string, GroupAcc>()
-
-  const keyFor = (workspacePath: string, approximate: boolean, source: string): string =>
-    // Approximate (cwd-less) external groups can't be trusted to equal a real
-    // path, so keep each isolated rather than merging into a real group.
-    approximate ? `approx:${source}:${workspacePath}` : pathKey(workspacePath)
-
-  const push = (
-    workspacePath: string,
-    approximate: boolean,
-    item: ConversationListItem
-  ): void => {
-    const k = keyFor(workspacePath, approximate, item.source)
+  for (const m of conversations) {
+    const k = pathKey(m.workspacePath)
     let acc = accs.get(k)
     if (!acc) {
-      acc = { workspacePath, approximate, items: [] }
+      acc = { workspacePath: m.workspacePath, items: [] }
       accs.set(k, acc)
     }
-    acc.items.push(item)
-  }
-
-  for (const m of rose) {
-    push(m.workspacePath, false, {
-      source: 'rose',
-      id: m.id,
-      title: m.title,
-      createdAt: m.createdAt,
-      updatedAt: m.updatedAt
-    })
-  }
-  for (const m of external) {
-    push(m.workspacePath, m.approximatePath === true, {
-      source: m.source,
+    acc.items.push({
       id: m.id,
       title: m.title,
       createdAt: m.createdAt,
@@ -88,8 +61,7 @@ export async function buildWorkspaceGroupedList(): Promise<WorkspaceGroupedList>
     groups.push({
       workspacePath: acc.workspacePath,
       name: displayName(acc.workspacePath),
-      existsOnDisk: acc.approximate ? false : await existsDir(acc.workspacePath),
-      approximatePath: acc.approximate || undefined,
+      existsOnDisk: await existsDir(acc.workspacePath),
       lastActivity,
       items: acc.items
     })
@@ -99,9 +71,9 @@ export async function buildWorkspaceGroupedList(): Promise<WorkspaceGroupedList>
   return { groups }
 }
 
-// Every Workspace the app knows about — union of conversation groups, external
-// session cwds, and recents. Feeds the New Conversation picker and the
-// always-on runtime boot. Sorted most-recent-first.
+// Every Workspace the app knows about — union of conversation groups and
+// recents. Feeds the New Conversation picker and the always-on runtime boot.
+// Sorted most-recent-first.
 export async function listKnownWorkspaces(): Promise<KnownWorkspace[]> {
   const { groups } = await buildWorkspaceGroupedList()
   const byKey = new Map<string, KnownWorkspace>()
@@ -109,35 +81,29 @@ export async function listKnownWorkspaces(): Promise<KnownWorkspace[]> {
   const add = (
     path: string,
     lastActivity: number,
-    source: KnownWorkspace['sources'][number],
     existsOnDisk?: boolean
   ): void => {
     const k = pathKey(path)
     const existing = byKey.get(k)
     if (existing) {
       existing.lastActivity = Math.max(existing.lastActivity, lastActivity)
-      if (!existing.sources.includes(source)) existing.sources.push(source)
       return
     }
     byKey.set(k, {
       path,
       name: displayName(path),
       lastActivity,
-      existsOnDisk: existsOnDisk ?? false,
-      sources: [source]
+      existsOnDisk: existsOnDisk ?? false
     })
   }
 
   for (const g of groups) {
-    if (g.approximatePath) continue // not a usable real path
-    // Attribute the group's sources from its items.
-    const sources = new Set<'rose' | ExternalSource>(g.items.map((i) => i.source))
-    for (const s of sources) add(g.workspacePath, g.lastActivity, s, g.existsOnDisk)
+    add(g.workspacePath, g.lastActivity, g.existsOnDisk)
   }
 
   // Recents may include workspaces with no conversations yet.
   for (const r of getRecentProjects()) {
-    add(r.path, r.lastOpened, 'recent')
+    add(r.path, r.lastOpened)
   }
 
   // Resolve existsOnDisk for recent-only entries that groups didn't already stat.

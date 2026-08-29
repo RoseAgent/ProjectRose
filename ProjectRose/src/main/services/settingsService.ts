@@ -7,12 +7,7 @@ import { DEFAULT_CALENDAR_SETTINGS, type CalendarSettings } from '../../shared/c
 import { DEFAULT_EMAIL_SETTINGS, type EmailSettings } from '../../shared/email'
 import { DEFAULT_TTS_SETTINGS, type TtsSettings } from '../../shared/tts'
 import { logInteraction } from './interactionLog'
-import {
-  DEFAULT_KIMI_MODEL,
-  DEFAULT_KIMI_PLATFORM_MODEL,
-  PROJECTROSE_MODEL,
-  type ModelConfig
-} from '../../shared/modelConfig'
+import type { ModelConfig } from '../../shared/modelConfig'
 
 export type { ModelConfig } from '../../shared/modelConfig'
 
@@ -28,16 +23,10 @@ export interface AppSettings {
   whisperModel: string
   lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
-  // How Kimi authenticates: 'oauth' (kimi.com account, device flow, Coding
-  // API) or 'apikey' (BYO Moonshot platform key → api.moonshot.ai/v1). The
-  // key itself lives in userData/kimi-api-key.bin via safeStorage.
-  kimiAuthMethod: 'oauth' | 'apikey'
-  // AWS region the Bedrock provider talks to. Not a secret, so it lives here
-  // rather than in the sealed store — the key pair itself is in
-  // userData/bedrock-credentials.bin via safeStorage. Region is load-bearing
-  // beyond routing: which models exist, and which inference profiles are
-  // reachable, is region-scoped.
-  bedrockRegion: string
+  // User-configured OpenAI-compatible Chat Completions endpoint. The API key
+  // is optional and stored separately with safeStorage.
+  openaiCompatibleBaseUrl: string
+  openaiCompatibleModel: string
   // The most recent provider+model pair the user picked in the chat
   // composer's ModelPicker. Not a user-facing setting: it seeds the picker
   // for new Conversations and is the model background LLM work (compression,
@@ -80,8 +69,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   whisperModel: 'Xenova/whisper-tiny.en',
   lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
-  kimiAuthMethod: 'oauth',
-  bedrockRegion: 'us-east-1',
+  openaiCompatibleBaseUrl: '',
+  openaiCompatibleModel: '',
   contacts: DEFAULT_CONTACTS_SETTINGS,
   calendar: DEFAULT_CALENDAR_SETTINGS,
   email: DEFAULT_EMAIL_SETTINGS,
@@ -132,58 +121,66 @@ export async function readSettings(_rootPath?: string): Promise<AppSettings> {
   // scanner was removed; old settings.json files may still carry it).
   delete (merged.email as unknown as Record<string, unknown>).quarantine
 
-  // Drop legacy provider config (anthropic/openai/bedrock/openai-compatible
-  // were removed when ProjectRose narrowed to projectrose + ollama). Older
-  // ~/.rose/settings.json files may still carry these fields.
-  //
-  // Bedrock has since been reintroduced, but deliberately not through
-  // `providerKeys`: its credentials are sealed in userData/*.bin like every
-  // other secret, and only `bedrockRegion` (non-secret) lives in settings.json.
-  // So this strip stays as-is — it must keep removing the old plaintext-key
-  // blob, which is exactly what we don't want back.
-  delete (merged as Record<string, unknown>).providerKeys
-  delete (merged as Record<string, unknown>).openaiCompatBaseUrl
-  delete (merged as Record<string, unknown>).openaiCompatApiKey
-
-  // Migrate from the old multi-model + router shape: lift the default Ollama
-  // model name out of models[] (used by the lastModel migration below) and
-  // drop the now-unused fields.
   const legacy = merged as Record<string, unknown>
+
+  // Recover the old compatible-endpoint URL/model when present, but never
+  // retain a plaintext legacy API key. New keys are written only through the
+  // encrypted credential store.
+  if (
+    !stored.openaiCompatibleBaseUrl &&
+    typeof legacy.openaiCompatBaseUrl === 'string'
+  ) {
+    merged.openaiCompatibleBaseUrl = legacy.openaiCompatBaseUrl
+  }
+
   const legacyModels = legacy.models
   const legacyDefaultId = legacy.defaultModelId
-  if (Array.isArray(legacyModels) && !legacy.ollamaModelName) {
-    const ollamaModels = legacyModels.filter(
+  if (Array.isArray(legacyModels)) {
+    const models = legacyModels.filter(
       (m): m is { id?: string; provider?: string; modelName?: string } =>
-        !!m && typeof m === 'object' && (m as { provider?: unknown }).provider === 'ollama'
+        !!m && typeof m === 'object'
     )
-    const chosen =
+    const ollamaModels = models.filter((m) => m.provider === 'ollama')
+    const compatibleModels = models.filter(
+      (m) => m.provider === 'openai-compatible' || m.provider === 'openai'
+    )
+    const chosenOllama =
       ollamaModels.find((m) => m.id && m.id === legacyDefaultId) ?? ollamaModels[0]
-    if (chosen?.modelName) legacy.ollamaModelName = chosen.modelName
+    const chosenCompatible =
+      compatibleModels.find((m) => m.id && m.id === legacyDefaultId) ?? compatibleModels[0]
+    if (!legacy.ollamaModelName && chosenOllama?.modelName) {
+      legacy.ollamaModelName = chosenOllama.modelName
+    }
+    if (!stored.openaiCompatibleModel && chosenCompatible?.modelName) {
+      merged.openaiCompatibleModel = chosenCompatible.modelName
+    }
   }
+
+  // Only the two standalone providers remain valid. Preserve a compatible
+  // lastModel, otherwise fall back to the legacy Ollama model if available.
+  if (
+    merged.lastModel &&
+    merged.lastModel.provider !== 'ollama' &&
+    merged.lastModel.provider !== 'openai-compatible'
+  ) {
+    merged.lastModel = null
+  }
+  const ollamaModelName =
+    typeof legacy.ollamaModelName === 'string' ? legacy.ollamaModelName : ''
+  if (!merged.lastModel && ollamaModelName) {
+    merged.lastModel = { provider: 'ollama', modelName: ollamaModelName }
+  }
+
+  delete legacy.providerKeys
+  delete legacy.openaiCompatBaseUrl
+  delete legacy.openaiCompatApiKey
   delete legacy.models
   delete legacy.defaultModelId
   delete legacy.router
-
-  // Migrate from the global hostMode era: the active provider + model choice
-  // moved into the chat composer (per-Conversation, persisted on the
-  // Conversation). Synthesize lastModel from the legacy fields once, then
-  // drop them so settings.json stays minimal.
-  if (!merged.lastModel) {
-    const hostMode = legacy.hostMode
-    const kimiModelName = typeof legacy.kimiModelName === 'string' ? legacy.kimiModelName : ''
-    const ollamaModelName = typeof legacy.ollamaModelName === 'string' ? legacy.ollamaModelName : ''
-    if (hostMode === 'projectrose') {
-      merged.lastModel = PROJECTROSE_MODEL
-    } else if (hostMode === 'kimi') {
-      const fallback =
-        merged.kimiAuthMethod === 'apikey' ? DEFAULT_KIMI_PLATFORM_MODEL : DEFAULT_KIMI_MODEL
-      merged.lastModel = { provider: 'kimi', modelName: kimiModelName || fallback }
-    } else if (ollamaModelName) {
-      merged.lastModel = { provider: 'ollama', modelName: ollamaModelName }
-    }
-  }
   delete legacy.hostMode
   delete legacy.kimiModelName
+  delete legacy.kimiAuthMethod
+  delete legacy.bedrockRegion
   delete legacy.ollamaModelName
 
   // The bloom view is always full screen on entry now — the "agent starts

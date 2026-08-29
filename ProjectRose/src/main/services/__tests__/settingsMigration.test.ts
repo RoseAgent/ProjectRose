@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// readSettings migration: the global hostMode era → composer-driven lastModel.
-
 const fileState: { content: string | null } = { content: null }
 
 vi.mock('fs/promises', () => ({
@@ -28,74 +26,49 @@ beforeEach(() => {
   fileState.content = null
 })
 
-describe('readSettings hostMode → lastModel migration', () => {
-  it('synthesizes lastModel from hostMode projectrose', async () => {
-    stub({ hostMode: 'projectrose' })
-    const s = await readSettings()
-    expect(s.lastModel).toEqual({ provider: 'projectrose', modelName: 'managed' })
-    expect('hostMode' in s).toBe(false)
+describe('readSettings provider migration', () => {
+  it('drops stale managed and vendor-specific model selections', async () => {
+    for (const provider of ['projectrose', 'kimi', 'bedrock']) {
+      stub({ lastModel: { provider, modelName: 'old-model' } })
+      const settings = await readSettings()
+      expect(settings.lastModel).toBeNull()
+    }
   })
 
-  it('synthesizes lastModel from hostMode kimi with the stored model name', async () => {
-    stub({ hostMode: 'kimi', kimiModelName: 'k3', kimiAuthMethod: 'oauth' })
-    const s = await readSettings()
-    expect(s.lastModel).toEqual({ provider: 'kimi', modelName: 'k3' })
-    expect('kimiModelName' in s).toBe(false)
-  })
-
-  it('kimi default honors the auth method when no model name was stored', async () => {
-    stub({ hostMode: 'kimi', kimiModelName: '', kimiAuthMethod: 'apikey' })
-    const s = await readSettings()
-    expect(s.lastModel).toEqual({ provider: 'kimi', modelName: 'kimi-k3' })
-
-    stub({ hostMode: 'kimi', kimiModelName: '', kimiAuthMethod: 'oauth' })
-    const s2 = await readSettings()
-    expect(s2.lastModel).toEqual({ provider: 'kimi', modelName: 'kimi-for-coding' })
-  })
-
-  it('synthesizes lastModel from a configured Ollama model in self mode', async () => {
-    stub({ hostMode: 'self', ollamaModelName: 'llama3:8b' })
-    const s = await readSettings()
-    expect(s.lastModel).toEqual({ provider: 'ollama', modelName: 'llama3:8b' })
-    expect('ollamaModelName' in s).toBe(false)
-  })
-
-  it('leaves lastModel unset when self mode had no Ollama model', async () => {
-    stub({ hostMode: 'self' })
-    const s = await readSettings()
-    expect(s.lastModel).toBeUndefined()
-  })
-
-  it('does not overwrite an existing lastModel (idempotent re-read)', async () => {
-    stub({
-      hostMode: 'kimi',
-      kimiModelName: 'k3',
-      lastModel: { provider: 'ollama', modelName: 'qwen3' }
+  it('preserves supported model selections', async () => {
+    stub({ lastModel: { provider: 'openai-compatible', modelName: 'gpt-4.1-mini' } })
+    expect((await readSettings()).lastModel).toEqual({
+      provider: 'openai-compatible',
+      modelName: 'gpt-4.1-mini'
     })
-    const s = await readSettings()
-    expect(s.lastModel).toEqual({ provider: 'ollama', modelName: 'qwen3' })
   })
 
-  it('drops all three legacy keys even when no lastModel can be synthesized', async () => {
-    stub({ hostMode: 'self', kimiModelName: 'kimi-for-coding', ollamaModelName: '' })
-    const s = await readSettings()
-    expect('hostMode' in s).toBe(false)
-    expect('kimiModelName' in s).toBe(false)
-    expect('ollamaModelName' in s).toBe(false)
-  })
-
-  it('chains with the old multi-model migration: models[] → ollamaModelName → lastModel', async () => {
+  it('migrates the old compatible URL and model list', async () => {
     stub({
-      hostMode: 'self',
+      openaiCompatBaseUrl: 'https://api.example.com/v1',
       models: [
-        { id: 'a', provider: 'ollama', modelName: 'mistral' },
-        { id: 'b', provider: 'ollama', modelName: 'llama3' }
+        { id: 'a', provider: 'openai-compatible', modelName: 'example-model' }
       ],
-      defaultModelId: 'b',
-      router: {}
+      defaultModelId: 'a'
     })
-    const s = await readSettings()
-    expect(s.lastModel).toEqual({ provider: 'ollama', modelName: 'llama3' })
-    expect('models' in s).toBe(false)
+    const settings = await readSettings()
+    expect(settings.openaiCompatibleBaseUrl).toBe('https://api.example.com/v1')
+    expect(settings.openaiCompatibleModel).toBe('example-model')
+    expect('openaiCompatApiKey' in settings).toBe(false)
+  })
+
+  it('migrates the old Ollama model into lastModel', async () => {
+    stub({ hostMode: 'self', ollamaModelName: 'llama3:8b' })
+    const settings = await readSettings()
+    expect(settings.lastModel).toEqual({ provider: 'ollama', modelName: 'llama3:8b' })
+    expect('hostMode' in settings).toBe(false)
+    expect('ollamaModelName' in settings).toBe(false)
+  })
+
+  it('uses the default standalone settings on a fresh install', async () => {
+    const settings = await readSettings()
+    expect(settings.ollamaBaseUrl).toBe('http://localhost:11434')
+    expect(settings.openaiCompatibleBaseUrl).toBe('')
+    expect(settings.openaiCompatibleModel).toBe('')
   })
 })
